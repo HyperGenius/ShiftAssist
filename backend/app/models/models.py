@@ -1,13 +1,24 @@
 # backend/app/models/models.py
+import enum
 import uuid
 from datetime import datetime
-from pydantic import BaseModel
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Enum, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import declarative_base
-import enum
 
-Base = declarative_base()
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    ForeignKey,
+    String,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import DeclarativeBase
+
+
+class Base(DeclarativeBase):
+    """SQLAlchemy DeclarativeBase の基底クラス."""
+
 
 # --- Enums ---
 class SkillRankEnum(str, enum.Enum):
@@ -28,6 +39,7 @@ class SkillRankEnum(str, enum.Enum):
     rank_c = "rank_c"
     rank_d = "rank_d"
 
+
 class PlanStatusEnum(str, enum.Enum):
     """シフトプランのステータスを表す列挙型.
 
@@ -40,6 +52,7 @@ class PlanStatusEnum(str, enum.Enum):
     draft = "draft"
     pending_approval = "pending_approval"
     published = "published"
+
 
 class SlotTypeEnum(str, enum.Enum):
     """シフト枠の種別を表す列挙型.
@@ -64,6 +77,7 @@ class SlotTypeEnum(str, enum.Enum):
     sun_hol_night = "sun_hol_night"
     long_hol_day = "long_hol_day"
     long_hol_night = "long_hol_night"
+
 
 # --- Models ---
 class Department(Base):
@@ -92,7 +106,7 @@ class Department(Base):
     )
 
 
-class User(BaseModel):
+class User(Base):
     """FlexShiftのユーザーを表すSQLAlchemyモデル.
 
     Clerk認証と連携したユーザー情報を管理する。
@@ -108,10 +122,11 @@ class User(BaseModel):
     __tablename__ = "users"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     clerk_user_id = Column(String, unique=True, index=True, nullable=False)
-    role = Column(String, default="viewer") # viewer, editor, approver
+    role = Column(String, default="viewer")  # viewer, editor, approver
     created_at = Column(DateTime, default=datetime.utcnow)
 
-class Worker(BaseModel):
+
+class Worker(Base):
     """シフトにアサインされる対応者を表すSQLAlchemyモデル.
 
     マルチテナント対応のため ``tenant_id`` で論理分離される。
@@ -130,15 +145,18 @@ class Worker(BaseModel):
 
     __tablename__ = "workers"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(String, index=True, nullable=False) # Clerk Organization ID
+    tenant_id = Column(String, index=True, nullable=False)  # Clerk Organization ID
     name = Column(String, nullable=False)
-    department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id"), nullable=False)
+    department_id = Column(
+        UUID(as_uuid=True), ForeignKey("departments.id"), nullable=False
+    )
     skill_rank = Column(Enum(SkillRankEnum), nullable=False)
     is_special = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-class ShiftPlan(BaseModel):
+
+class ShiftPlan(Base):
     """月次シフトプランを表すSQLAlchemyモデル.
 
     テナントごとに作成される対象年月のシフト計画。
@@ -158,12 +176,13 @@ class ShiftPlan(BaseModel):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(String, index=True, nullable=False)
     title = Column(String, nullable=False)
-    target_year_month = Column(String, nullable=False) # e.g. "2026-04"
+    target_year_month = Column(String, nullable=False)  # e.g. "2026-04"
     status = Column(Enum(PlanStatusEnum), default=PlanStatusEnum.draft, nullable=False)
-    created_by = Column(String, nullable=False) # Clerk User ID
+    created_by = Column(String, nullable=False)  # Clerk User ID
     created_at = Column(DateTime, default=datetime.utcnow)
 
-class ShiftSlot(BaseModel):
+
+class ShiftSlot(Base):
     """シフトプラン内の個別の対応枠を表すSQLAlchemyモデル.
 
     シフトプラン（``ShiftPlan``）に紐づく、特定の日付と枠種別の
@@ -180,11 +199,16 @@ class ShiftSlot(BaseModel):
     __tablename__ = "shift_slots"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(String, index=True, nullable=False)
-    plan_id = Column(UUID(as_uuid=True), ForeignKey("shift_plans.id", ondelete="CASCADE"), nullable=False)
-    date = Column(DateTime, nullable=False) # Date型でも可
+    plan_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("shift_plans.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    date = Column(DateTime, nullable=False)  # Date型でも可
     slot_type = Column(Enum(SlotTypeEnum), nullable=False)
 
-class ShiftAssignment(BaseModel):
+
+class ShiftAssignment(Base):
     """シフト枠への対応者アサインメントを表すSQLAlchemyモデル.
 
     シフト枠（``ShiftSlot``）と対応者（``Worker``）の対応関係を管理する。
@@ -203,11 +227,15 @@ class ShiftAssignment(BaseModel):
     __tablename__ = "shift_assignments"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(String, index=True, nullable=False)
-    slot_id = Column(UUID(as_uuid=True), ForeignKey("shift_slots.id", ondelete="CASCADE"), nullable=False)
-    worker_id = Column(UUID(as_uuid=True), ForeignKey("workers.id", ondelete="CASCADE"), nullable=False)
-    is_manual_override = Column(Boolean, default=False) # ルール逸脱の強制保存フラグ
+    slot_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("shift_slots.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    worker_id = Column(
+        UUID(as_uuid=True), ForeignKey("workers.id", ondelete="CASCADE"), nullable=False
+    )
+    is_manual_override = Column(Boolean, default=False)  # ルール逸脱の強制保存フラグ
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    __table_args__ = (
-        UniqueConstraint('slot_id', 'worker_id', name='uq_slot_worker'),
-    )
+    __table_args__ = (UniqueConstraint("slot_id", "worker_id", name="uq_slot_worker"),)
