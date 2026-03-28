@@ -1,0 +1,76 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "pip install (functions)",
+            "type": "shell",
+            "osx": {
+                "command": "${config:azureFunctions.pythonVenv}/bin/python -m pip install -r requirements.txt"
+            },
+            "windows": {
+                "command": "${config:azureFunctions.pythonVenv}\\Scripts\\python -m pip install -r requirements.txt"
+            },
+            "linux": {
+                "command": "${config:azureFunctions.pythonVenv}/bin/python -m pip install -r requirements.txt"
+            },
+            "problemMatcher": [],
+            "options": {
+                "cwd": "${workspaceFolder}/backend"
+            }
+        },
+        {
+            "label": "Backend (Uvicorn)",
+            "type": "shell",
+            "command": "source .venv/bin/activate && uvicorn app.main:app --reload",
+            "isBackground": true,
+            "problemMatcher": [],
+            "presentation": {
+                "group": "dev-servers",
+                "panel": "dedicated"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}/backend"
+            },
+            "runOptions": {
+                "runOn": "folderOpen"
+            }
+        },
+        {
+            "label": "Frontend (npm)",
+            "type": "shell",
+            "command": "npm run dev",
+            "isBackground": true,
+            "problemMatcher": [],
+            "presentation": {
+                "group": "dev-servers"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}/frontend"
+            },
+            "runOptions": {
+                "runOn": "folderOpen"
+            }
+        },
+        {
+            "label": "Pre-commit run all files",
+            "type": "shell",
+            "command": "source backend/venv/bin/activate && pre-commit run --all-files",
+            "problemMatcher": [],
+            "presentation": {
+                "group": "test-runners"
+            }
+        },
+        {
+            "label": "Alembic upgrade head",
+            "type": "shell",
+            "command": "source venv/bin/activate && alembic upgrade head",
+            "problemMatcher": [],
+            "presentation": {
+                "group": "dev-servers",
+            },
+            "options": {
+                "cwd": "${workspaceFolder}/backend"
+            }
+        }
+    ]
+}
