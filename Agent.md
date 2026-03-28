@@ -130,6 +130,43 @@
    alembic show head
    ```
 
+5. **PostgreSQL Enum型を含むマイグレーションの書き方**
+
+   `sa.Enum(create_type=False)` を `op.create_table` の Column に渡しても、SQLAlchemyの内部イベントが Enum を再 CREATE しようとするため `DuplicateObject` エラーが発生する。
+   **必ず以下のパターンで記述すること:**
+
+   ```python
+   # NG: sa.Enum を直接 Column に渡す（内部でCREATE TYPE が二重発行される）
+   sa.Column('skill_rank', sa.Enum('rank_a', ..., name='skillrankenum'), nullable=False)
+
+   # OK: DDL を明示的に発行し、Column には create_type=False の postgresql.ENUM を使う
+   from sqlalchemy.dialects import postgresql
+
+   # upgrade() 冒頭で Enum 型を作成
+   op.execute(sa.text("CREATE TYPE skillrankenum AS ENUM ('rank_a', 'rank_b', 'rank_c', 'rank_d')"))
+
+   # op.create_table 内では create_type=False を指定
+   sa.Column('skill_rank', postgresql.ENUM(name='skillrankenum', create_type=False), nullable=False)
+
+   # downgrade() では明示的に DROP
+   op.execute(sa.text("DROP TYPE skillrankenum"))
+   ```
+
+6. **空マイグレーションを誤って適用してしまった場合の復旧**
+
+   `pass` のみの空マイグレーションで `alembic upgrade head` を実行すると、DBの `alembic_version` テーブルにリビジョンが記録されるが、テーブルやEnum型は存在しない中途半端な状態になる。
+
+   ```bash
+   # 1. alembic_version を空（base）にリセット
+   alembic stamp base
+
+   # 2. マイグレーションファイルを正しい内容に修正した後、再適用
+   alembic upgrade head
+   ```
+
+   なお上記の復旧手順は **DBにテーブルがまだ存在しない初期状態**に限り有効。
+   既存データがある場合は手動でのDB修正が必要になるため、空ファイルでの `upgrade head` は厳禁とする。
+
 ---
 
 ## 5. テスト方針 (Testing Strategy)

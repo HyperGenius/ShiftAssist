@@ -29,6 +29,7 @@ fileConfig(config.config_file_name)  # type: ignore
 # ターゲットのメタデータを指定（SQLModelの情報）
 target_metadata = SQLModel.metadata
 
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
     # 環境変数からURLを取得
