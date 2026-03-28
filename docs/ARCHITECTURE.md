@@ -9,11 +9,36 @@
 フロントエンドとバックエンドを分離し、インフラのコードも同一リポジトリで管理するモノレポ構成を採用する。
 
 ```text
-.
-├── frontend/   # フロントエンドコード (UI / 状態管理 / API通信)
-├── backend/    # バックエンドコード (シフト検証ロジック / API提供 / DB操作)
-├── infra/      # インフラストラクチャコード (Terraform等のSaaS・クラウド構成管理)
-└── docs/       # 各種ドキュメント (仕様書、設計書など)
+/
+├── backend/            # バックエンドコード (シフト検証ロジック / API提供 / DB操作)
+│   ├── app/
+│   │   ├── core/       # アプリケーションのコアロジック
+│   │   ├── db/         # DB接続 (db.py)
+│   │   ├── models/     # SQLModel (ORM) & Pydanticモデル
+│   │   ├── routers/    # APIエンドポイント定義
+│   │   └── services/   # ビジネスロジック
+│   ├── alembic/        # DBマイグレーション
+│   ├── scripts/        # バッチ処理 (run_batch.py), シードデータ
+│   └── tests/          # 単体テスト & 統合テスト
+│       ├── unit/       # ユニットテスト
+│       └── integration/# 統合テスト
+│
+├── frontend/           # フロントエンドコード (UI / 状態管理 / API通信)
+│   ├── src/
+│   │   ├── app/        # Next.js App Router Pages
+│   │   ├── components/ # UIコンポーネント
+│   │   │   └── ui/     # カスタムSciFiコンポーネント (SciFiButton等)
+│   │   ├── services/   # API呼び出し (api.ts)
+│   │   ├── types/      # TypeScript型定義
+│   │   └── utils/      # 汎用ユーティリティ
+│   └── e2e/            # Playwrightテスト (準備中)
+│
+├── docs/               # プロジェクトドキュメント
+│   ├── ARCHITECTURE.md # 本ドキュメント
+│   └── ...             # 各種実装ガイド & レポート
+│
+└── infra/              # インフラストラクチャコード (Terraform等のSaaS・クラウド構成管理)
+    └── neon/           # Neon DB作成
 ```
 
 ## 2. 技術スタック
