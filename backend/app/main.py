@@ -1,4 +1,4 @@
-# backend/main.py
+# backend/app/main.py
 import os
 
 from fastapi import FastAPI

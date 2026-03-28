@@ -5,16 +5,15 @@
 """
 
 import uuid
+from collections.abc import Sequence
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi import HTTPException
-
 from app.models.models import SkillRankEnum, Worker
 from app.models.schemas import WorkerCreate, WorkerResponse, WorkerUpdate
 from app.services import worker_service
-
+from fastapi import HTTPException
 
 # ---------------------------------------------------------------------------
 # テスト用フィクスチャ
@@ -51,7 +50,7 @@ def _make_worker(
 def _make_session(
     *,
     exec_first_return: object = None,
-    exec_all_return: list[object] | None = None,
+    exec_all_return: Sequence[object] | None = None,
 ) -> MagicMock:
     """テスト用Sessionモックを生成するヘルパー."""
     session = MagicMock()
@@ -77,8 +76,6 @@ class TestCreateWorker:
         dept = Department()
         dept.id = DEPT_ID
         dept.tenant_id = TENANT_ID
-
-        worker = _make_worker()
 
         session = MagicMock()
         exec_result_dept = MagicMock()
@@ -233,9 +230,7 @@ class TestUpdateWorker:
         data = WorkerUpdate(name="更新 太郎")
 
         with patch.object(worker_service, "_validate_department"):
-            result = worker_service.update_worker(
-                session, TENANT_ID, WORKER_ID, data
-            )
+            result = worker_service.update_worker(session, TENANT_ID, WORKER_ID, data)
 
         assert result.name == "更新 太郎"
         session.add.assert_called_once()
@@ -250,9 +245,7 @@ class TestUpdateWorker:
         new_dept_id = uuid.uuid4()
         data = WorkerUpdate(department_id=new_dept_id)
 
-        with patch.object(
-            worker_service, "_validate_department"
-        ) as mock_validate:
+        with patch.object(worker_service, "_validate_department") as mock_validate:
             worker_service.update_worker(session, TENANT_ID, WORKER_ID, data)
 
         mock_validate.assert_called_once_with(session, TENANT_ID, new_dept_id)
