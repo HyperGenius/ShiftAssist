@@ -21,7 +21,7 @@ class Base(DeclarativeBase):
 
 
 # --- Enums ---
-class SkillRankEnum(str, enum.Enum):
+class SkillRankEnum(enum.StrEnum):
     """対応者のスキルランクを表す列挙型.
 
     1組のペアには「rank_a」の者を1名以上含める必要がある。
@@ -40,7 +40,7 @@ class SkillRankEnum(str, enum.Enum):
     rank_d = "rank_d"
 
 
-class PlanStatusEnum(str, enum.Enum):
+class PlanStatusEnum(enum.StrEnum):
     """シフトプランのステータスを表す列挙型.
 
     Attributes:
@@ -54,7 +54,7 @@ class PlanStatusEnum(str, enum.Enum):
     published = "published"
 
 
-class SlotTypeEnum(str, enum.Enum):
+class SlotTypeEnum(enum.StrEnum):
     """シフト枠の種別を表す列挙型.
 
     対象となる対応日と時間帯の組み合わせを定義する。
@@ -150,7 +150,7 @@ class Worker(Base):
     department_id = Column(
         UUID(as_uuid=True), ForeignKey("departments.id"), nullable=False
     )
-    skill_rank = Column(Enum(SkillRankEnum), nullable=False)
+    skill_rank = Column(Enum(SkillRankEnum), nullable=False)  # type: ignore[var-annotated]
     is_special = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -177,7 +177,7 @@ class ShiftPlan(Base):
     tenant_id = Column(String, index=True, nullable=False)
     title = Column(String, nullable=False)
     target_year_month = Column(String, nullable=False)  # e.g. "2026-04"
-    status = Column(Enum(PlanStatusEnum), default=PlanStatusEnum.draft, nullable=False)
+    status = Column(Enum(PlanStatusEnum), default=PlanStatusEnum.draft, nullable=False)  # type: ignore[var-annotated]
     created_by = Column(String, nullable=False)  # Clerk User ID
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -205,7 +205,7 @@ class ShiftSlot(Base):
         nullable=False,
     )
     date = Column(DateTime, nullable=False)  # Date型でも可
-    slot_type = Column(Enum(SlotTypeEnum), nullable=False)
+    slot_type = Column(Enum(SlotTypeEnum), nullable=False)  # type: ignore[var-annotated]
 
 
 class ShiftAssignment(Base):
