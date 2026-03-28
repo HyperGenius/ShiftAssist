@@ -1,5 +1,16 @@
 {
     "mypy-type-checker.args": [
         "\"mypy-type-checker.args\" = [\"--config-file=backend/pyproject.toml\"]"
-    ]
+    ],
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true,
+        ".mypy_cache": true,
+        ".ruff_cache": true,
+        "**/__pycache__": true,
+        "backend/venv": true,
+    }
 }
