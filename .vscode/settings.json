@@ -1,4 +1,8 @@
 {
+    "python.defaultInterpreterPath": "${workspaceFolder}/backend/venv/bin/python",
+    "python.testing.pytestEnabled": true,
+    "python.testing.pytestArgs": ["backend/tests"],
+    "python.testing.cwd": "${workspaceFolder}/backend",
     "mypy-type-checker.args": [
         "\"mypy-type-checker.args\" = [\"--config-file=backend/pyproject.toml\"]"
     ],

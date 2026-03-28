@@ -21,7 +21,7 @@
         {
             "label": "Backend (Uvicorn)",
             "type": "shell",
-            "command": "source .venv/bin/activate && uvicorn app.main:app --reload",
+            "command": "source venv/bin/activate && uvicorn app.main:app --reload",
             "isBackground": true,
             "problemMatcher": [],
             "presentation": {

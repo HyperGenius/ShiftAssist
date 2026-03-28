@@ -15,4 +15,4 @@ COPY . .
 ENV PORT=8080
 
 # Uvicornでアプリケーションを起動
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
