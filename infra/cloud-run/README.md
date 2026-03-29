@@ -28,8 +28,32 @@ infra/cloud-run/
    gcloud auth application-default login
    ```
 
-3. **必要な認証情報・値の取得**
+3. **Terraform State 保存用の GCS バケット作成**
+   Terraform の State ファイルを保存するための GCS バケットを、**初回のみ** 手動で作成します。
+   ```bash
+   # 1. CLI認証を更新（ブラウザが開く）
+   gcloud auth login
+
+   # 2. デフォルトプロジェクトをに切り替え
+   gcloud config set project <YOUR_PROJECT_ID>
+
+   # 3. ADC（ライブラリ用認証）のクォータプロジェクトも切り替え
+   gcloud auth application-default set-quota-project <YOUR_PROJECT_ID>
+
+   # 4. バケットを作成
+   gcloud storage buckets create gs://<YOUR_GCS_BUCKET_NAME> \
+     --project=<YOUR_PROJECT_ID> \
+     --location=<REGION> \
+     --uniform-bucket-level-access
+
+   # 5. バケットへのState ファイルの誤上書き・削除からのリカバリに備え、バージョニングを有効化
+   gcloud storage buckets update gs://<YOUR_GCS_BUCKET_NAME> --versioning
+   ```
+   > このバケットは Terraform の管理外で一度だけ作成します。バケット名はグローバルで一意である必要があります（例: `shiftassist-tfstate-prod`）。
+
+4. **必要な認証情報・値の取得**
    - GCP プロジェクト ID
+   - Terraform State 保存用の GCS バケット名（上記で作成したもの）
    - Neon Database の接続 URL (`postgresql://...`)
    - Clerk Secret Key (`sk_live_...` または `sk_test_...`)
    - Clerk JWKS URL
@@ -74,6 +98,52 @@ terraform apply
 ```
 完了すると、Cloud RunのURLやArtifact RegistryのリポジトリURLが出力（Outputs）として表示されます。
 
+> **Note:** `terraform apply` 時点でイメージが Artifact Registry に存在しない場合、Cloud Run サービスの作成に失敗します（`Image not found` エラー）。後述の「初回イメージのプッシュ」を実施してから再度 `terraform apply` を実行してください。
+
+---
+
+## 🐳 初回イメージのプッシュ
+
+Terraform で Artifact Registry を作成した後、初回は手動でイメージをビルド・プッシュする必要があります。
+
+### 1. Docker 認証の設定
+
+```bash
+gcloud auth configure-docker asia-northeast1-docker.pkg.dev
+```
+
+### 2. イメージのビルド＆プッシュ
+
+```bash
+cd <repo_root>/backend
+
+docker build -t asia-northeast1-docker.pkg.dev/<YOUR_PROJECT_ID>/shift-assist/shift-assist-api:latest .
+
+docker push asia-northeast1-docker.pkg.dev/<YOUR_PROJECT_ID>/shift-assist/shift-assist-api:latest
+```
+
+### 3. terraform apply の再実行
+
+```bash
+cd <repo_root>/infra/cloud-run/environments/prod
+terraform apply
+```
+
+---
+
+## 🔄 継続的デプロイ（GitHub Actions）
+
+初回セットアップ完了後は、GitHub Actions によって自動デプロイが行われます。
+`main` ブランチへの push をトリガーに以下のフローが実行されます：
+
+```
+main へ push
+  → docker build & push（Artifact Registry へ）
+  → Cloud Run サービスの更新
+```
+
+手動でのイメージプッシュや `terraform apply` は通常不要です。
+
 ---
 
 ## 💡 新しい環境（例: dev）を追加する方法
@@ -93,3 +163,93 @@ terraform apply
 ## 🔐 シークレットの管理について
 本構成では、Secret Managerのリソース（枠組み）と IAM 権限の作成、および初期値の登録を Terraform で行っています。
 GitHub Actions などの CI/CD パイプラインを構築する場合は、Terraform にはダミーの値を渡し、実際の最新シークレット値の更新は CI/CD 側、または手動で GCP コンソールから行う運用に切り替えることも検討してください。
+
+---
+
+## ⚙️ GitHub Actions セットアップ
+
+※IAMの設定はTerraform で行いますが、GitHub Actions 側の Secrets 登録は手動で行う必要があります。
+
+`.github/workflows/deploy.yml` は `main` ブランチの `backend/` 配下への push をトリガーに、イメージのビルド・プッシュ・Cloud Run へのデプロイを自動実行します。
+
+### 必要な GitHub Secrets
+
+| Secret 名 | 説明 |
+|---|---|
+| `GCP_PROJECT_ID` | GCP プロジェクト ID（例: `shiftassist-491706`） |
+| `WIF_PROVIDER` | Workload Identity Federation プロバイダのリソース名 |
+| `WIF_SERVICE_ACCOUNT` | デプロイ用サービスアカウントのメールアドレス |
+
+GitHub リポジトリの **Settings → Secrets and variables → Actions** から登録してください。
+
+### Workload Identity Federation の設定（初回のみ）
+
+キーレス認証を利用するため、GCP 側で WIF の設定が必要です。
+
+```bash
+PROJECT_ID=shiftassist-491706
+REPO=HyperGenius/ShiftAssist
+
+# 1. Workload Identity Pool の作成
+gcloud iam workload-identity-pools create "github-pool" \
+  --project="${PROJECT_ID}" \
+  --location="global" \
+  --display-name="GitHub Actions Pool"
+
+# 2. Pool の完全なリソース名を取得
+POOL_ID=$(gcloud iam workload-identity-pools describe "github-pool" \
+  --project="${PROJECT_ID}" \
+  --location="global" \
+  --format="value(name)")
+
+# 3. Workload Identity Provider の作成
+gcloud iam workload-identity-pools providers create-oidc "github-provider" \
+  --project="${PROJECT_ID}" \
+  --location="global" \
+  --workload-identity-pool="github-pool" \
+  --display-name="GitHub Actions Provider" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.actor=assertion.actor,attribute.ref=assertion.ref" \
+  --issuer-uri="https://token.actions.githubusercontent.com"
+
+# 4. デプロイ用サービスアカウントの作成
+gcloud iam service-accounts create "github-actions-deploy" \
+  --project="${PROJECT_ID}" \
+  --display-name="GitHub Actions Deploy SA"
+
+SA_EMAIL="github-actions-deploy@${PROJECT_ID}.iam.gserviceaccount.com"
+
+# 5. サービスアカウントへのロール付与
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member="serviceAccount:${SA_EMAIL}" \
+  --role="roles/run.admin"
+
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member="serviceAccount:${SA_EMAIL}" \
+  --role="roles/artifactregistry.writer"
+
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member="serviceAccount:${SA_EMAIL}" \
+  --role="roles/iam.serviceAccountUser"
+
+# 6. GitHub リポジトリからの Impersonation を許可
+gcloud iam service-accounts add-iam-policy-binding "${SA_EMAIL}" \
+  --project="${PROJECT_ID}" \
+  --role="roles/iam.workloadIdentityUser" \
+  --member="principalSet://iam.googleapis.com/${POOL_ID}/attribute.repository/${REPO}"
+```
+
+### GitHub Secrets への登録値の確認
+
+上記の手順完了後、以下のコマンドで各 Secret の値を取得できます。
+
+```bash
+# WIF_PROVIDER
+gcloud iam workload-identity-pools providers describe "github-provider" \
+  --project="${PROJECT_ID}" \
+  --location="global" \
+  --workload-identity-pool="github-pool" \
+  --format="value(name)"
+
+# WIF_SERVICE_ACCOUNT
+echo "github-actions-deploy@${PROJECT_ID}.iam.gserviceaccount.com"
+```
