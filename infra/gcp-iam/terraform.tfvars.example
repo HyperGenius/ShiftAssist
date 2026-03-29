@@ -1,0 +1,9 @@
+# infra/gcp-iam/terraform.tfvars.example
+# このファイルをコピーして terraform.tfvars を作成してください
+
+project_id         = "<YOUR_PROJECT_ID>"
+region             = "asia-northeast1"
+github_repository  = "HyperGenius/ShiftAssist"
+pool_id            = "github-actions-pool"
+provider_id        = "github-provider"
+service_account_id = "github-actions-deployer"

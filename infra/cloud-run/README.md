@@ -184,72 +184,26 @@ GitHub リポジトリの **Settings → Secrets and variables → Actions** か
 
 ### Workload Identity Federation の設定（初回のみ）
 
-キーレス認証を利用するため、GCP 側で WIF の設定が必要です。
+キーレス認証のための WIF リソースは `infra/gcp-iam/` の Terraform で管理しています。
+詳細な手順は [infra/gcp-iam/README.md](../gcp-iam/README.md) を参照してください。
 
 ```bash
-PROJECT_ID=shiftassist-491706
-REPO=HyperGenius/ShiftAssist
-
-# 1. Workload Identity Pool の作成
-gcloud iam workload-identity-pools create "github-pool" \
-  --project="${PROJECT_ID}" \
-  --location="global" \
-  --display-name="GitHub Actions Pool"
-
-# 2. Pool の完全なリソース名を取得
-POOL_ID=$(gcloud iam workload-identity-pools describe "github-pool" \
-  --project="${PROJECT_ID}" \
-  --location="global" \
-  --format="value(name)")
-
-# 3. Workload Identity Provider の作成
-gcloud iam workload-identity-pools providers create-oidc "github-provider" \
-  --project="${PROJECT_ID}" \
-  --location="global" \
-  --workload-identity-pool="github-pool" \
-  --display-name="GitHub Actions Provider" \
-  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.actor=assertion.actor,attribute.ref=assertion.ref" \
-  --issuer-uri="https://token.actions.githubusercontent.com"
-
-# 4. デプロイ用サービスアカウントの作成
-gcloud iam service-accounts create "github-actions-deploy" \
-  --project="${PROJECT_ID}" \
-  --display-name="GitHub Actions Deploy SA"
-
-SA_EMAIL="github-actions-deploy@${PROJECT_ID}.iam.gserviceaccount.com"
-
-# 5. サービスアカウントへのロール付与
-gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
-  --member="serviceAccount:${SA_EMAIL}" \
-  --role="roles/run.admin"
-
-gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
-  --member="serviceAccount:${SA_EMAIL}" \
-  --role="roles/artifactregistry.writer"
-
-gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
-  --member="serviceAccount:${SA_EMAIL}" \
-  --role="roles/iam.serviceAccountUser"
-
-# 6. GitHub リポジトリからの Impersonation を許可
-gcloud iam service-accounts add-iam-policy-binding "${SA_EMAIL}" \
-  --project="${PROJECT_ID}" \
-  --role="roles/iam.workloadIdentityUser" \
-  --member="principalSet://iam.googleapis.com/${POOL_ID}/attribute.repository/${REPO}"
+cd infra/gcp-iam
+cp terraform.tfvars.example terraform.tfvars
+terraform init -backend-config="bucket=shiftassist-491706-tfstate-prod"
+terraform apply
 ```
 
 ### GitHub Secrets への登録値の確認
 
-上記の手順完了後、以下のコマンドで各 Secret の値を取得できます。
+apply 完了後、以下のコマンドで各 Secret の値を取得できます。
 
 ```bash
+cd infra/gcp-iam
+
 # WIF_PROVIDER
-gcloud iam workload-identity-pools providers describe "github-provider" \
-  --project="${PROJECT_ID}" \
-  --location="global" \
-  --workload-identity-pool="github-pool" \
-  --format="value(name)"
+terraform output workload_identity_provider_id
 
 # WIF_SERVICE_ACCOUNT
-echo "github-actions-deploy@${PROJECT_ID}.iam.gserviceaccount.com"
+terraform output service_account_email
 ```
