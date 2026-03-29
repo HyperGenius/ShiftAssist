@@ -115,11 +115,14 @@ gcloud auth configure-docker asia-northeast1-docker.pkg.dev
 ### 2. イメージのビルド＆プッシュ
 
 ```bash
+PROJECT_ID=<YOUR_PROJECT_ID>
 cd <repo_root>/backend
 
-docker build -t asia-northeast1-docker.pkg.dev/<YOUR_PROJECT_ID>/shift-assist/shift-assist-api:latest .
+docker build -t asia-northeast1-docker.pkg.dev/${PROJECT_ID}/shift-assist/shift-assist-api:latest .
+# または
+docker build --platform linux/amd64 -t asia-northeast1-docker.pkg.dev/${PROJECT_ID}/shift-assist/shift-assist-api:latest .
 
-docker push asia-northeast1-docker.pkg.dev/<YOUR_PROJECT_ID>/shift-assist/shift-assist-api:latest
+docker push asia-northeast1-docker.pkg.dev/${PROJECT_ID}/shift-assist/shift-assist-api:latest
 ```
 
 ### 3. terraform apply の再実行
@@ -176,7 +179,7 @@ GitHub Actions などの CI/CD パイプラインを構築する場合は、Terr
 
 | Secret 名 | 説明 |
 |---|---|
-| `GCP_PROJECT_ID` | GCP プロジェクト ID（例: `shiftassist-491706`） |
+| `GCP_PROJECT_ID` | GCP プロジェクト ID |
 | `WIF_PROVIDER` | Workload Identity Federation プロバイダのリソース名 |
 | `WIF_SERVICE_ACCOUNT` | デプロイ用サービスアカウントのメールアドレス |
 
@@ -190,7 +193,7 @@ GitHub リポジトリの **Settings → Secrets and variables → Actions** か
 ```bash
 cd infra/gcp-iam
 cp terraform.tfvars.example terraform.tfvars
-terraform init -backend-config="bucket=shiftassist-491706-tfstate-prod"
+terraform init -backend-config="bucket=<YOUR_PROJECT_ID>-tfstate-prod"
 terraform apply
 ```
 
