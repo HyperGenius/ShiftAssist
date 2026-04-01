@@ -7,10 +7,16 @@
 import uuid
 
 from fastapi import HTTPException, status
-from sqlmodel import Session, select
+from sqlalchemy import func
+from sqlmodel import Session, col, select
 
 from app.models.models import Department, Worker
-from app.models.schemas import DepartmentCreate, DepartmentResponse, DepartmentUpdate
+from app.models.schemas import (
+    DepartmentCreate,
+    DepartmentListResponse,
+    DepartmentResponse,
+    DepartmentUpdate,
+)
 
 
 def create_department(
@@ -37,20 +43,46 @@ def create_department(
     return DepartmentResponse.model_validate(department)
 
 
-def list_departments(session: Session, tenant_id: str) -> list[DepartmentResponse]:
+def list_departments(
+    session: Session,
+    tenant_id: str,
+    *,
+    skip: int = 0,
+    limit: int = 100,
+    search_query: str | None = None,
+) -> DepartmentListResponse:
     """テナントに属するDepartment一覧を取得する.
 
     Args:
         session: SQLModelセッション。
         tenant_id: 対象テナントID。
+        skip: スキップ件数（ページネーション用）。
+        limit: 取得上限件数（ページネーション用）。
+        search_query: 部門名の部分一致検索クエリ。
 
     Returns:
-        Department一覧のレスポンスモデルリスト。
+        合計件数と部門一覧を含むレスポンスモデル。
     """
-    departments = session.exec(
-        select(Department).where(Department.tenant_id == tenant_id)
-    ).all()
-    return [DepartmentResponse.model_validate(d) for d in departments]
+    stmt = select(Department).where(Department.tenant_id == tenant_id)
+    count_stmt = select(func.count(Department.id)).where(  # type: ignore[arg-type]
+        Department.tenant_id == tenant_id
+    )
+    if search_query:
+        escaped = (
+            search_query.replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        )
+        ilike_filter = col(Department.name).ilike(f"%{escaped}%", escape="\\")
+        stmt = stmt.where(ilike_filter)
+        count_stmt = count_stmt.where(ilike_filter)
+
+    total: int = session.exec(count_stmt).one()  # type: ignore[assignment]
+    departments = session.exec(stmt.offset(skip).limit(limit)).all()
+    return DepartmentListResponse(
+        total=total,
+        items=[DepartmentResponse.model_validate(d) for d in departments],
+    )
 
 
 def get_department(

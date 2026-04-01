@@ -4,8 +4,9 @@
 import uuid
 from datetime import date, datetime
 
-from app.models.models import SkillRankEnum, SlotTypeEnum
 from pydantic import BaseModel, ConfigDict, field_validator
+
+from app.models.models import SkillRankEnum, SlotTypeEnum
 
 
 class DepartmentCreate(BaseModel):
@@ -38,6 +39,13 @@ class DepartmentResponse(BaseModel):
     name: str
     code: str
     created_at: datetime
+
+
+class DepartmentListResponse(BaseModel):
+    """Departmentページネーション付き一覧レスポンススキーマ."""
+
+    total: int
+    items: list[DepartmentResponse]
 
 
 class WorkerCreate(BaseModel):

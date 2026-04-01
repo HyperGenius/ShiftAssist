@@ -7,7 +7,7 @@ import useSWR, { mutate as globalMutate } from "swr";
 
 import { createApiClient } from "@/utils/apiClient";
 import { fetcher } from "@/utils/fetcher";
-import type { Department, DepartmentCreate, DepartmentUpdate } from "@/types/department";
+import type { Department, DepartmentCreate, DepartmentListResponse, DepartmentUpdate } from "@/types/department";
 
 const DEPARTMENTS_PATH = "/api/departments/";
 
@@ -22,11 +22,11 @@ export function useDepartments() {
     [tenantId],
   );
 
-  const { data, error, isLoading } = useSWR<Department[]>(
+  const { data, error, isLoading } = useSWR<DepartmentListResponse>(
     swrKey,
     async ([path, , tid]: [string, null, string | null]) => {
       const token = await getToken();
-      return fetcher<Department[]>([path, token, tid]);
+      return fetcher<DepartmentListResponse>([path, token, tid]);
     },
     {
       revalidateOnFocus: false,
@@ -71,7 +71,7 @@ export function useDepartments() {
   );
 
   return {
-    departments: data ?? [],
+    departments: data?.items ?? [],
     isLoading,
     isError: !!error,
     error,

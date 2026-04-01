@@ -7,12 +7,17 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlmodel import Session
 
 from app.db import get_session
 from app.dependencies import get_tenant_id
-from app.models.schemas import DepartmentCreate, DepartmentResponse, DepartmentUpdate
+from app.models.schemas import (
+    DepartmentCreate,
+    DepartmentListResponse,
+    DepartmentResponse,
+    DepartmentUpdate,
+)
 from app.services import department_service
 
 router = APIRouter(prefix="/api/departments", tags=["departments"])
@@ -39,21 +44,29 @@ def create_department(
     return department_service.create_department(session, tenant_id, data)
 
 
-@router.get("/", response_model=list[DepartmentResponse])
+@router.get("/", response_model=DepartmentListResponse)
 def list_departments(
     tenant_id: str = Depends(get_tenant_id),
     session: Session = Depends(get_session),
-) -> list[DepartmentResponse]:
+    skip: int = Query(default=0, ge=0, description="スキップ件数"),
+    limit: int = Query(default=100, ge=1, le=1000, description="取得上限件数"),
+    search: str | None = Query(default=None, description="部門名の部分一致検索クエリ"),
+) -> DepartmentListResponse:
     """テナントに属するDepartment一覧を取得する.
 
     Args:
         tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
         session: DBセッション。
+        skip: スキップ件数（ページネーション用）。
+        limit: 取得上限件数（ページネーション用）。
+        search: 部門名の部分一致検索クエリ。
 
     Returns:
-        Department一覧。
+        合計件数と部門一覧。
     """
-    return department_service.list_departments(session, tenant_id)
+    return department_service.list_departments(
+        session, tenant_id, skip=skip, limit=limit, search_query=search
+    )
 
 
 @router.get("/{department_id}", response_model=DepartmentResponse)
