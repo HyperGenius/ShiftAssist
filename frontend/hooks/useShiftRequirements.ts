@@ -14,6 +14,9 @@ import type {
 
 const SHIFT_REQUIREMENTS_PATH = "/api/shift-requirements/";
 
+/** data が undefined のときに返す安定した参照（毎レンダーで新しい [] を作らないようにする） */
+const EMPTY_REQUIREMENTS: ShiftRequirement[] = [];
+
 /** ShiftRequirements 一覧取得・CRUD 操作を提供するカスタムフック */
 export function useShiftRequirements() {
   const { getToken } = useAuth();
@@ -83,7 +86,7 @@ export function useShiftRequirements() {
   );
 
   return {
-    shiftRequirements: data ?? [],
+    shiftRequirements: data ?? EMPTY_REQUIREMENTS,
     isLoading,
     isError: !!error,
     error,
