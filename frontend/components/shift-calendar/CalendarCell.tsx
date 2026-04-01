@@ -3,6 +3,7 @@
 import type { Worker } from "@/types/worker";
 import type { DayState, SlotType } from "@/types/shiftRequirement";
 import type { DayType } from "@/utils/calendarUtils";
+import type { ValidationViolation } from "@/utils/shiftValidators";
 import { ShiftSlot } from "./ShiftSlot";
 
 const DAY_NAMES = ["日", "月", "火", "水", "木", "金", "土"];
@@ -26,6 +27,8 @@ interface CalendarCellProps {
   holidayName?: string;
   dayState: DayState;
   workers: Worker[];
+  /** スロットタイプ → バリデーション違反リスト */
+  dayViolations?: Partial<Record<SlotType, ValidationViolation[]>>;
   onWorkerChange: (
     slotType: SlotType,
     index: number,
@@ -41,6 +44,7 @@ export function CalendarCell({
   holidayName,
   dayState,
   workers,
+  dayViolations = {},
   onWorkerChange,
 }: CalendarCellProps) {
   const dayOfWeek = date.getDay();
@@ -93,6 +97,7 @@ export function CalendarCell({
               slotType={slotType}
               workerSelections={slotState.workerSelections}
               workers={workers}
+              violations={dayViolations[slotType] ?? []}
               onWorkerChange={(idx, wid) => onWorkerChange(slotType, idx, wid)}
             />
           ))}
@@ -113,6 +118,7 @@ export function CalendarCell({
               slotType={slotType}
               workerSelections={slotState.workerSelections}
               workers={workers}
+              violations={dayViolations[slotType] ?? []}
               onWorkerChange={(idx, wid) => onWorkerChange(slotType, idx, wid)}
             />
           ))}
