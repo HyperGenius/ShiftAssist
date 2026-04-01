@@ -10,11 +10,10 @@ from datetime import date, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi import HTTPException
-
 from app.models.models import ShiftRequirement, SlotTypeEnum
 from app.models.schemas import ShiftReqCreate, ShiftReqResponse, ShiftReqUpdate
 from app.services import shift_requirement_service
+from fastapi import HTTPException
 
 # ---------------------------------------------------------------------------
 # テスト用フィクスチャ
@@ -258,9 +257,7 @@ class TestUpdateShiftReq:
         with patch.object(
             shift_requirement_service, "_validate_department"
         ) as mock_validate:
-            shift_requirement_service.update_shift_req(
-                session, TENANT_ID, REQ_ID, data
-            )
+            shift_requirement_service.update_shift_req(session, TENANT_ID, REQ_ID, data)
 
         mock_validate.assert_called_once_with(session, TENANT_ID, new_dept_id)
 
@@ -272,9 +269,7 @@ class TestUpdateShiftReq:
         data = ShiftReqUpdate(shift_date=PAST_DATE)
 
         with pytest.raises(HTTPException) as exc_info:
-            shift_requirement_service.update_shift_req(
-                session, TENANT_ID, REQ_ID, data
-            )
+            shift_requirement_service.update_shift_req(session, TENANT_ID, REQ_ID, data)
 
         assert exc_info.value.status_code == 400
 
@@ -284,9 +279,7 @@ class TestUpdateShiftReq:
         data = ShiftReqUpdate(required_headcount=3)
 
         with pytest.raises(HTTPException) as exc_info:
-            shift_requirement_service.update_shift_req(
-                session, TENANT_ID, REQ_ID, data
-            )
+            shift_requirement_service.update_shift_req(session, TENANT_ID, REQ_ID, data)
 
         assert exc_info.value.status_code == 404
 
@@ -342,8 +335,6 @@ class TestDeleteShiftReq:
         session = _make_session(exec_first_return=None)
 
         with pytest.raises(HTTPException) as exc_info:
-            shift_requirement_service.delete_shift_req(
-                session, OTHER_TENANT_ID, REQ_ID
-            )
+            shift_requirement_service.delete_shift_req(session, OTHER_TENANT_ID, REQ_ID)
 
         assert exc_info.value.status_code == 404

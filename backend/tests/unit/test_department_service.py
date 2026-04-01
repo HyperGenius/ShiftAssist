@@ -10,11 +10,10 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi import HTTPException
-
 from app.models.models import Department, Worker
 from app.models.schemas import DepartmentCreate, DepartmentResponse, DepartmentUpdate
 from app.services import department_service
+from fastapi import HTTPException
 
 # ---------------------------------------------------------------------------
 # テスト用フィクスチャ
