@@ -6,9 +6,11 @@ from datetime import datetime
 from sqlalchemy import (
     Boolean,
     Column,
+    Date,
     DateTime,
     Enum,
     ForeignKey,
+    Integer,
     String,
     UniqueConstraint,
 )
@@ -239,3 +241,33 @@ class ShiftAssignment(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (UniqueConstraint("slot_id", "worker_id", name="uq_slot_worker"),)
+
+
+class ShiftRequirement(Base):
+    """シフト枠の必要要件を表すSQLAlchemyモデル.
+
+    「いつ」「どの部門で」「何人のスタッフが必要か」というシフトの募集要件を定義する。
+    将来的なAIによる自動アサインロジックのベースとなるデータ構造。
+
+    Attributes:
+        id: UUIDによるプライマリキー。
+        tenant_id: Clerk OrganizationのID。テナント分離に使用。
+        department_id: 対象部門のID（departmentsテーブルへのFK）。
+        shift_date: シフト対象日。
+        slot_type: 枠の種別（平日夜間 / 土曜昼夜 / 日祝昼夜 / 長期連休昼夜）。
+        required_headcount: 必要人数（1以上）。
+        created_at: レコード作成日時。
+        updated_at: レコード最終更新日時。更新時に自動更新される。
+    """
+
+    __tablename__ = "shift_requirements"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String, index=True, nullable=False)
+    department_id = Column(
+        UUID(as_uuid=True), ForeignKey("departments.id"), nullable=False
+    )
+    shift_date = Column(Date, nullable=False)
+    slot_type = Column(Enum(SlotTypeEnum), nullable=False)  # type: ignore[var-annotated]
+    required_headcount = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
