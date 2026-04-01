@@ -15,10 +15,10 @@ on:
         type: string
         required: false
         default: ""
-  secrets:
-    GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-    WIF_PROVIDER: ${{ secrets.WIF_PROVIDER }}
-    WIF_SERVICE_ACCOUNT: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+    secrets:
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      WIF_PROVIDER: ${{ secrets.WIF_PROVIDER }}
+      WIF_SERVICE_ACCOUNT: ${{ secrets.WIF_SERVICE_ACCOUNT }}
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
