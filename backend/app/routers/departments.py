@@ -18,7 +18,9 @@ from app.services import department_service
 router = APIRouter(prefix="/api/departments", tags=["departments"])
 
 
-@router.post("/", response_model=DepartmentResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/", response_model=DepartmentResponse, status_code=status.HTTP_201_CREATED
+)
 def create_department(
     data: DepartmentCreate,
     tenant_id: str = Depends(get_tenant_id),

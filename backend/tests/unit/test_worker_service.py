@@ -10,11 +10,10 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi import HTTPException
-
 from app.models.models import SkillRankEnum, Worker
 from app.models.schemas import WorkerCreate, WorkerResponse, WorkerUpdate
 from app.services import worker_service
+from fastapi import HTTPException
 
 # ---------------------------------------------------------------------------
 # テスト用フィクスチャ

@@ -4,9 +4,8 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
-
 from app.models.models import SkillRankEnum
+from pydantic import BaseModel, ConfigDict
 
 
 class DepartmentCreate(BaseModel):
