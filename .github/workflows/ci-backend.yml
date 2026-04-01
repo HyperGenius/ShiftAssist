@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - "backend/**"
+    # 手動トリガー（テスト用）
+    workflow_dispatch:
 
 # 連続してPushされた際、古いCIジョブを自動キャンセルする
 concurrency:
