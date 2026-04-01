@@ -1,6 +1,17 @@
 // frontend/utils/apiClient.ts
 // Clerk 認証トークンをヘッダーに付与する汎用 API クライアント
 
+/** HTTP エラーレスポンスを表すカスタムエラークラス */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -44,7 +55,7 @@ async function request<T>(
     } catch {
       // ignore JSON parse error
     }
-    throw new Error(message);
+    throw new ApiError(message, response.status);
   }
 
   if (response.status === 204) {
