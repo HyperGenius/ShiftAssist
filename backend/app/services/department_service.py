@@ -69,9 +69,7 @@ def list_departments(
     )
     if search_query:
         escaped = (
-            search_query.replace("\\", "\\\\")
-            .replace("%", "\\%")
-            .replace("_", "\\_")
+            search_query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         )
         ilike_filter = col(Department.name).ilike(f"%{escaped}%", escape="\\")
         stmt = stmt.where(ilike_filter)
