@@ -169,6 +169,20 @@ GitHub Actions などの CI/CD パイプラインを構築する場合は、Terr
 
 ---
 
+## IAM Service Account Credentials APIの有効化
+GitHub Actions から GCP にアクセスするための Workload Identity Federation を利用する必要があります。
+
+> [TIPS] WIF を使って Google Cloud にアクセスする場合、GitHub の ID トークンを Google のアクセス（OAuth2）トークンに交換する必要があります。この交換作業を担うのが IAM Service Account Credentials API (iamcredentials.googleapis.com) です。これが無効だと、認証が完了せず、その後の docker push で「権限がない（Unauthenticated）」と怒られてしまいます。
+
+ローカル環境のターミナル（対象プロジェクトの権限があるアカウント）で以下を実行します。
+
+```bash
+gcloud services enable iamcredentials.googleapis.com --project=<YOUR_PROJECT_ID>
+```
+
+---
+
+
 ## ⚙️ GitHub Actions セットアップ
 
 ※IAMの設定はTerraform で行いますが、GitHub Actions 側の Secrets 登録は手動で行う必要があります。
