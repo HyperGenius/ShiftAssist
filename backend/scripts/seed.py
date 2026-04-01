@@ -52,7 +52,7 @@ def seed_data():
         print("🌱 ダミーデータを投入しています...")
 
         # 1. テナントとユーザーの作成 (Clerkを想定したダミーID)
-        dummy_tenant_id = "org_dummy_12345"
+        dummy_tenant_id = os.getenv("TEST_ORGANIZATION_ID", "org_dummy_id")
 
         user1 = User(clerk_user_id="user_dummy_admin", role="editor")
         user2 = User(clerk_user_id="user_dummy_viewer", role="viewer")
