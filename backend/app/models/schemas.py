@@ -4,8 +4,9 @@
 import uuid
 from datetime import date, datetime
 
-from app.models.models import SkillRankEnum, SlotTypeEnum
 from pydantic import BaseModel, ConfigDict, field_validator
+
+from app.models.models import SkillRankEnum, SlotTypeEnum
 
 
 class DepartmentCreate(BaseModel):
