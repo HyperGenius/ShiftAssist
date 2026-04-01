@@ -40,6 +40,13 @@ class DepartmentResponse(BaseModel):
     created_at: datetime
 
 
+class DepartmentListResponse(BaseModel):
+    """Departmentページネーション付き一覧レスポンススキーマ."""
+
+    total: int
+    items: list[DepartmentResponse]
+
+
 class WorkerCreate(BaseModel):
     """Worker作成リクエストスキーマ."""
 

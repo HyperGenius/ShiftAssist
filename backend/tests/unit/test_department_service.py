@@ -11,7 +11,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from app.models.models import Department, Worker
-from app.models.schemas import DepartmentCreate, DepartmentResponse, DepartmentUpdate
+from app.models.schemas import (
+    DepartmentCreate,
+    DepartmentListResponse,
+    DepartmentResponse,
+    DepartmentUpdate,
+)
 from app.services import department_service
 from fastapi import HTTPException
 
@@ -103,21 +108,73 @@ class TestListDepartments:
     def test_list_departments_returns_tenant_departments(self) -> None:
         """正常系: テナントに属するDepartment一覧を返す."""
         departments = [_make_department(name="1課"), _make_department(name="2課")]
-        session = _make_session(exec_all_return=departments)
+
+        session = MagicMock()
+        exec_count = MagicMock()
+        exec_count.one.return_value = 2
+        exec_data = MagicMock()
+        exec_data.all.return_value = departments
+        session.exec.side_effect = [exec_count, exec_data]
 
         result = department_service.list_departments(session, TENANT_ID)
 
-        assert len(result) == 2
-        assert all(isinstance(r, DepartmentResponse) for r in result)
-        assert all(r.tenant_id == TENANT_ID for r in result)
+        assert isinstance(result, DepartmentListResponse)
+        assert result.total == 2
+        assert len(result.items) == 2
+        assert all(isinstance(r, DepartmentResponse) for r in result.items)
+        assert all(r.tenant_id == TENANT_ID for r in result.items)
 
     def test_list_departments_empty(self) -> None:
-        """正常系: Departmentが存在しない場合、空リストを返す."""
-        session = _make_session(exec_all_return=[])
+        """正常系: Departmentが存在しない場合、total=0・空リストを返す."""
+        session = MagicMock()
+        exec_count = MagicMock()
+        exec_count.one.return_value = 0
+        exec_data = MagicMock()
+        exec_data.all.return_value = []
+        session.exec.side_effect = [exec_count, exec_data]
 
         result = department_service.list_departments(session, TENANT_ID)
 
-        assert result == []
+        assert isinstance(result, DepartmentListResponse)
+        assert result.total == 0
+        assert result.items == []
+
+    def test_list_departments_with_search_query(self) -> None:
+        """正常系: search_query を指定した場合、部分一致する Department を返す."""
+        dept = _make_department(name="営業1課")
+
+        session = MagicMock()
+        exec_count = MagicMock()
+        exec_count.one.return_value = 1
+        exec_data = MagicMock()
+        exec_data.all.return_value = [dept]
+        session.exec.side_effect = [exec_count, exec_data]
+
+        result = department_service.list_departments(
+            session, TENANT_ID, search_query="営業"
+        )
+
+        assert result.total == 1
+        assert len(result.items) == 1
+        assert result.items[0].name == "営業1課"
+
+    def test_list_departments_with_pagination(self) -> None:
+        """正常系: skip/limit を指定した場合、ページネーションが適用される."""
+        dept = _make_department(name="2課")
+
+        session = MagicMock()
+        exec_count = MagicMock()
+        exec_count.one.return_value = 5
+        exec_data = MagicMock()
+        exec_data.all.return_value = [dept]
+        session.exec.side_effect = [exec_count, exec_data]
+
+        result = department_service.list_departments(
+            session, TENANT_ID, skip=1, limit=1
+        )
+
+        assert result.total == 5
+        assert len(result.items) == 1
 
 
 # ---------------------------------------------------------------------------

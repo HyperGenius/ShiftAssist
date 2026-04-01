@@ -19,3 +19,8 @@ export interface DepartmentUpdate {
   name?: string;
   code?: string;
 }
+
+export interface DepartmentListResponse {
+  total: number;
+  items: Department[];
+}
