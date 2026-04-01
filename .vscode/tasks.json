@@ -61,6 +61,18 @@
             }
         },
         {
+            "label": "Pytest all tests",
+            "type": "shell",
+            "command": "source venv/bin/activate && pytest",
+            "problemMatcher": [],
+            "options": {
+                "cwd": "${workspaceFolder}/backend"
+            },
+            "presentation": {
+                "group": "test-runners"
+            }
+        },
+        {
             "label": "Alembic upgrade head",
             "type": "shell",
             "command": "source venv/bin/activate && alembic upgrade head",

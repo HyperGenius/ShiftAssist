@@ -1,11 +1,24 @@
 name: Deploy to Cloud Run
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "backend/**"
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Docker イメージタグ（デフォルト: github.sha）"
+        type: string
+        required: false
+        default: ""
+  workflow_call:
+    inputs:
+      image_tag:
+        description: "Docker イメージタグ（デフォルト: github.sha）"
+        type: string
+        required: false
+        default: ""
+  secrets:
+    GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+    WIF_PROVIDER: ${{ secrets.WIF_PROVIDER }}
+    WIF_SERVICE_ACCOUNT: ${{ secrets.WIF_SERVICE_ACCOUNT }}
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}

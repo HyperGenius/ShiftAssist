@@ -1,11 +1,43 @@
 # backend/app/models/schemas.py
-"""Workerエンティティのリクエスト/レスポンスPydanticスキーマ定義."""
+"""WorkerおよびDepartmentエンティティのリクエスト/レスポンスPydanticスキーマ定義."""
 
 import uuid
 from datetime import datetime
 
 from app.models.models import SkillRankEnum
 from pydantic import BaseModel, ConfigDict
+
+
+class DepartmentCreate(BaseModel):
+    """Department作成リクエストスキーマ."""
+
+    name: str
+    code: str
+
+
+class DepartmentUpdate(BaseModel):
+    """Department更新リクエストスキーマ.
+
+    すべてのフィールドはオプショナル。指定したフィールドのみ更新される。
+    """
+
+    name: str | None = None
+    code: str | None = None
+
+
+class DepartmentResponse(BaseModel):
+    """Departmentレスポンススキーマ.
+
+    ORMモデルからの変換に対応するため ``from_attributes=True`` を設定。
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    tenant_id: str
+    name: str
+    code: str
+    created_at: datetime
 
 
 class WorkerCreate(BaseModel):
