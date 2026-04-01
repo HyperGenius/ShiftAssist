@@ -4,6 +4,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.routers.departments import router as departments_router
 from app.routers.workers import router as workers_router
 
 app = FastAPI(title="ShiftAssist API", redirect_slashes=False)
@@ -33,6 +34,7 @@ app.add_middleware(
 
 # --- Routerの登録 ---
 app.include_router(workers_router)
+app.include_router(departments_router)
 
 # --- Response Schemas ---
 
