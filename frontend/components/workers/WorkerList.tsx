@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { SciFiButton } from "@/components/ui/SciFiButton";
 import { SciFiHeading } from "@/components/ui/SciFiHeading";
 import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { useDepartments } from "@/hooks/useDepartments";
 import { useWorkers } from "@/hooks/useWorkers";
 import { SKILL_RANK_LABELS, type Worker, type WorkerCreate } from "@/types/worker";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
@@ -40,18 +41,20 @@ function SkeletonRow() {
 /** Worker テーブル行 */
 function WorkerRow({
   worker,
+  departmentName,
   onEdit,
   onDelete,
 }: {
   worker: Worker;
+  departmentName: string;
   onEdit: (w: Worker) => void;
   onDelete: (w: Worker) => void;
 }) {
   return (
     <tr className="border-b border-slate-700/50 hover:bg-slate-800/40 transition-colors">
       <td className="px-4 py-3 text-slate-200 font-medium">{worker.name}</td>
-      <td className="px-4 py-3 text-slate-400 font-mono text-xs">
-        {worker.department_id.slice(0, 8)}…
+      <td className="px-4 py-3 text-slate-300">
+        {departmentName}
       </td>
       <td className="px-4 py-3">
         <span
@@ -100,6 +103,11 @@ function WorkerRow({
 export function WorkerList() {
   const { workers, isLoading, isError, createWorker, updateWorker, deleteWorker } =
     useWorkers();
+  const { departments } = useDepartments();
+
+  const departmentNameById = Object.fromEntries(
+    departments.map((d) => [d.id, d.name]),
+  );
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState<Worker | undefined>(
@@ -187,7 +195,7 @@ export function WorkerList() {
                   氏名
                 </th>
                 <th className="px-4 py-3 text-xs text-slate-400 uppercase tracking-wider font-medium">
-                  所属課 ID
+                  所属課
                 </th>
                 <th className="px-4 py-3 text-xs text-slate-400 uppercase tracking-wider font-medium">
                   スキルランク
@@ -242,6 +250,7 @@ export function WorkerList() {
                   <WorkerRow
                     key={worker.id}
                     worker={worker}
+                    departmentName={departmentNameById[worker.department_id] ?? worker.department_id}
                     onEdit={handleEdit}
                     onDelete={setDeletingWorker}
                   />

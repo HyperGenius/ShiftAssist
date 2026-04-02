@@ -9,6 +9,7 @@ import { z } from "zod";
 import { SciFiButton } from "@/components/ui/SciFiButton";
 import { SciFiInput } from "@/components/ui/SciFiInput";
 import { SciFiSelect } from "@/components/ui/SciFiSelect";
+import { useDepartments } from "@/hooks/useDepartments";
 import type { Worker, WorkerCreate } from "@/types/worker";
 
 const workerSchema = z.object({
@@ -42,6 +43,7 @@ export function WorkerForm({
   onCancel,
   isSubmitting = false,
 }: WorkerFormProps) {
+  const { departments, isLoading: isDepartmentsLoading } = useDepartments();
   const {
     register,
     handleSubmit,
@@ -87,14 +89,23 @@ export function WorkerForm({
         disabled={isSubmitting}
       />
 
-      <SciFiInput
+      <SciFiSelect
         id="worker-department-id"
-        label="所属課 ID (UUID)"
-        placeholder="例: 550e8400-e29b-41d4-a716-446655440000"
+        label="所属課"
         {...register("department_id")}
         error={errors.department_id?.message}
-        disabled={isSubmitting}
-      />
+        disabled={isSubmitting || isDepartmentsLoading}
+        required
+      >
+        <option value="">
+          {isDepartmentsLoading ? "読み込み中..." : "所属課を選択してください"}
+        </option>
+        {departments.map((dept) => (
+          <option key={dept.id} value={dept.id}>
+            {dept.name}
+          </option>
+        ))}
+      </SciFiSelect>
 
       <SciFiSelect
         id="worker-skill-rank"
