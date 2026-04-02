@@ -11,6 +11,7 @@ import type {
   ShiftRequirementCreate,
   ShiftRequirementUpdate,
 } from "@/types/shiftRequirement";
+import type { ShiftAssignmentsSave, WorkerAssignmentItem } from "@/types/shiftAssignment";
 
 const SHIFT_REQUIREMENTS_PATH = "/api/shift-requirements/";
 
@@ -85,6 +86,21 @@ export function useShiftRequirements() {
     [getApiClient, swrKey],
   );
 
+  /** ShiftRequirement のアサイン情報を上書き保存する */
+  const saveAssignments = useCallback(
+    async (
+      requirementId: string,
+      payload: ShiftAssignmentsSave,
+    ): Promise<WorkerAssignmentItem[]> => {
+      const api = await getApiClient();
+      return api.put<WorkerAssignmentItem[]>(
+        `/api/shift-requirements/${requirementId}/assignments`,
+        payload,
+      );
+    },
+    [getApiClient],
+  );
+
   return {
     shiftRequirements: data ?? EMPTY_REQUIREMENTS,
     isLoading,
@@ -93,5 +109,6 @@ export function useShiftRequirements() {
     createShiftRequirement,
     updateShiftRequirement,
     deleteShiftRequirement,
+    saveAssignments,
   };
 }

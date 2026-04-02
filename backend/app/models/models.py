@@ -243,6 +243,41 @@ class ShiftAssignment(Base):
     __table_args__ = (UniqueConstraint("slot_id", "worker_id", name="uq_slot_worker"),)
 
 
+class ShiftRequirementAssignment(Base):
+    """シフト要件への対応者アサインメントを表すSQLAlchemyモデル.
+
+    シフト要件（``ShiftRequirement``）と対応者（``Worker``）の対応関係を管理する。
+    ルール違反があっても運用上の合意がある場合は ``is_manual_override`` フラグを立てて
+    強制保存することが可能。同一要件への同一対応者の重複アサインはDB制約で防ぐ。
+
+    Attributes:
+        id: UUIDによるプライマリキー。
+        tenant_id: Clerk OrganizationのID。テナント分離に使用。
+        requirement_id: 紐づくシフト要件のID。
+        worker_id: アサインされる対応者のID。
+        is_manual_override: ルール違反を承知の上で強制保存する場合にTrueを設定するフラグ。
+        created_at: レコード作成日時。
+    """
+
+    __tablename__ = "shift_requirement_assignments"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String, index=True, nullable=False)
+    requirement_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("shift_requirements.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    worker_id = Column(
+        UUID(as_uuid=True), ForeignKey("workers.id", ondelete="CASCADE"), nullable=False
+    )
+    is_manual_override = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("requirement_id", "worker_id", name="uq_req_worker"),
+    )
+
+
 class ShiftRequirement(Base):
     """シフト枠の必要要件を表すSQLAlchemyモデル.
 

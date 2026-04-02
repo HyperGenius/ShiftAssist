@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { SciFiButton } from "@/components/ui/SciFiButton";
 import { SciFiPanel } from "@/components/ui/SciFiPanel";
 import { CalendarCell } from "./CalendarCell";
+import { OverrideConfirmDialog } from "./OverrideConfirmDialog";
 import { useShiftRequirements } from "@/hooks/useShiftRequirements";
 import { useWorkers } from "@/hooks/useWorkers";
 import type {
@@ -41,8 +42,9 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
   const [month, setMonth] = useState(today.getMonth() + 1);
   const [calendarState, setCalendarState] = useState<CalendarState>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [showOverrideDialog, setShowOverrideDialog] = useState(false);
 
-  const { shiftRequirements, isLoading, createShiftRequirement, updateShiftRequirement } =
+  const { shiftRequirements, isLoading, createShiftRequirement, updateShiftRequirement, saveAssignments } =
     useShiftRequirements();
   const { workers } = useWorkers();
 
@@ -87,11 +89,19 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
       const dateStr = req.shift_date;
       if (!newState[dateStr]) continue;
       const headcount = req.required_headcount;
+
+      // 保存済みのワーカー選択を復元する
+      const savedWorkerIds = req.assignments.map((a) => a.worker_id);
+      const workerSelections: (string | null)[] = Array(headcount).fill(null) as null[];
+      for (let i = 0; i < Math.min(savedWorkerIds.length, headcount); i++) {
+        workerSelections[i] = savedWorkerIds[i];
+      }
+
       newState[dateStr][req.slot_type] = {
         requirementId: req.id,
         slot_type: req.slot_type,
         required_headcount: headcount,
-        workerSelections: Array(headcount).fill(null) as null[],
+        workerSelections,
         isDirty: false,
       };
     }
@@ -125,41 +135,86 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
     [],
   );
 
-  /** 保存ハンドラ */
-  const handleSave = useCallback(async () => {
+  /** 実際の保存処理（バリデーションチェック後に呼ばれる） */
+  const executeSave = useCallback(async (isManualOverride: boolean) => {
     setIsSaving(true);
     try {
       const savePromises: Promise<unknown>[] = [];
       for (const [dateStr, dayState] of Object.entries(calendarState)) {
         for (const [, slotState] of Object.entries(dayState) as [string, SlotState][]) {
           if (!slotState.isDirty) continue;
+
+          const workerIds = slotState.workerSelections.filter(
+            (id): id is string => id !== null,
+          );
+
           if (slotState.requirementId) {
             // 既存データの更新
+            const reqId = slotState.requirementId;
             savePromises.push(
-              updateShiftRequirement(slotState.requirementId, {
+              updateShiftRequirement(reqId, {
                 required_headcount: slotState.required_headcount,
-              }),
+              }).then(() =>
+                saveAssignments(reqId, {
+                  worker_ids: workerIds,
+                  is_manual_override: isManualOverride,
+                }),
+              ),
             );
           } else {
-            // 新規作成
+            // 新規作成してからアサインを保存
             const payload: ShiftRequirementCreate = {
               department_id: department.id,
               shift_date: dateStr,
               slot_type: slotState.slot_type,
               required_headcount: slotState.required_headcount,
             };
-            savePromises.push(createShiftRequirement(payload));
+            savePromises.push(
+              createShiftRequirement(payload).then((created) =>
+                saveAssignments(created.id, {
+                  worker_ids: workerIds,
+                  is_manual_override: isManualOverride,
+                }),
+              ),
+            );
           }
         }
       }
       await Promise.all(savePromises);
-      toast.success("シフト枠を保存しました");
+      toast.success(
+        isManualOverride
+          ? "シフト枠を強制保存しました（is_manual_override=true）"
+          : "シフト枠を保存しました",
+      );
     } catch {
       toast.error("保存に失敗しました");
     } finally {
       setIsSaving(false);
     }
-  }, [calendarState, createShiftRequirement, updateShiftRequirement, department.id]);
+  }, [calendarState, createShiftRequirement, updateShiftRequirement, saveAssignments, department.id]);
+
+  /** 保存ハンドラ（バリデーションチェックを行い必要に応じてダイアログを表示） */
+  const handleSave = useCallback(() => {
+    const hasViolations = Object.keys(validationMap).length > 0;
+    if (hasViolations) {
+      // バリデーション違反があればオーバーライド確認ダイアログを表示
+      setShowOverrideDialog(true);
+    } else {
+      // 違反なしならそのまま保存
+      void executeSave(false);
+    }
+  }, [validationMap, executeSave]);
+
+  /** ダイアログでキャンセルが押された場合 */
+  const handleOverrideCancel = useCallback(() => {
+    setShowOverrideDialog(false);
+  }, []);
+
+  /** ダイアログで強制保存が承諾された場合 */
+  const handleOverrideConfirm = useCallback(() => {
+    setShowOverrideDialog(false);
+    void executeSave(true);
+  }, [executeSave]);
 
   const prevMonth = useCallback(() => {
     if (month === 1) {
@@ -189,121 +244,131 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
   }, [calendarState]);
 
   return (
-    <SciFiPanel className="p-4">
-      {/* ヘッダー：月ナビゲーション＆保存ボタン */}
-      <div className="flex items-center justify-between mb-4">
-        <SciFiButton variant="secondary" size="sm" onClick={prevMonth}>
-          &lt;&lt; 前月
-        </SciFiButton>
-        <h2 className="text-base font-semibold tracking-widest text-cyan-300">
-          {year}年 {month}月
-          <span className="ml-2 text-xs text-slate-400 normal-case">
-            {department.name}
-          </span>
-        </h2>
-        <div className="flex items-center gap-2">
-          <SciFiButton variant="secondary" size="sm" onClick={nextMonth}>
-            翌月 &gt;&gt;
+    <>
+      <SciFiPanel className="p-4">
+        {/* ヘッダー：月ナビゲーション＆保存ボタン */}
+        <div className="flex items-center justify-between mb-4">
+          <SciFiButton variant="secondary" size="sm" onClick={prevMonth}>
+            &lt;&lt; 前月
           </SciFiButton>
-          <SciFiButton
-            variant="primary"
-            size="sm"
-            onClick={handleSave}
-            loading={isSaving}
-            disabled={!hasDirtySlots}
-          >
-            保存
-          </SciFiButton>
-        </div>
-      </div>
-
-      {/* ローディング状態 */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-12 text-slate-400 text-sm">
-          <span className="animate-spin h-4 w-4 border-2 border-cyan-500 border-t-transparent rounded-full mr-2" />
-          読み込み中...
-        </div>
-      )}
-
-      {/* カレンダーグリッド */}
-      {!isLoading && (
-        <>
-          {/* 曜日ヘッダー */}
-          <div className="grid grid-cols-7 gap-1 mb-1">
-            {WEEK_HEADERS.map((h, i) => (
-              <div
-                key={h}
-                className={`text-center text-xs py-1 font-medium tracking-widest ${
-                  i === 0
-                    ? "text-red-400"
-                    : i === 6
-                      ? "text-blue-400"
-                      : "text-slate-400"
-                }`}
-              >
-                {h}
-              </div>
-            ))}
+          <h2 className="text-base font-semibold tracking-widest text-cyan-300">
+            {year}年 {month}月
+            <span className="ml-2 text-xs text-slate-400 normal-case">
+              {department.name}
+            </span>
+          </h2>
+          <div className="flex items-center gap-2">
+            <SciFiButton variant="secondary" size="sm" onClick={nextMonth}>
+              翌月 &gt;&gt;
+            </SciFiButton>
+            <SciFiButton
+              variant="primary"
+              size="sm"
+              onClick={handleSave}
+              loading={isSaving}
+              disabled={!hasDirtySlots}
+            >
+              保存
+            </SciFiButton>
           </div>
+        </div>
 
-          {/* カレンダーセル */}
-          <div className="grid grid-cols-7 gap-1">
-            {calendarGrid.map((date, idx) => {
-              if (!date) {
-                return <div key={`empty-${idx}`} className="min-h-[120px]" />;
-              }
-              const dateStr = toDateStr(date);
-              const holidayFlag = isHoliday(dateStr, holidaySet);
-              const holidayName = holidayMap.get(dateStr);
-              const dayType = getDayType(date, dateStr, holidaySet);
-              const dayState = calendarState[dateStr] ?? {};
+        {/* ローディング状態 */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-12 text-slate-400 text-sm">
+            <span className="animate-spin h-4 w-4 border-2 border-cyan-500 border-t-transparent rounded-full mr-2" />
+            読み込み中...
+          </div>
+        )}
 
-              // この日のスロットごとのバリデーション違反を収集する
-              const dayViolations: Partial<Record<SlotType, ValidationViolation[]>> = {};
-              for (const slotType of Object.keys(dayState) as SlotType[]) {
-                const key = buildSlotKey(dateStr, slotType);
-                const violations = validationMap[key];
-                if (violations && violations.length > 0) {
-                  dayViolations[slotType] = violations;
+        {/* カレンダーグリッド */}
+        {!isLoading && (
+          <>
+            {/* 曜日ヘッダー */}
+            <div className="grid grid-cols-7 gap-1 mb-1">
+              {WEEK_HEADERS.map((h, i) => (
+                <div
+                  key={h}
+                  className={`text-center text-xs py-1 font-medium tracking-widest ${
+                    i === 0
+                      ? "text-red-400"
+                      : i === 6
+                        ? "text-blue-400"
+                        : "text-slate-400"
+                  }`}
+                >
+                  {h}
+                </div>
+              ))}
+            </div>
+
+            {/* カレンダーセル */}
+            <div className="grid grid-cols-7 gap-1">
+              {calendarGrid.map((date, idx) => {
+                if (!date) {
+                  return <div key={`empty-${idx}`} className="min-h-[120px]" />;
                 }
-              }
+                const dateStr = toDateStr(date);
+                const holidayFlag = isHoliday(dateStr, holidaySet);
+                const holidayName = holidayMap.get(dateStr);
+                const dayType = getDayType(date, dateStr, holidaySet);
+                const dayState = calendarState[dateStr] ?? {};
 
-              return (
-                <CalendarCell
-                  key={dateStr}
-                  date={date}
-                  dayType={dayType}
-                  isHoliday={holidayFlag}
-                  holidayName={holidayName}
-                  dayState={dayState}
-                  workers={workers}
-                  dayViolations={dayViolations}
-                  onWorkerChange={(slotType, idx2, wid) =>
-                    handleWorkerChange(dateStr, slotType, idx2, wid)
+                // この日のスロットごとのバリデーション違反を収集する
+                const dayViolations: Partial<Record<SlotType, ValidationViolation[]>> = {};
+                for (const slotType of Object.keys(dayState) as SlotType[]) {
+                  const key = buildSlotKey(dateStr, slotType);
+                  const violations = validationMap[key];
+                  if (violations && violations.length > 0) {
+                    dayViolations[slotType] = violations;
                   }
-                />
-              );
-            })}
-          </div>
+                }
 
-          {/* 凡例 */}
-          <div className="mt-4 flex items-center gap-4 text-[10px] text-slate-500">
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded bg-slate-800/30 border border-slate-700/40 inline-block" />
-              平日
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded bg-blue-900/20 border border-blue-700/40 inline-block" />
-              土曜日
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded bg-red-900/20 border border-red-700/40 inline-block" />
-              日曜・祝日
-            </span>
-            <span className="flex items-center gap-1">🎌 祝日</span>
-          </div>
-        </>
-      )}
-    </SciFiPanel>
+                return (
+                  <CalendarCell
+                    key={dateStr}
+                    date={date}
+                    dayType={dayType}
+                    isHoliday={holidayFlag}
+                    holidayName={holidayName}
+                    dayState={dayState}
+                    workers={workers}
+                    dayViolations={dayViolations}
+                    onWorkerChange={(slotType, idx2, wid) =>
+                      handleWorkerChange(dateStr, slotType, idx2, wid)
+                    }
+                  />
+                );
+              })}
+            </div>
+
+            {/* 凡例 */}
+            <div className="mt-4 flex items-center gap-4 text-[10px] text-slate-500">
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded bg-slate-800/30 border border-slate-700/40 inline-block" />
+                平日
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded bg-blue-900/20 border border-blue-700/40 inline-block" />
+                土曜日
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded bg-red-900/20 border border-red-700/40 inline-block" />
+                日曜・祝日
+              </span>
+              <span className="flex items-center gap-1">🎌 祝日</span>
+            </div>
+          </>
+        )}
+      </SciFiPanel>
+
+      {/* オーバーライド確認ダイアログ */}
+      <OverrideConfirmDialog
+        isOpen={showOverrideDialog}
+        violations={validationMap}
+        onCancel={handleOverrideCancel}
+        onConfirm={handleOverrideConfirm}
+      />
+    </>
   );
 }
