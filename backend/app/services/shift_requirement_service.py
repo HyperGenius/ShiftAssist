@@ -5,13 +5,19 @@
 """
 
 import uuid
+from collections import defaultdict
 from datetime import date
 
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
-from app.models.models import Department, ShiftRequirement
-from app.models.schemas import ShiftReqCreate, ShiftReqResponse, ShiftReqUpdate
+from app.models.models import Department, ShiftRequirement, ShiftRequirementAssignment
+from app.models.schemas import (
+    ShiftReqCreate,
+    ShiftReqResponse,
+    ShiftReqUpdate,
+    WorkerAssignmentItem,
+)
 
 
 def _validate_department(
@@ -92,17 +98,42 @@ def create_shift_req(
 def list_shift_reqs(session: Session, tenant_id: str) -> list[ShiftReqResponse]:
     """テナントに属するShiftRequirement一覧を取得する.
 
+    アサイン情報も含めて返す。
+
     Args:
         session: SQLModelセッション。
         tenant_id: 対象テナントID。
 
     Returns:
-        ShiftRequirement一覧のレスポンスモデルリスト。
+        ShiftRequirement一覧のレスポンスモデルリスト（アサイン情報含む）。
     """
     reqs = session.exec(
         select(ShiftRequirement).where(ShiftRequirement.tenant_id == tenant_id)
     ).all()
-    return [ShiftReqResponse.model_validate(r) for r in reqs]
+
+    if not reqs:
+        return []
+
+    req_ids = [r.id for r in reqs]
+    all_assignments = session.exec(
+        select(ShiftRequirementAssignment).where(
+            ShiftRequirementAssignment.requirement_id.in_(req_ids),  # type: ignore[attr-defined]
+            ShiftRequirementAssignment.tenant_id == tenant_id,
+        )
+    ).all()
+
+    assignments_by_req: dict[uuid.UUID, list[WorkerAssignmentItem]] = defaultdict(list)
+    for a in all_assignments:
+        assignments_by_req[a.requirement_id].append(
+            WorkerAssignmentItem.model_validate(a)
+        )
+
+    result = []
+    for r in reqs:
+        resp = ShiftReqResponse.model_validate(r)
+        resp.assignments = assignments_by_req.get(r.id, [])
+        result.append(resp)
+    return result
 
 
 def get_shift_req(
@@ -110,13 +141,15 @@ def get_shift_req(
 ) -> ShiftReqResponse:
     """指定したShiftRequirementを取得する.
 
+    アサイン情報も含めて返す。
+
     Args:
         session: SQLModelセッション。
         tenant_id: 対象テナントID。
         req_id: 取得対象のShiftRequirement ID。
 
     Returns:
-        ShiftRequirementレスポンスモデル。
+        ShiftRequirementレスポンスモデル（アサイン情報含む）。
 
     Raises:
         HTTPException: ShiftRequirementが存在しない、または異なるテナントに属する場合。
@@ -132,7 +165,15 @@ def get_shift_req(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"ShiftRequirement '{req_id}' not found.",
         )
-    return ShiftReqResponse.model_validate(req)
+    assignments = session.exec(
+        select(ShiftRequirementAssignment).where(
+            ShiftRequirementAssignment.requirement_id == req_id,  # type: ignore[arg-type]
+            ShiftRequirementAssignment.tenant_id == tenant_id,
+        )
+    ).all()
+    resp = ShiftReqResponse.model_validate(req)
+    resp.assignments = [WorkerAssignmentItem.model_validate(a) for a in assignments]
+    return resp
 
 
 def update_shift_req(

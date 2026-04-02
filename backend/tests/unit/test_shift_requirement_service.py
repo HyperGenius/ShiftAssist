@@ -165,9 +165,14 @@ class TestListShiftReqs:
     """list_shift_reqs の正常系テスト."""
 
     def test_list_shift_reqs_returns_tenant_reqs(self) -> None:
-        """正常系: テナントに属するShiftRequirement一覧を返す."""
+        """正常系: テナントに属するShiftRequirement一覧を返す（アサイン情報含む）."""
         reqs = [_make_req(required_headcount=1), _make_req(required_headcount=3)]
-        session = _make_session(exec_all_return=reqs)
+        session = MagicMock()
+        exec_result_reqs = MagicMock()
+        exec_result_reqs.all.return_value = reqs
+        exec_result_assignments = MagicMock()
+        exec_result_assignments.all.return_value = []
+        session.exec.side_effect = [exec_result_reqs, exec_result_assignments]
 
         result = shift_requirement_service.list_shift_reqs(session, TENANT_ID)
 

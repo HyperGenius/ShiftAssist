@@ -124,6 +124,27 @@ class ShiftReqUpdate(BaseModel):
         return v
 
 
+class WorkerAssignmentItem(BaseModel):
+    """ShiftRequirementAssignmentの個別アイテムスキーマ."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    worker_id: uuid.UUID
+    is_manual_override: bool
+
+
+class ShiftAssignmentsSave(BaseModel):
+    """シフト要件のアサイン情報保存リクエストスキーマ.
+
+    指定した要件に対する対応者IDリストと、強制保存フラグを受け取る。
+    既存のアサイン情報はすべて置き換えられる。
+    """
+
+    worker_ids: list[uuid.UUID]
+    is_manual_override: bool = False
+
+
 class ShiftReqResponse(BaseModel):
     """ShiftRequirementレスポンススキーマ.
 
@@ -140,3 +161,4 @@ class ShiftReqResponse(BaseModel):
     required_headcount: int
     created_at: datetime
     updated_at: datetime
+    assignments: list[WorkerAssignmentItem] = []

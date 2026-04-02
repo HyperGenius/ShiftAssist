@@ -1,3 +1,5 @@
+import type { WorkerAssignmentItem } from "@/types/shiftAssignment";
+
 export type SlotType =
   | "weekday_night"
   | "sat_day"
@@ -26,6 +28,7 @@ export interface ShiftRequirement {
   required_headcount: number;
   created_at: string;
   updated_at: string;
+  assignments: WorkerAssignmentItem[];
 }
 
 export interface ShiftRequirementCreate {

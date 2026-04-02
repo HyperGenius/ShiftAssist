@@ -12,8 +12,14 @@ from sqlmodel import Session
 
 from app.db import get_session
 from app.dependencies import get_tenant_id
-from app.models.schemas import ShiftReqCreate, ShiftReqResponse, ShiftReqUpdate
-from app.services import shift_requirement_service
+from app.models.schemas import (
+    ShiftAssignmentsSave,
+    ShiftReqCreate,
+    ShiftReqResponse,
+    ShiftReqUpdate,
+    WorkerAssignmentItem,
+)
+from app.services import shift_assignment_service, shift_requirement_service
 
 router = APIRouter(prefix="/api/shift-requirements", tags=["shift-requirements"])
 
@@ -108,3 +114,30 @@ def delete_shift_req(
         session: DBセッション。
     """
     shift_requirement_service.delete_shift_req(session, tenant_id, req_id)
+
+
+@router.put(
+    "/{req_id}/assignments",
+    response_model=list[WorkerAssignmentItem],
+)
+def upsert_shift_req_assignments(
+    req_id: uuid.UUID,
+    data: ShiftAssignmentsSave,
+    tenant_id: str = Depends(get_tenant_id),
+    session: Session = Depends(get_session),
+) -> list[WorkerAssignmentItem]:
+    """指定したShiftRequirementのアサイン情報を上書き保存する.
+
+    既存のアサイン情報をすべて削除してから新しい情報を追加する。
+    ``is_manual_override`` が ``True`` の場合、ルール違反を承知の上での強制保存となる。
+
+    Args:
+        req_id: 対象のShiftRequirement ID。
+        data: アサイン保存リクエストボディ（worker_ids, is_manual_override）。
+        tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
+        session: DBセッション。
+
+    Returns:
+        保存後のアサイン一覧。
+    """
+    return shift_assignment_service.upsert_assignments(session, tenant_id, req_id, data)
