@@ -7,6 +7,7 @@
 
 import uuid
 from datetime import date
+from typing import cast
 
 from sqlmodel import Session, select
 
@@ -63,7 +64,7 @@ def _check_same_department(
                 str(w2.id) for w2 in workers if w2.department_id == w.department_id
             ]
             break
-        seen_dept.add(w.department_id)
+        seen_dept.add(cast(uuid.UUID, w.department_id))
     if not dup_dept_worker_ids:
         return []
     return [
@@ -205,4 +206,3 @@ def validate_shift_assignments(
         *_check_work_interval(session, tenant_id, requirement, workers, rules),
         *_check_special_employment(requirement, workers, rules),
     ]
-
