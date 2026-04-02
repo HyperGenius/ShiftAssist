@@ -23,26 +23,6 @@ class Base(DeclarativeBase):
     """SQLAlchemy DeclarativeBase の基底クラス."""
 
 
-# --- Enums ---
-class SkillRankEnum(enum.StrEnum):
-    """対応者のスキルランクを表す列挙型.
-
-    1組のペアには「rank_a」の者を1名以上含める必要がある。
-    テナントをまたいで共通のビジネスルールとして適用される。
-
-    Attributes:
-        rank_a: スキルランクA（最上位）。ペアに必ず1名以上含める必要がある。
-        rank_b: スキルランクB。
-        rank_c: スキルランクC。
-        rank_d: スキルランクD（最下位）。
-    """
-
-    rank_a = "rank_a"
-    rank_b = "rank_b"
-    rank_c = "rank_c"
-    rank_d = "rank_d"
-
-
 class PlanStatusEnum(enum.StrEnum):
     """シフトプランのステータスを表す列挙型.
 
@@ -131,6 +111,30 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class TenantSkillRank(Base):
+    """テナントごとのスキルランクマスタを表すSQLAlchemyモデル.
+
+    テナント管理者が任意の名称・数でスキルランクをカスタマイズできる。
+    ``is_leader_eligible`` フラグにより、シフト制約（最上位ランクを必ず1名含む）を抽象化する。
+
+    Attributes:
+        id: UUIDによるプライマリキー。
+        tenant_id: Clerk OrganizationのID。テナント分離に使用。
+        name: スキルランクの表示名（例: "A", "1級", "シニア"）。
+        sort_order: 表示順序（昇順で並べる）。
+        is_leader_eligible: リーダー適性フラグ。Trueの場合、シフトペアに必ず1名含める必要がある。
+        created_at: レコード作成日時。
+    """
+
+    __tablename__ = "tenant_skill_ranks"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    sort_order = Column(Integer, nullable=False, default=0)
+    is_leader_eligible = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Worker(Base):
     """シフトにアサインされる対応者を表すSQLAlchemyモデル.
 
@@ -142,7 +146,7 @@ class Worker(Base):
         tenant_id: Clerk OrganizationのID。テナント分離に使用。
         name: 対応者の氏名。
         department_id: 所属課のID（departmentsテーブルへのFK）。
-        skill_rank: スキルランク（rank_a / rank_b / rank_c / rank_d）。
+        skill_rank_id: スキルランクのID（tenant_skill_ranksテーブルへのFK）。
         is_special: 特別雇用者フラグ。Trueの場合、平日夜間枠のみアサイン可能。
         created_at: レコード作成日時。
         updated_at: レコード最終更新日時。更新時に自動更新される。
@@ -155,7 +159,9 @@ class Worker(Base):
     department_id = Column(
         UUID(as_uuid=True), ForeignKey("departments.id"), nullable=False
     )
-    skill_rank = Column(Enum(SkillRankEnum), nullable=False)  # type: ignore[var-annotated]
+    skill_rank_id = Column(
+        UUID(as_uuid=True), ForeignKey("tenant_skill_ranks.id"), nullable=False
+    )
     is_special = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -10,15 +10,15 @@ from sqlalchemy.orm import sessionmaker
 # backend/ ディレクトリをパスに追加して app モジュールを参照できるようにする
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# モデルとEnumのインポート
+# モデルのインポート
 from app.models.models import (
     Department,
     PlanStatusEnum,
     ShiftAssignment,
     ShiftPlan,
     ShiftSlot,
-    SkillRankEnum,
     SlotTypeEnum,
+    TenantSkillRank,
     User,
     Worker,
 )
@@ -45,6 +45,7 @@ def seed_data():
         db.query(ShiftSlot).delete()
         db.query(ShiftPlan).delete()
         db.query(Worker).delete()
+        db.query(TenantSkillRank).delete()
         db.query(Department).delete()
         db.query(User).delete()
         db.commit()
@@ -67,51 +68,81 @@ def seed_data():
         db.add_all(departments)
         db.commit()  # IDを確定させるために一度コミット
 
-        # 3. 対応者 (Worker) の作成
+        # 3. スキルランクマスタ (TenantSkillRank) の作成
+        skill_ranks = [
+            TenantSkillRank(
+                tenant_id=dummy_tenant_id,
+                name="ランクA",
+                sort_order=0,
+                is_leader_eligible=True,
+            ),
+            TenantSkillRank(
+                tenant_id=dummy_tenant_id,
+                name="ランクB",
+                sort_order=1,
+                is_leader_eligible=False,
+            ),
+            TenantSkillRank(
+                tenant_id=dummy_tenant_id,
+                name="ランクC",
+                sort_order=2,
+                is_leader_eligible=False,
+            ),
+            TenantSkillRank(
+                tenant_id=dummy_tenant_id,
+                name="ランクD",
+                sort_order=3,
+                is_leader_eligible=False,
+            ),
+        ]
+        db.add_all(skill_ranks)
+        db.commit()  # IDを確定させるために一度コミット
+
+        # 4. 対応者 (Worker) の作成
         # ルール検証のテストができるよう、様々なパターンのスタッフを用意
         workers = [
             Worker(
                 tenant_id=dummy_tenant_id,
                 name="佐藤 太郎",
                 department_id=departments[0].id,
-                skill_rank=SkillRankEnum.rank_a,
+                skill_rank_id=skill_ranks[0].id,  # ランクA (is_leader_eligible=True)
             ),
             Worker(
                 tenant_id=dummy_tenant_id,
                 name="鈴木 次郎",
                 department_id=departments[1].id,
-                skill_rank=SkillRankEnum.rank_b,
+                skill_rank_id=skill_ranks[1].id,  # ランクB
             ),
             Worker(
                 tenant_id=dummy_tenant_id,
                 name="高橋 三郎",
                 department_id=departments[2].id,
-                skill_rank=SkillRankEnum.rank_a,
+                skill_rank_id=skill_ranks[0].id,  # ランクA (is_leader_eligible=True)
             ),
             Worker(
                 tenant_id=dummy_tenant_id,
                 name="田中 四郎",
                 department_id=departments[0].id,
-                skill_rank=SkillRankEnum.rank_c,
+                skill_rank_id=skill_ranks[2].id,  # ランクC
             ),
             Worker(
                 tenant_id=dummy_tenant_id,
                 name="伊藤 花子",
                 department_id=departments[1].id,
-                skill_rank=SkillRankEnum.rank_d,
+                skill_rank_id=skill_ranks[3].id,  # ランクD
             ),
             Worker(
                 tenant_id=dummy_tenant_id,
                 name="渡辺 特別",
                 department_id=departments[2].id,
-                skill_rank=SkillRankEnum.rank_a,
+                skill_rank_id=skill_ranks[0].id,  # ランクA (is_leader_eligible=True)
                 is_special=True,
             ),  # 平日夜間のみ
         ]
         db.add_all(workers)
         db.commit()  # IDを確定させるために一度コミット
 
-        # 4. シフト計画 (ShiftPlan) の作成
+        # 5. シフト計画 (ShiftPlan) の作成
         plan = ShiftPlan(
             tenant_id=dummy_tenant_id,
             title="2026年4月度シフト",
@@ -122,7 +153,7 @@ def seed_data():
         db.add(plan)
         db.commit()
 
-        # 5. シフト枠 (ShiftSlot) の作成 (4月の数日分をサンプルとして作成)
+        # 6. シフト枠 (ShiftSlot) の作成 (4月の数日分をサンプルとして作成)
         slots = [
             ShiftSlot(
                 tenant_id=dummy_tenant_id,
@@ -146,8 +177,8 @@ def seed_data():
         db.add_all(slots)
         db.commit()
 
-        # 6. シフト割り当て (ShiftAssignment) の作成
-        # 枠1 (4/1 平日夜間): 佐藤(A課/rank_a) & 鈴木(B課/rank_b) -> 正常パターン
+        # 7. シフト割り当て (ShiftAssignment) の作成
+        # 枠1 (4/1 平日夜間): 佐藤(A課/ランクA) & 鈴木(B課/ランクB) -> 正常パターン
         assign1 = ShiftAssignment(
             tenant_id=dummy_tenant_id, slot_id=slots[0].id, worker_id=workers[0].id
         )
@@ -155,7 +186,7 @@ def seed_data():
             tenant_id=dummy_tenant_id, slot_id=slots[0].id, worker_id=workers[1].id
         )
 
-        # 枠2 (4/4 土曜昼間): 高橋(C課/rank_a) & 伊藤(B課/rank_d) -> 正常パターン
+        # 枠2 (4/4 土曜昼間): 高橋(C課/ランクA) & 伊藤(B課/ランクD) -> 正常パターン
         assign3 = ShiftAssignment(
             tenant_id=dummy_tenant_id, slot_id=slots[1].id, worker_id=workers[2].id
         )
@@ -163,7 +194,7 @@ def seed_data():
             tenant_id=dummy_tenant_id, slot_id=slots[1].id, worker_id=workers[4].id
         )
 
-        # 枠3 (4/4 土曜夜間): 佐藤(A課/rank_a) & 田中(A課/rank_c) -> 【ルール違反を強制保存するテスト用】
+        # 枠3 (4/4 土曜夜間): 佐藤(A課/ランクA) & 田中(A課/ランクC) -> 【ルール違反を強制保存するテスト用】
         # A課同士なので本来はエラーだが、is_manual_override=Trueで保存したケース
         assign5 = ShiftAssignment(
             tenant_id=dummy_tenant_id,

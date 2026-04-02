@@ -8,6 +8,7 @@ import { SciFiPanel } from "@/components/ui/SciFiPanel";
 import { CalendarCell } from "./CalendarCell";
 import { OverrideConfirmDialog } from "./OverrideConfirmDialog";
 import { useShiftRequirements } from "@/hooks/useShiftRequirements";
+import { useSkillRanks } from "@/hooks/useSkillRanks";
 import { useWorkers } from "@/hooks/useWorkers";
 import type {
   CalendarState,
@@ -47,8 +48,9 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
   const { shiftRequirements, isLoading, createShiftRequirement, updateShiftRequirement, saveAssignments } =
     useShiftRequirements();
   const { workers } = useWorkers();
+  const { skillRanks } = useSkillRanks();
 
-  const validationMap = useShiftValidation(calendarState, workers);
+  const validationMap = useShiftValidation(calendarState, workers, undefined, skillRanks);
 
   const holidayMap = useMemo(() => getHolidayMap(year, month), [year, month]);
   const holidaySet = useMemo(() => new Set(holidayMap.keys()), [holidayMap]);

@@ -8,22 +8,11 @@ import { SciFiButton } from "@/components/ui/SciFiButton";
 import { SciFiHeading } from "@/components/ui/SciFiHeading";
 import { SciFiPanel } from "@/components/ui/SciFiPanel";
 import { useDepartments } from "@/hooks/useDepartments";
+import { useSkillRanks } from "@/hooks/useSkillRanks";
 import { useWorkers } from "@/hooks/useWorkers";
-import { SKILL_RANK_LABELS, type Worker, type WorkerCreate } from "@/types/worker";
+import type { Worker, WorkerCreate } from "@/types/worker";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
 import { WorkerModal } from "./WorkerModal";
-
-/** スキルランクに応じたバッジスタイル */
-const skillRankBadgeClass: Record<string, string> = {
-  rank_a:
-    "bg-yellow-500/20 text-yellow-300 border border-yellow-500/40",
-  rank_b:
-    "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40",
-  rank_c:
-    "bg-slate-500/20 text-slate-300 border border-slate-500/40",
-  rank_d:
-    "bg-slate-700/30 text-slate-400 border border-slate-600/40",
-};
 
 /** スケルトンローダー行 */
 function SkeletonRow() {
@@ -42,11 +31,13 @@ function SkeletonRow() {
 function WorkerRow({
   worker,
   departmentName,
+  skillRankName,
   onEdit,
   onDelete,
 }: {
   worker: Worker;
   departmentName: string;
+  skillRankName: string;
   onEdit: (w: Worker) => void;
   onDelete: (w: Worker) => void;
 }) {
@@ -58,13 +49,9 @@ function WorkerRow({
       </td>
       <td className="px-4 py-3">
         <span
-          className={[
-            "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium",
-            skillRankBadgeClass[worker.skill_rank] ??
-              "bg-slate-700/30 text-slate-400",
-          ].join(" ")}
+          className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
         >
-          {SKILL_RANK_LABELS[worker.skill_rank]}
+          {skillRankName}
         </span>
       </td>
       <td className="px-4 py-3">
@@ -104,6 +91,7 @@ export function WorkerList() {
   const { workers, isLoading, isError, createWorker, updateWorker, deleteWorker } =
     useWorkers();
   const { departments } = useDepartments();
+  const { skillRankNameById } = useSkillRanks();
 
   const departmentNameById = Object.fromEntries(
     departments.map((d) => [d.id, d.name]),
@@ -251,6 +239,7 @@ export function WorkerList() {
                     key={worker.id}
                     worker={worker}
                     departmentName={departmentNameById[worker.department_id] ?? worker.department_id}
+                    skillRankName={skillRankNameById[worker.skill_rank_id] ?? worker.skill_rank_id}
                     onEdit={handleEdit}
                     onDelete={setDeletingWorker}
                   />

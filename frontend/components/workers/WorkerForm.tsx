@@ -1,4 +1,3 @@
-// frontend/components/workers/WorkerForm.tsx
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,6 +9,7 @@ import { SciFiButton } from "@/components/ui/SciFiButton";
 import { SciFiInput } from "@/components/ui/SciFiInput";
 import { SciFiSelect } from "@/components/ui/SciFiSelect";
 import { useDepartments } from "@/hooks/useDepartments";
+import { useSkillRanks } from "@/hooks/useSkillRanks";
 import type { Worker, WorkerCreate } from "@/types/worker";
 
 const workerSchema = z.object({
@@ -18,9 +18,7 @@ const workerSchema = z.object({
     .min(1, "氏名は必須です")
     .max(100, "氏名は100文字以内で入力してください"),
   department_id: z.string().uuid("有効な所属課IDを入力してください"),
-  skill_rank: z.enum(["rank_a", "rank_b", "rank_c", "rank_d"] as const, {
-    error: "スキルランクを選択してください",
-  }),
+  skill_rank_id: z.string().uuid("スキルランクを選択してください"),
   is_special: z.boolean(),
 });
 
@@ -44,6 +42,7 @@ export function WorkerForm({
   isSubmitting = false,
 }: WorkerFormProps) {
   const { departments, isLoading: isDepartmentsLoading } = useDepartments();
+  const { skillRanks, isLoading: isSkillRanksLoading } = useSkillRanks();
   const {
     register,
     handleSubmit,
@@ -54,7 +53,7 @@ export function WorkerForm({
     defaultValues: {
       name: worker?.name ?? "",
       department_id: worker?.department_id ?? "",
-      skill_rank: worker?.skill_rank ?? "rank_a",
+      skill_rank_id: worker?.skill_rank_id ?? "",
       is_special: worker?.is_special ?? false,
     },
   });
@@ -64,7 +63,7 @@ export function WorkerForm({
     reset({
       name: worker?.name ?? "",
       department_id: worker?.department_id ?? "",
-      skill_rank: worker?.skill_rank ?? "rank_a",
+      skill_rank_id: worker?.skill_rank_id ?? "",
       is_special: worker?.is_special ?? false,
     });
   }, [worker, reset]);
@@ -110,14 +109,20 @@ export function WorkerForm({
       <SciFiSelect
         id="worker-skill-rank"
         label="スキルランク"
-        {...register("skill_rank")}
-        error={errors.skill_rank?.message}
-        disabled={isSubmitting}
+        {...register("skill_rank_id")}
+        error={errors.skill_rank_id?.message}
+        disabled={isSubmitting || isSkillRanksLoading}
+        required
       >
-        <option value="rank_a">ランク A</option>
-        <option value="rank_b">ランク B</option>
-        <option value="rank_c">ランク C</option>
-        <option value="rank_d">ランク D</option>
+        <option value="">
+          {isSkillRanksLoading ? "読み込み中..." : "スキルランクを選択してください"}
+        </option>
+        {skillRanks.map((rank) => (
+          <option key={rank.id} value={rank.id}>
+            {rank.name}
+            {rank.is_leader_eligible ? " ★" : ""}
+          </option>
+        ))}
       </SciFiSelect>
 
       <div className="flex items-center gap-3">
@@ -152,3 +157,4 @@ export function WorkerForm({
     </form>
   );
 }
+
