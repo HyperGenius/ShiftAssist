@@ -245,7 +245,9 @@ def preview_bulk_upsert_departments(
         existing = existing_map.get(item.code)
         if existing is None:
             preview_items.append(
-                DepartmentBulkPreviewItem(code=item.code, name=item.name, action="create")
+                DepartmentBulkPreviewItem(
+                    code=item.code, name=item.name, action="create"
+                )
             )
             create_count += 1
         elif existing.deleted_at is not None:
@@ -271,7 +273,9 @@ def preview_bulk_upsert_departments(
         else:
             # 変更なし
             preview_items.append(
-                DepartmentBulkPreviewItem(code=item.code, name=item.name, action="no_change")
+                DepartmentBulkPreviewItem(
+                    code=item.code, name=item.name, action="no_change"
+                )
             )
             no_change_count += 1
 
@@ -379,4 +383,3 @@ def _fetch_existing_by_codes(
         )
     ).all()
     return {row.code: row for row in rows}
-
