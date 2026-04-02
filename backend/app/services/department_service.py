@@ -239,7 +239,7 @@ def preview_bulk_upsert_departments(
     existing_map = _fetch_existing_by_codes(session, tenant_id, codes)
 
     preview_items: list[DepartmentBulkPreviewItem] = []
-    create_count = update_count = reactivate_count = 0
+    create_count = update_count = reactivate_count = no_change_count = 0
 
     for item in items:
         existing = existing_map.get(item.code)
@@ -271,15 +271,16 @@ def preview_bulk_upsert_departments(
         else:
             # 変更なし
             preview_items.append(
-                DepartmentBulkPreviewItem(code=item.code, name=item.name, action="update")
+                DepartmentBulkPreviewItem(code=item.code, name=item.name, action="no_change")
             )
-            update_count += 1
+            no_change_count += 1
 
     return DepartmentBulkPreviewResponse(
         preview=preview_items,
         create_count=create_count,
         update_count=update_count,
         reactivate_count=reactivate_count,
+        no_change_count=no_change_count,
     )
 
 
@@ -329,8 +330,7 @@ def bulk_upsert_departments(
                 reactivated += 1
             elif existing.name != item.name:
                 updated += 1
-            else:
-                updated += 1
+            # else: 変更なし（カウントしない）
             existing.name = item.name
             existing.deleted_at = None
             session.add(existing)

@@ -67,7 +67,7 @@ class DepartmentBulkPreviewItem(BaseModel):
 
     code: str
     name: str
-    action: str  # "create" | "update" | "reactivate"
+    action: str  # "create" | "update" | "reactivate" | "no_change"
     old_name: str | None = None
 
 
@@ -78,6 +78,7 @@ class DepartmentBulkPreviewResponse(BaseModel):
     create_count: int
     update_count: int
     reactivate_count: int
+    no_change_count: int = 0
 
 
 class DepartmentBulkUpsertResponse(BaseModel):

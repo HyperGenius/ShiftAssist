@@ -10,8 +10,9 @@ import { SciFiPanel } from "@/components/ui/SciFiPanel";
 import { useDepartments } from "@/hooks/useDepartments";
 import type { Department, DepartmentCreate } from "@/types/department";
 import { ApiError } from "@/utils/apiClient";
-import { DepartmentModal } from "./DepartmentModal";
+import { BulkUploadPanel } from "./BulkUploadPanel";
 import { DeleteDepartmentModal } from "./DeleteDepartmentModal";
+import { DepartmentModal } from "./DepartmentModal";
 
 /** スケルトンローダー行 */
 function SkeletonRow() {
@@ -81,6 +82,7 @@ export function DepartmentList() {
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
 
   const handleCreate = () => {
     setEditingDepartment(undefined);
@@ -144,8 +146,23 @@ export function DepartmentList() {
         {/* ヘッダー */}
         <div className="flex items-center justify-between mb-6">
           <SciFiHeading level="h2">部門（Department）管理</SciFiHeading>
-          <SciFiButton onClick={handleCreate}>＋ 新規追加</SciFiButton>
+          <div className="flex items-center gap-2">
+            <SciFiButton
+              variant="secondary"
+              onClick={() => setIsBulkUploadOpen((prev) => !prev)}
+            >
+              一括登録・更新
+            </SciFiButton>
+            <SciFiButton onClick={handleCreate}>＋ 新規追加</SciFiButton>
+          </div>
         </div>
+
+        {/* 一括登録・更新パネル */}
+        {isBulkUploadOpen && (
+          <div className="mb-6">
+            <BulkUploadPanel onClose={() => setIsBulkUploadOpen(false)} />
+          </div>
+        )}
 
         {/* エラー表示 */}
         {isError && (
