@@ -11,6 +11,7 @@ from sqlmodel import Session, select
 
 from app.models.models import ShiftRequirement, ShiftRequirementAssignment, Worker
 from app.models.schemas import ShiftAssignmentsSave, WorkerAssignmentItem
+from app.services import shift_rules_service, shift_validation_service
 
 
 def _validate_requirement(
@@ -73,6 +74,56 @@ def _validate_workers(
         )
 
 
+def _validate_business_rules(
+    session: Session,
+    tenant_id: str,
+    requirement: ShiftRequirement,
+    worker_ids: list[uuid.UUID],
+) -> None:
+    """アサイン対象ワーカーに対してビジネスルール検証を実行する.
+
+    違反がある場合は 400 Bad Request を送出する。
+    worker_ids が空の場合は検証をスキップする。
+
+    Args:
+        session: SQLModelセッション。
+        tenant_id: テナントID。
+        requirement: アサイン対象のShiftRequirement。
+        worker_ids: アサイン対象のワーカーIDリスト。
+
+    Raises:
+        HTTPException: ビジネスルール違反が検出された場合（400）。
+    """
+    if not worker_ids:
+        return
+
+    workers = list(
+        session.exec(
+            select(Worker).where(
+                Worker.id.in_(worker_ids),  # type: ignore[attr-defined]
+                Worker.tenant_id == tenant_id,
+            )
+        ).all()
+    )
+
+    rules = shift_rules_service.get_shift_rules().shift_rules
+    violations = shift_validation_service.validate_shift_assignments(
+        session, tenant_id, requirement, workers, rules
+    )
+    errors = [v for v in violations if v.severity == "error"]
+    if errors:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": (
+                    "シフトルール違反があります。"
+                    "is_manual_override を true に設定するか、アサインを修正してください。"
+                ),
+                "violations": [v.model_dump() for v in errors],
+            },
+        )
+
+
 def upsert_assignments(
     session: Session,
     tenant_id: str,
@@ -96,8 +147,11 @@ def upsert_assignments(
     Raises:
         HTTPException: ShiftRequirementまたはWorkerが存在しない、または異なるテナントに属する場合。
     """
-    _validate_requirement(session, tenant_id, requirement_id)
+    req = _validate_requirement(session, tenant_id, requirement_id)
     _validate_workers(session, tenant_id, data.worker_ids)
+
+    if not data.is_manual_override:
+        _validate_business_rules(session, tenant_id, req, data.worker_ids)
 
     # 既存のアサインを全削除
     existing = session.exec(

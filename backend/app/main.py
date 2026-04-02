@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers.departments import router as departments_router
+from app.routers.rules import router as rules_router
 from app.routers.shift_requirements import router as shift_requirements_router
 from app.routers.workers import router as workers_router
 
@@ -37,6 +38,7 @@ app.add_middleware(
 app.include_router(workers_router)
 app.include_router(departments_router)
 app.include_router(shift_requirements_router)
+app.include_router(rules_router)
 
 # --- Response Schemas ---
 
