@@ -6,7 +6,11 @@
 検証ロジックのSingle Source of Truthを実現する。
 """
 
-from app.models.schemas import ShiftRulesConfig, ShiftRulesResponse, ShiftWarningsConfig
+from app.models.rule_schemas import (
+    ShiftRulesConfig,
+    ShiftRulesResponse,
+    ShiftWarningsConfig,
+)
 
 # シフトルール定義（固定値。将来的にはDBやテナント設定から取得）
 _SHIFT_RULES = ShiftRulesResponse(

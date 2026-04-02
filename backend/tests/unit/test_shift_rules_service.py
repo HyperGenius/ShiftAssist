@@ -1,7 +1,7 @@
 # backend/tests/unit/test_shift_rules_service.py
 """shift_rules_service モジュールの単体テスト."""
 
-from app.models.schemas import ShiftRulesConfig, ShiftRulesResponse, ShiftWarningsConfig
+from app.models.rule_schemas import ShiftRulesConfig, ShiftRulesResponse, ShiftWarningsConfig
 from app.services import shift_rules_service
 
 

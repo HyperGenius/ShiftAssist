@@ -345,7 +345,7 @@ class TestValidateBusinessRules:
 
     def test_raises_400_when_violations_found(self) -> None:
         """異常系: ビジネスルール違反がある場合、400例外を送出する."""
-        from app.models.schemas import ValidationViolationItem
+        from app.models.rule_schemas import ValidationViolationItem
 
         session = MagicMock()
         req = _make_requirement()
@@ -395,7 +395,7 @@ class TestValidateBusinessRules:
 
     def test_warnings_do_not_trigger_400(self) -> None:
         """正常系: warningのみの場合は400エラーにならない."""
-        from app.models.schemas import ValidationViolationItem
+        from app.models.rule_schemas import ValidationViolationItem
 
         session = MagicMock()
         req = _make_requirement()

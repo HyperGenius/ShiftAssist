@@ -8,7 +8,7 @@
 from fastapi import APIRouter, Depends
 
 from app.dependencies import get_tenant_id
-from app.models.schemas import ShiftRulesResponse
+from app.models.rule_schemas import ShiftRulesResponse
 from app.services import shift_rules_service
 
 router = APIRouter(prefix="/api/rules", tags=["rules"])

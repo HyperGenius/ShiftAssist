@@ -11,7 +11,7 @@ from datetime import date
 from sqlmodel import Session, select
 
 from app.models.models import ShiftRequirement, ShiftRequirementAssignment, Worker
-from app.models.schemas import ShiftRulesConfig, ValidationViolationItem
+from app.models.rule_schemas import ShiftRulesConfig, ValidationViolationItem
 
 
 def _check_daily_duplicate(

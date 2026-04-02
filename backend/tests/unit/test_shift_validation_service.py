@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.models.models import ShiftRequirement, Worker
-from app.models.schemas import ShiftRulesConfig
+from app.models.rule_schemas import ShiftRulesConfig
 from app.services import shift_validation_service
 
 # ---------------------------------------------------------------------------
