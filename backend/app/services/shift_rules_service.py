@@ -6,7 +6,7 @@
 検証ロジックのSingle Source of Truthを実現する。
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlmodel import Session, select
 
@@ -94,7 +94,7 @@ def update_shift_rules(
     else:
         config.rules_json = payload.shift_rules.model_dump()
         config.warnings_json = payload.warnings.model_dump()
-        config.updated_at = datetime.utcnow()
+        config.updated_at = datetime.now(UTC)
 
     session.commit()
     session.refresh(config)
