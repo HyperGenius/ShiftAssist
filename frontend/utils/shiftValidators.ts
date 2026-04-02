@@ -2,6 +2,7 @@
 // シフトバリデーションのための純粋関数群
 
 import type { CalendarState, SlotType } from "@/types/shiftRequirement";
+import type { ShiftRulesConfig } from "@/types/shiftRules";
 import type { Worker } from "@/types/worker";
 import { parseDateStr } from "@/utils/calendarUtils";
 
@@ -20,11 +21,6 @@ export interface ValidationViolation {
   severity: ValidationSeverity;
   message: string;
   workerIds: string[];
-}
-
-/** 特定のスロットタイプが平日夜間以外（休日昼・夜、長期連休）かどうか */
-function isNonWeekdaySlot(slotType: SlotType): boolean {
-  return slotType !== "weekday_night";
 }
 
 /** 休日系スロット（平日夜間以外）かどうか */
@@ -120,7 +116,10 @@ export function validateDailyDuplicate(
 export function validateSameDepartment(
   workers: readonly (string | null)[],
   workerMap: Map<string, Worker>,
+  rules?: Pick<ShiftRulesConfig, "allow_same_department">,
 ): ValidationViolation[] {
+  if (rules?.allow_same_department) return [];
+
   const assignedWorkers = workers
     .filter((id): id is string => id !== null)
     .map((id) => workerMap.get(id))
@@ -159,7 +158,9 @@ export function validateSkillRankA(
   workers: readonly (string | null)[],
   requiredHeadcount: number,
   workerMap: Map<string, Worker>,
+  rules?: Pick<ShiftRulesConfig, "require_skill_ranks">,
 ): ValidationViolation[] {
+  const requiredRanks = rules?.require_skill_ranks ?? ["rank_a"];
   const assignedWorkers = workers
     .filter((id): id is string => id !== null)
     .map((id) => workerMap.get(id))
@@ -167,8 +168,10 @@ export function validateSkillRankA(
 
   if (assignedWorkers.length < requiredHeadcount) return [];
 
-  const hasRankA = assignedWorkers.some((w) => w.skill_rank === "rank_a");
-  if (hasRankA) return [];
+  const hasRequiredRank = assignedWorkers.some((w) =>
+    requiredRanks.includes(w.skill_rank),
+  );
+  if (hasRequiredRank) return [];
 
   return [
     {
@@ -182,7 +185,7 @@ export function validateSkillRankA(
 
 /**
  * ルール4: 中9日以上の勤務間隔
- * 同一ワーカーの他アサインと10日未満の間隔がある場合エラー。
+ * 同一ワーカーの他アサインとmin_interval_days日未満の間隔がある場合エラー。
  */
 export function validateWorkInterval(
   dateStr: string,
@@ -190,7 +193,9 @@ export function validateWorkInterval(
   workers: readonly (string | null)[],
   calendarState: CalendarState,
   workerMap: Map<string, Worker>,
+  rules?: Pick<ShiftRulesConfig, "min_interval_days">,
 ): ValidationViolation[] {
+  const minIntervalDays = rules?.min_interval_days ?? 10;
   const violations: ValidationViolation[] = [];
   const assignedWorkers = workers.filter((id): id is string => id !== null);
 
@@ -205,11 +210,11 @@ export function validateWorkInterval(
 
     for (const otherDate of otherDates) {
       const diff = diffDays(dateStr, otherDate);
-      if (diff < 10) {
+      if (diff < minIntervalDays) {
         violations.push({
           code: "WORK_INTERVAL",
           severity: "error",
-          message: `${worker.name} の勤務間隔が中9日を満たしていません（${Math.round(diff) - 1}日間隔）`,
+          message: `${worker.name} の勤務間隔が中${minIntervalDays - 1}日を満たしていません（${Math.round(diff) - 1}日間隔）`,
           workerIds: [workerId],
         });
         break;
@@ -222,14 +227,16 @@ export function validateWorkInterval(
 
 /**
  * ルール5: 特別雇用者の枠制限
- * 特別雇用者（is_special=true）は平日夜間（weekday_night）以外の枠にはアサイン不可。
+ * 特別雇用者（is_special=true）は special_employment_shifts 以外の枠にはアサイン不可。
  */
 export function validateSpecialEmployment(
   slotType: SlotType,
   workers: readonly (string | null)[],
   workerMap: Map<string, Worker>,
+  rules?: Pick<ShiftRulesConfig, "special_employment_shifts">,
 ): ValidationViolation[] {
-  if (!isNonWeekdaySlot(slotType)) return [];
+  const allowedSlots = rules?.special_employment_shifts ?? ["weekday_night"];
+  if (allowedSlots.includes(slotType)) return [];
 
   const violations: ValidationViolation[] = [];
   const assignedWorkers = workers
@@ -315,16 +322,17 @@ export function validateSlot(
   requiredHeadcount: number,
   calendarState: CalendarState,
   workerMap: Map<string, Worker>,
+  rules?: ShiftRulesConfig,
 ): ValidationViolation[] {
   const assignedCount = workers.filter((id) => id !== null).length;
   if (assignedCount === 0) return [];
 
   return [
     ...validateDailyDuplicate(dateStr, slotType, workers, calendarState, workerMap),
-    ...validateSameDepartment(workers, workerMap),
-    ...validateSkillRankA(workers, requiredHeadcount, workerMap),
-    ...validateWorkInterval(dateStr, slotType, workers, calendarState, workerMap),
-    ...validateSpecialEmployment(slotType, workers, workerMap),
+    ...validateSameDepartment(workers, workerMap, rules),
+    ...validateSkillRankA(workers, requiredHeadcount, workerMap, rules),
+    ...validateWorkInterval(dateStr, slotType, workers, calendarState, workerMap, rules),
+    ...validateSpecialEmployment(slotType, workers, workerMap, rules),
     ...validateConsecutiveHolidays(dateStr, slotType, workers, calendarState, workerMap),
   ];
 }

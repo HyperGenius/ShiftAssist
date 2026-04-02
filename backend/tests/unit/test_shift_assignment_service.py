@@ -191,9 +191,12 @@ class TestUpsertAssignments:
             return_value=req,
         ):
             with patch.object(shift_assignment_service, "_validate_workers"):
-                shift_assignment_service.upsert_assignments(
-                    session, TENANT_ID, REQ_ID, data
-                )
+                with patch.object(
+                    shift_assignment_service, "_validate_business_rules"
+                ):
+                    shift_assignment_service.upsert_assignments(
+                        session, TENANT_ID, REQ_ID, data
+                    )
 
         session.delete.assert_called_once_with(existing[0])
         session.add.assert_called_once()
@@ -295,3 +298,123 @@ class TestListAssignmentsForRequirement:
             )
 
         assert exc_info.value.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# _validate_business_rules（ビジネスルール検証）
+# ---------------------------------------------------------------------------
+
+
+class TestValidateBusinessRules:
+    """_validate_business_rules の正常系・異常系テスト."""
+
+    def test_skips_validation_when_worker_ids_empty(self) -> None:
+        """正常系: worker_ids が空の場合、検証をスキップして例外を送出しない."""
+        session = MagicMock()
+        req = _make_requirement()
+        # Should not raise
+        shift_assignment_service._validate_business_rules(
+            session, TENANT_ID, req, []
+        )
+
+    def test_skips_validation_when_manual_override(self) -> None:
+        """正常系: is_manual_override=True の場合、_validate_business_rules は呼ばれない."""
+        session = MagicMock()
+        session.exec.return_value = MagicMock(**{"all.return_value": []})
+        session.refresh.side_effect = lambda obj: setattr(obj, "id", uuid.uuid4())
+
+        data = ShiftAssignmentsSave(
+            worker_ids=[WORKER_ID_1],
+            is_manual_override=True,
+        )
+
+        req = _make_requirement()
+        with patch.object(
+            shift_assignment_service, "_validate_requirement", return_value=req
+        ):
+            with patch.object(shift_assignment_service, "_validate_workers"):
+                with patch.object(
+                    shift_assignment_service,
+                    "_validate_business_rules",
+                ) as mock_validate:
+                    shift_assignment_service.upsert_assignments(
+                        session, TENANT_ID, REQ_ID, data
+                    )
+
+        mock_validate.assert_not_called()
+
+    def test_raises_400_when_violations_found(self) -> None:
+        """異常系: ビジネスルール違反がある場合、400例外を送出する."""
+        from app.models.rule_schemas import ValidationViolationItem
+
+        session = MagicMock()
+        req = _make_requirement()
+
+        violation = ValidationViolationItem(
+            code="WORK_INTERVAL",
+            severity="error",
+            message="テストワーカー の勤務間隔が中9日を満たしていません",
+            worker_ids=[str(WORKER_ID_1)],
+        )
+
+        worker = _make_worker(worker_id=WORKER_ID_1)
+        session.exec.return_value = MagicMock(**{"all.return_value": [worker]})
+
+        with patch(
+            "app.services.shift_validation_service.validate_shift_assignments",
+            return_value=[violation],
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                shift_assignment_service._validate_business_rules(
+                    session, TENANT_ID, req, [WORKER_ID_1]
+                )
+
+        assert exc_info.value.status_code == 400
+        detail = exc_info.value.detail
+        assert isinstance(detail, dict)
+        assert "violations" in detail
+        assert len(detail["violations"]) == 1
+        assert detail["violations"][0]["code"] == "WORK_INTERVAL"
+
+    def test_no_exception_when_no_violations(self) -> None:
+        """正常系: ビジネスルール違反がない場合、例外を送出しない."""
+        session = MagicMock()
+        req = _make_requirement()
+
+        worker = _make_worker(worker_id=WORKER_ID_1)
+        session.exec.return_value = MagicMock(**{"all.return_value": [worker]})
+
+        with patch(
+            "app.services.shift_validation_service.validate_shift_assignments",
+            return_value=[],
+        ):
+            # Should not raise
+            shift_assignment_service._validate_business_rules(
+                session, TENANT_ID, req, [WORKER_ID_1]
+            )
+
+    def test_warnings_do_not_trigger_400(self) -> None:
+        """正常系: warningのみの場合は400エラーにならない."""
+        from app.models.rule_schemas import ValidationViolationItem
+
+        session = MagicMock()
+        req = _make_requirement()
+
+        warning = ValidationViolationItem(
+            code="CONSECUTIVE_HOLIDAYS",
+            severity="warning",
+            message="連続して休日枠にアサインされています",
+            worker_ids=[str(WORKER_ID_1)],
+        )
+
+        worker = _make_worker(worker_id=WORKER_ID_1)
+        session.exec.return_value = MagicMock(**{"all.return_value": [worker]})
+
+        with patch(
+            "app.services.shift_validation_service.validate_shift_assignments",
+            return_value=[warning],
+        ):
+            # Should not raise (warnings don't block save)
+            shift_assignment_service._validate_business_rules(
+                session, TENANT_ID, req, [WORKER_ID_1]
+            )

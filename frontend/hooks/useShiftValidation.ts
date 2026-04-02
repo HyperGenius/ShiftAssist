@@ -5,6 +5,7 @@
 import { useMemo } from "react";
 
 import type { CalendarState, SlotType } from "@/types/shiftRequirement";
+import type { ShiftRulesConfig } from "@/types/shiftRules";
 import type { Worker } from "@/types/worker";
 import { validateSlot, type ValidationViolation } from "@/utils/shiftValidators";
 
@@ -21,11 +22,12 @@ export type ValidationMap = Record<SlotKey, ValidationViolation[]>;
 
 /**
  * カレンダー全体のバリデーション結果を返すカスタムフック。
- * calendarState または workers が変化した際に再計算される。
+ * calendarState、workers、または rules が変化した際に再計算される。
  */
 export function useShiftValidation(
   calendarState: CalendarState,
   workers: Worker[],
+  rules?: ShiftRulesConfig,
 ): ValidationMap {
   const workerMap = useMemo(
     () => new Map(workers.map((w) => [w.id, w])),
@@ -44,6 +46,7 @@ export function useShiftValidation(
           slotState.required_headcount,
           calendarState,
           workerMap,
+          rules,
         );
         if (violations.length > 0) {
           result[buildSlotKey(dateStr, slotType as SlotType)] = violations;
@@ -52,7 +55,7 @@ export function useShiftValidation(
     }
 
     return result;
-  }, [calendarState, workerMap]);
+  }, [calendarState, workerMap, rules]);
 
   return validationMap;
 }

@@ -7,6 +7,7 @@
 import uuid
 from collections import defaultdict
 from datetime import date
+from typing import cast
 
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
@@ -124,14 +125,14 @@ def list_shift_reqs(session: Session, tenant_id: str) -> list[ShiftReqResponse]:
 
     assignments_by_req: dict[uuid.UUID, list[WorkerAssignmentItem]] = defaultdict(list)
     for a in all_assignments:
-        assignments_by_req[a.requirement_id].append(
+        assignments_by_req[cast(uuid.UUID, a.requirement_id)].append(
             WorkerAssignmentItem.model_validate(a)
         )
 
     result = []
     for r in reqs:
         resp = ShiftReqResponse.model_validate(r)
-        resp.assignments = assignments_by_req.get(r.id, [])
+        resp.assignments = assignments_by_req.get(cast(uuid.UUID, r.id), [])
         result.append(resp)
     return result
 
