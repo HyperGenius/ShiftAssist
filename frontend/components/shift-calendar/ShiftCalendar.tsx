@@ -15,6 +15,8 @@ import type {
   ShiftRequirementCreate,
 } from "@/types/shiftRequirement";
 import type { Department } from "@/types/department";
+import { useShiftValidation, buildSlotKey } from "@/hooks/useShiftValidation";
+import type { ValidationViolation } from "@/utils/shiftValidators";
 import {
   getDayType,
   getDefaultSlotTypes,
@@ -43,6 +45,8 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
   const { shiftRequirements, isLoading, createShiftRequirement, updateShiftRequirement } =
     useShiftRequirements();
   const { workers } = useWorkers();
+
+  const validationMap = useShiftValidation(calendarState, workers);
 
   const holidayMap = useMemo(() => getHolidayMap(year, month), [year, month]);
   const holidaySet = useMemo(() => new Set(holidayMap.keys()), [holidayMap]);
@@ -254,6 +258,16 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
               const dayType = getDayType(date, dateStr, holidaySet);
               const dayState = calendarState[dateStr] ?? {};
 
+              // この日のスロットごとのバリデーション違反を収集する
+              const dayViolations: Partial<Record<SlotType, ValidationViolation[]>> = {};
+              for (const slotType of Object.keys(dayState) as SlotType[]) {
+                const key = buildSlotKey(dateStr, slotType);
+                const violations = validationMap[key];
+                if (violations && violations.length > 0) {
+                  dayViolations[slotType] = violations;
+                }
+              }
+
               return (
                 <CalendarCell
                   key={dateStr}
@@ -263,6 +277,7 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
                   holidayName={holidayName}
                   dayState={dayState}
                   workers={workers}
+                  dayViolations={dayViolations}
                   onWorkerChange={(slotType, idx2, wid) =>
                     handleWorkerChange(dateStr, slotType, idx2, wid)
                   }
