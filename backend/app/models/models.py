@@ -93,8 +93,9 @@ class Department(Base):
         id: UUIDによるプライマリキー。
         tenant_id: Clerk OrganizationのID。テナント分離に使用。
         name: 所属課の表示名（例: "1課", "East"）。
-        code: 所属課の識別コード（例: "dept_1", "east"）。一意制約あり（テナント内）。
+        code: 所属課の識別コード（例: "dept_1", "east"）。一意制約あり（テナント内、有効レコードのみ）。
         created_at: レコード作成日時。
+        deleted_at: 論理削除日時。NULLの場合は有効なレコード。
     """
 
     __tablename__ = "departments"
@@ -103,6 +104,7 @@ class Department(Base):
     name = Column(String, nullable=False)
     code = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "code", name="uq_department_tenant_code"),

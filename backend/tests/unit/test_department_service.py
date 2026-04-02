@@ -6,19 +6,21 @@
 
 import uuid
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
+from fastapi import HTTPException
+
 from app.models.models import Department, Worker
 from app.models.schemas import (
+    DepartmentBulkItem,
     DepartmentCreate,
     DepartmentListResponse,
     DepartmentResponse,
     DepartmentUpdate,
 )
 from app.services import department_service
-from fastapi import HTTPException
 
 # ---------------------------------------------------------------------------
 # テスト用フィクスチャ
@@ -35,6 +37,7 @@ def _make_department(
     tenant_id: str = TENANT_ID,
     name: str = "1課",
     code: str = "dept_1",
+    deleted_at: datetime | None = None,
 ) -> Department:
     """テスト用Departmentオブジェクトを生成するヘルパー."""
     d = Department()
@@ -43,6 +46,7 @@ def _make_department(
     d.name = name
     d.code = code
     d.created_at = datetime(2026, 1, 1)
+    d.deleted_at = deleted_at
     return d
 
 
@@ -268,7 +272,7 @@ class TestDeleteDepartment:
     """delete_department の正常系・異常系テスト."""
 
     def test_delete_department_success(self) -> None:
-        """正常系: Departmentが存在し所属Workerがいない場合、物理削除を実行する."""
+        """正常系: Departmentが存在し所属Workerがいない場合、論理削除（deleted_at設定）を実行する."""
         dept = _make_department()
 
         session = MagicMock()
@@ -282,8 +286,11 @@ class TestDeleteDepartment:
 
         department_service.delete_department(session, TENANT_ID, DEPT_ID)
 
-        session.delete.assert_called_once_with(dept)
+        # 論理削除: session.delete は呼ばれず、deleted_at が設定されて session.add が呼ばれる
+        session.delete.assert_not_called()
+        session.add.assert_called_once_with(dept)
         session.commit.assert_called_once()
+        assert dept.deleted_at is not None
 
     def test_delete_department_not_found(self) -> None:
         """異常系: Departmentが存在しない場合、404例外を送出する."""
@@ -343,3 +350,187 @@ class TestDeleteDepartment:
                 first=MagicMock(side_effect=[dept, None])
             )
             department_service.delete_department(session, TENANT_ID, DEPT_ID)
+
+
+# ---------------------------------------------------------------------------
+# soft delete (delete_department with deleted_at)
+# ---------------------------------------------------------------------------
+
+
+class TestDeleteDepartmentSoftDelete:
+    """delete_department の論理削除テスト."""
+
+    def test_delete_department_sets_deleted_at(self) -> None:
+        """正常系: 削除時に deleted_at が設定されること（論理削除）."""
+        dept = _make_department()
+
+        session = MagicMock()
+        exec_result_dept = MagicMock()
+        exec_result_dept.first.return_value = dept
+
+        exec_result_worker = MagicMock()
+        exec_result_worker.first.return_value = None
+
+        session.exec.side_effect = [exec_result_dept, exec_result_worker]
+
+        department_service.delete_department(session, TENANT_ID, DEPT_ID)
+
+        assert dept.deleted_at is not None
+        session.add.assert_called_once_with(dept)
+        session.commit.assert_called_once()
+        # 物理削除は呼ばれない
+        session.delete.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# bulk_upsert_departments
+# ---------------------------------------------------------------------------
+
+
+class TestBulkUpsertDepartments:
+    """bulk_upsert_departments の正常系・異常系テスト."""
+
+    def test_bulk_upsert_creates_new_departments(self) -> None:
+        """正常系: 既存レコードがない場合、新規作成する."""
+        session = MagicMock()
+        exec_result = MagicMock()
+        exec_result.all.return_value = []
+        session.exec.return_value = exec_result
+
+        def _refresh(obj: Department) -> None:
+            obj.id = uuid.uuid4()
+            obj.created_at = datetime(2026, 1, 1)
+
+        session.refresh.side_effect = _refresh
+
+        items = [
+            DepartmentBulkItem(name="1課", code="dept_1"),
+            DepartmentBulkItem(name="2課", code="dept_2"),
+        ]
+        result = department_service.bulk_upsert_departments(session, TENANT_ID, items)
+
+        assert result.created == 2
+        assert result.updated == 0
+        assert result.reactivated == 0
+        session.commit.assert_called_once()
+
+    def test_bulk_upsert_updates_existing_name(self) -> None:
+        """正常系: 既存レコードがある場合、nameを更新する."""
+        existing = _make_department(name="旧1課", code="dept_1")
+
+        session = MagicMock()
+        exec_result = MagicMock()
+        exec_result.all.return_value = [existing]
+        session.exec.return_value = exec_result
+        session.refresh.side_effect = lambda obj: None
+
+        items = [DepartmentBulkItem(name="新1課", code="dept_1")]
+        result = department_service.bulk_upsert_departments(session, TENANT_ID, items)
+
+        assert result.updated == 1
+        assert result.created == 0
+        assert result.reactivated == 0
+        assert existing.name == "新1課"
+        assert existing.deleted_at is None
+
+    def test_bulk_upsert_reactivates_soft_deleted(self) -> None:
+        """正常系: 論理削除済みレコードと同じcodeがある場合、再活性化する."""
+        deleted_dept = _make_department(
+            name="削除済み課",
+            code="dept_del",
+            deleted_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+
+        session = MagicMock()
+        exec_result = MagicMock()
+        exec_result.all.return_value = [deleted_dept]
+        session.exec.return_value = exec_result
+        session.refresh.side_effect = lambda obj: None
+
+        items = [DepartmentBulkItem(name="復活課", code="dept_del")]
+        result = department_service.bulk_upsert_departments(session, TENANT_ID, items)
+
+        assert result.reactivated == 1
+        assert result.created == 0
+        assert result.updated == 0
+        assert deleted_dept.name == "復活課"
+        assert deleted_dept.deleted_at is None
+
+    def test_bulk_upsert_raises_422_on_duplicate_codes(self) -> None:
+        """異常系: 重複するcodeが含まれる場合、422例外を送出する."""
+        session = MagicMock()
+
+        items = [
+            DepartmentBulkItem(name="1課", code="dept_1"),
+            DepartmentBulkItem(name="1課別名", code="dept_1"),
+        ]
+
+        with pytest.raises(HTTPException) as exc_info:
+            department_service.bulk_upsert_departments(session, TENANT_ID, items)
+
+        assert exc_info.value.status_code == 422
+        assert "dept_1" in exc_info.value.detail
+
+
+# ---------------------------------------------------------------------------
+# preview_bulk_upsert_departments
+# ---------------------------------------------------------------------------
+
+
+class TestPreviewBulkUpsertDepartments:
+    """preview_bulk_upsert_departments のテスト."""
+
+    def test_preview_returns_create_for_new_code(self) -> None:
+        """正常系: 新規codeの場合、actionが 'create' のプレビューを返す."""
+        session = MagicMock()
+        exec_result = MagicMock()
+        exec_result.all.return_value = []
+        session.exec.return_value = exec_result
+
+        items = [DepartmentBulkItem(name="1課", code="dept_1")]
+        result = department_service.preview_bulk_upsert_departments(
+            session, TENANT_ID, items
+        )
+
+        assert result.create_count == 1
+        assert result.update_count == 0
+        assert result.reactivate_count == 0
+        assert result.preview[0].action == "create"
+
+    def test_preview_returns_reactivate_for_soft_deleted(self) -> None:
+        """正常系: 論理削除済みcodeの場合、actionが 'reactivate' のプレビューを返す."""
+        deleted_dept = _make_department(
+            name="旧課",
+            code="dept_1",
+            deleted_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+
+        session = MagicMock()
+        exec_result = MagicMock()
+        exec_result.all.return_value = [deleted_dept]
+        session.exec.return_value = exec_result
+
+        items = [DepartmentBulkItem(name="復活課", code="dept_1")]
+        result = department_service.preview_bulk_upsert_departments(
+            session, TENANT_ID, items
+        )
+
+        assert result.reactivate_count == 1
+        assert result.preview[0].action == "reactivate"
+        assert result.preview[0].old_name == "旧課"
+
+    def test_preview_raises_422_on_duplicate_codes(self) -> None:
+        """異常系: 重複するcodeが含まれる場合、422例外を送出する."""
+        session = MagicMock()
+
+        items = [
+            DepartmentBulkItem(name="1課", code="dept_1"),
+            DepartmentBulkItem(name="1課B", code="dept_1"),
+        ]
+
+        with pytest.raises(HTTPException) as exc_info:
+            department_service.preview_bulk_upsert_departments(
+                session, TENANT_ID, items
+            )
+
+        assert exc_info.value.status_code == 422

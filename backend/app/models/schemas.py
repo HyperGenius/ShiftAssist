@@ -39,12 +39,53 @@ class DepartmentResponse(BaseModel):
     name: str
     code: str
     created_at: datetime
+    deleted_at: datetime | None = None
 
 
 class DepartmentListResponse(BaseModel):
     """Departmentページネーション付き一覧レスポンススキーマ."""
 
     total: int
+    items: list[DepartmentResponse]
+
+
+class DepartmentBulkItem(BaseModel):
+    """バルク登録・更新の1件分のリクエストスキーマ."""
+
+    name: str
+    code: str
+
+
+class DepartmentBulkRequest(BaseModel):
+    """Department一括登録・更新リクエストスキーマ."""
+
+    departments: list[DepartmentBulkItem]
+
+
+class DepartmentBulkPreviewItem(BaseModel):
+    """バルク処理プレビューの1件分スキーマ."""
+
+    code: str
+    name: str
+    action: str  # "create" | "update" | "reactivate"
+    old_name: str | None = None
+
+
+class DepartmentBulkPreviewResponse(BaseModel):
+    """Department一括登録・更新プレビューレスポンススキーマ."""
+
+    preview: list[DepartmentBulkPreviewItem]
+    create_count: int
+    update_count: int
+    reactivate_count: int
+
+
+class DepartmentBulkUpsertResponse(BaseModel):
+    """Department一括登録・更新実行結果レスポンススキーマ."""
+
+    created: int
+    updated: int
+    reactivated: int
     items: list[DepartmentResponse]
 
 

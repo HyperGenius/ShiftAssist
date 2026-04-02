@@ -13,6 +13,9 @@ from sqlmodel import Session
 from app.db import get_session
 from app.dependencies import get_tenant_id
 from app.models.schemas import (
+    DepartmentBulkPreviewResponse,
+    DepartmentBulkRequest,
+    DepartmentBulkUpsertResponse,
     DepartmentCreate,
     DepartmentListResponse,
     DepartmentResponse,
@@ -115,7 +118,7 @@ def delete_department(
     tenant_id: str = Depends(get_tenant_id),
     session: Session = Depends(get_session),
 ) -> None:
-    """指定したDepartmentを物理削除する.
+    """指定したDepartmentを論理削除する.
 
     所属するWorkerが存在する場合は HTTP 409 を返す。
 
@@ -125,3 +128,59 @@ def delete_department(
         session: DBセッション。
     """
     department_service.delete_department(session, tenant_id, department_id)
+
+
+@router.post(
+    "/bulk/preview",
+    response_model=DepartmentBulkPreviewResponse,
+    status_code=status.HTTP_200_OK,
+)
+def preview_bulk_upsert_departments(
+    data: DepartmentBulkRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    session: Session = Depends(get_session),
+) -> DepartmentBulkPreviewResponse:
+    """Department一括登録・更新のプレビューを取得する.
+
+    実際のDB更新は行わず、「新規追加」「名称変更」「再活性化」の件数とリストを返す。
+
+    Args:
+        data: バルク処理リクエストボディ（Departmentリスト）。
+        tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
+        session: DBセッション。
+
+    Returns:
+        プレビュー情報（件数・差分リスト）。
+    """
+    return department_service.preview_bulk_upsert_departments(
+        session, tenant_id, data.departments
+    )
+
+
+@router.post(
+    "/bulk",
+    response_model=DepartmentBulkUpsertResponse,
+    status_code=status.HTTP_200_OK,
+)
+def bulk_upsert_departments(
+    data: DepartmentBulkRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    session: Session = Depends(get_session),
+) -> DepartmentBulkUpsertResponse:
+    """Departmentを一括登録・更新する（Upsert）.
+
+    - 同じ ``code`` の有効・論理削除済みレコードがある場合: ``name`` を更新し再活性化。
+    - 一致する ``code`` がない場合: 新規作成。
+    - リスト内に重複する ``code`` がある場合は HTTP 422 を返す。
+
+    Args:
+        data: バルク処理リクエストボディ（Departmentリスト）。
+        tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
+        session: DBセッション。
+
+    Returns:
+        作成・更新・再活性化の件数と処理後のDepartmentリスト。
+    """
+    return department_service.bulk_upsert_departments(
+        session, tenant_id, data.departments
+    )
