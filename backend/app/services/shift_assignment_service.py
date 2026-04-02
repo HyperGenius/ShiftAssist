@@ -106,7 +106,7 @@ def _validate_business_rules(
         ).all()
     )
 
-    rules = shift_rules_service.get_shift_rules().shift_rules
+    rules = shift_rules_service.get_shift_rules(session, tenant_id).shift_rules
     violations = shift_validation_service.validate_shift_assignments(
         session, tenant_id, requirement, workers, rules
     )
