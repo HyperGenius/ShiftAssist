@@ -3,6 +3,7 @@
 
 import type { CalendarState, SlotType } from "@/types/shiftRequirement";
 import type { ShiftRulesConfig } from "@/types/shiftRules";
+import type { TenantSkillRank } from "@/types/skillRank";
 import type { Worker } from "@/types/worker";
 import { parseDateStr } from "@/utils/calendarUtils";
 
@@ -151,16 +152,20 @@ export function validateSameDepartment(
 }
 
 /**
- * ルール3: スキルランクAの必須
+ * ルール3: リーダー適性（is_leader_eligible）の必須チェック
  * 全員がアサイン済みの場合のみ検証する。
+ * skillRankMap が空の場合はチェックをスキップする。
  */
 export function validateSkillRankA(
   workers: readonly (string | null)[],
   requiredHeadcount: number,
   workerMap: Map<string, Worker>,
   rules?: Pick<ShiftRulesConfig, "require_skill_ranks">,
+  skillRankMap?: Map<string, TenantSkillRank>,
 ): ValidationViolation[] {
   const requiredRanks = rules?.require_skill_ranks ?? ["rank_a"];
+  if (!requiredRanks.length) return [];
+
   const assignedWorkers = workers
     .filter((id): id is string => id !== null)
     .map((id) => workerMap.get(id))
@@ -168,16 +173,23 @@ export function validateSkillRankA(
 
   if (assignedWorkers.length < requiredHeadcount) return [];
 
-  const hasRequiredRank = assignedWorkers.some((w) =>
-    requiredRanks.includes(w.skill_rank),
-  );
-  if (hasRequiredRank) return [];
+  // skillRankMap が提供されている場合は is_leader_eligible でチェック
+  if (skillRankMap && skillRankMap.size > 0) {
+    const hasLeaderEligible = assignedWorkers.some((w) => {
+      const rank = skillRankMap.get(w.skill_rank_id);
+      return rank?.is_leader_eligible === true;
+    });
+    if (hasLeaderEligible) return [];
+  } else {
+    // skillRankMap が未提供の場合はチェックをスキップ
+    return [];
+  }
 
   return [
     {
       code: "SKILL_RANK_A",
       severity: "error",
-      message: "ランクAのメンバーが含まれていません",
+      message: "リーダー適性（is_leader_eligible）を持つメンバーが含まれていません",
       workerIds: assignedWorkers.map((w) => w.id),
     },
   ];
@@ -323,6 +335,7 @@ export function validateSlot(
   calendarState: CalendarState,
   workerMap: Map<string, Worker>,
   rules?: ShiftRulesConfig,
+  skillRankMap?: Map<string, TenantSkillRank>,
 ): ValidationViolation[] {
   const assignedCount = workers.filter((id) => id !== null).length;
   if (assignedCount === 0) return [];
@@ -330,7 +343,7 @@ export function validateSlot(
   return [
     ...validateDailyDuplicate(dateStr, slotType, workers, calendarState, workerMap),
     ...validateSameDepartment(workers, workerMap, rules),
-    ...validateSkillRankA(workers, requiredHeadcount, workerMap, rules),
+    ...validateSkillRankA(workers, requiredHeadcount, workerMap, rules, skillRankMap),
     ...validateWorkInterval(dateStr, slotType, workers, calendarState, workerMap, rules),
     ...validateSpecialEmployment(slotType, workers, workerMap, rules),
     ...validateConsecutiveHolidays(dateStr, slotType, workers, calendarState, workerMap),

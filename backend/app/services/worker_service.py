@@ -9,7 +9,7 @@ import uuid
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
-from app.models.models import Department, Worker
+from app.models.models import Department, TenantSkillRank, Worker
 from app.models.schemas import WorkerCreate, WorkerResponse, WorkerUpdate
 
 
@@ -39,6 +39,33 @@ def _validate_department(
         )
 
 
+def _validate_skill_rank(
+    session: Session, tenant_id: str, skill_rank_id: uuid.UUID
+) -> None:
+    """指定された ``skill_rank_id`` が同一テナントに存在するか検証する.
+
+    Args:
+        session: SQLModelセッション。
+        tenant_id: テナントID。
+        skill_rank_id: 検証対象のスキルランクID。
+
+    Raises:
+        HTTPException: スキルランクが存在しない、または異なるテナントに属する場合。
+    """
+    rank = session.exec(
+        select(TenantSkillRank).where(
+            TenantSkillRank.id == skill_rank_id,  # type: ignore[arg-type]
+            TenantSkillRank.tenant_id == tenant_id,
+        )
+    ).first()
+    if rank is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"SkillRank '{skill_rank_id}' not found in tenant.",
+        )
+
+
+
 def create_worker(
     session: Session, tenant_id: str, data: WorkerCreate
 ) -> WorkerResponse:
@@ -56,12 +83,13 @@ def create_worker(
         HTTPException: ``department_id`` が同一テナントに存在しない場合。
     """
     _validate_department(session, tenant_id, data.department_id)
+    _validate_skill_rank(session, tenant_id, data.skill_rank_id)
 
     worker = Worker(
         tenant_id=tenant_id,
         name=data.name,
         department_id=data.department_id,
-        skill_rank=data.skill_rank,
+        skill_rank_id=data.skill_rank_id,
         is_special=data.is_special,
     )
     session.add(worker)
@@ -153,6 +181,9 @@ def update_worker(
 
     if "department_id" in update_data:
         _validate_department(session, tenant_id, update_data["department_id"])
+
+    if "skill_rank_id" in update_data:
+        _validate_skill_rank(session, tenant_id, update_data["skill_rank_id"])
 
     for field, value in update_data.items():
         setattr(worker, field, value)

@@ -6,7 +6,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from app.models.models import SkillRankEnum, SlotTypeEnum
+from app.models.models import SlotTypeEnum
 
 
 class DepartmentCreate(BaseModel):
@@ -90,12 +90,47 @@ class DepartmentBulkUpsertResponse(BaseModel):
     items: list[DepartmentResponse]
 
 
+class TenantSkillRankCreate(BaseModel):
+    """TenantSkillRank作成リクエストスキーマ."""
+
+    name: str
+    sort_order: int = 0
+    is_leader_eligible: bool = False
+
+
+class TenantSkillRankUpdate(BaseModel):
+    """TenantSkillRank更新リクエストスキーマ.
+
+    すべてのフィールドはオプショナル。指定したフィールドのみ更新される。
+    """
+
+    name: str | None = None
+    sort_order: int | None = None
+    is_leader_eligible: bool | None = None
+
+
+class TenantSkillRankResponse(BaseModel):
+    """TenantSkillRankレスポンススキーマ.
+
+    ORMモデルからの変換に対応するため ``from_attributes=True`` を設定。
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    tenant_id: str
+    name: str
+    sort_order: int
+    is_leader_eligible: bool
+    created_at: datetime
+
+
 class WorkerCreate(BaseModel):
     """Worker作成リクエストスキーマ."""
 
     name: str
     department_id: uuid.UUID
-    skill_rank: SkillRankEnum
+    skill_rank_id: uuid.UUID
     is_special: bool = False
 
 
@@ -107,7 +142,7 @@ class WorkerUpdate(BaseModel):
 
     name: str | None = None
     department_id: uuid.UUID | None = None
-    skill_rank: SkillRankEnum | None = None
+    skill_rank_id: uuid.UUID | None = None
     is_special: bool | None = None
 
 
@@ -123,7 +158,7 @@ class WorkerResponse(BaseModel):
     tenant_id: str
     name: str
     department_id: uuid.UUID
-    skill_rank: SkillRankEnum
+    skill_rank_id: uuid.UUID
     is_special: bool
     created_at: datetime
     updated_at: datetime

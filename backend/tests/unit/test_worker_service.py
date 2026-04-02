@@ -10,7 +10,7 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-from app.models.models import SkillRankEnum, Worker
+from app.models.models import Worker
 from app.models.schemas import WorkerCreate, WorkerResponse, WorkerUpdate
 from app.services import worker_service
 from fastapi import HTTPException
@@ -23,6 +23,7 @@ TENANT_ID = "org_test_tenant"
 OTHER_TENANT_ID = "org_other_tenant"
 WORKER_ID = uuid.uuid4()
 DEPT_ID = uuid.uuid4()
+SKILL_RANK_ID = uuid.uuid4()
 
 
 def _make_worker(
@@ -31,7 +32,7 @@ def _make_worker(
     tenant_id: str = TENANT_ID,
     name: str = "田中 太郎",
     department_id: uuid.UUID | None = None,
-    skill_rank: SkillRankEnum = SkillRankEnum.rank_a,
+    skill_rank_id: uuid.UUID | None = None,
     is_special: bool = False,
 ) -> Worker:
     """テスト用Workerオブジェクトを生成するヘルパー."""
@@ -40,7 +41,7 @@ def _make_worker(
     w.tenant_id = tenant_id
     w.name = name
     w.department_id = department_id or DEPT_ID
-    w.skill_rank = skill_rank
+    w.skill_rank_id = skill_rank_id or SKILL_RANK_ID
     w.is_special = is_special
     w.created_at = datetime(2026, 1, 1)
     w.updated_at = datetime(2026, 1, 1)
@@ -87,13 +88,16 @@ class TestCreateWorker:
         data = WorkerCreate(
             name="田中 太郎",
             department_id=DEPT_ID,
-            skill_rank=SkillRankEnum.rank_a,
+            skill_rank_id=SKILL_RANK_ID,
             is_special=False,
         )
 
         with patch.object(
             worker_service,
             "_validate_department",
+        ), patch.object(
+            worker_service,
+            "_validate_skill_rank",
         ):
             # refreshでworkerのフィールドをセット
             def _refresh(obj: Worker) -> None:
@@ -101,7 +105,7 @@ class TestCreateWorker:
                 obj.tenant_id = TENANT_ID
                 obj.name = "田中 太郎"
                 obj.department_id = DEPT_ID
-                obj.skill_rank = SkillRankEnum.rank_a
+                obj.skill_rank_id = SKILL_RANK_ID
                 obj.is_special = False
                 obj.created_at = datetime(2026, 1, 1)
                 obj.updated_at = datetime(2026, 1, 1)
@@ -113,7 +117,7 @@ class TestCreateWorker:
         assert isinstance(result, WorkerResponse)
         assert result.tenant_id == TENANT_ID
         assert result.name == "田中 太郎"
-        assert result.skill_rank == SkillRankEnum.rank_a
+        assert result.skill_rank_id == SKILL_RANK_ID
         session.add.assert_called_once()
         session.commit.assert_called_once()
 
@@ -123,7 +127,7 @@ class TestCreateWorker:
         data = WorkerCreate(
             name="鈴木 花子",
             department_id=uuid.uuid4(),
-            skill_rank=SkillRankEnum.rank_b,
+            skill_rank_id=SKILL_RANK_ID,
         )
 
         with pytest.raises(HTTPException) as exc_info:
@@ -138,7 +142,7 @@ class TestCreateWorker:
         data = WorkerCreate(
             name="山田 一郎",
             department_id=DEPT_ID,
-            skill_rank=SkillRankEnum.rank_c,
+            skill_rank_id=SKILL_RANK_ID,
         )
 
         with pytest.raises(HTTPException) as exc_info:

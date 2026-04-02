@@ -11,7 +11,12 @@ from typing import cast
 
 from sqlmodel import Session, select
 
-from app.models.models import ShiftRequirement, ShiftRequirementAssignment, Worker
+from app.models.models import (
+    ShiftRequirement,
+    ShiftRequirementAssignment,
+    TenantSkillRank,
+    Worker,
+)
 from app.models.rule_schemas import ShiftRulesConfig, ValidationViolationItem
 
 
@@ -78,27 +83,42 @@ def _check_same_department(
 
 
 def _check_skill_rank(
+    session: Session,
     requirement: ShiftRequirement,
     workers: list[Worker],
     rules: ShiftRulesConfig,
 ) -> list[ValidationViolationItem]:
-    """ルール3: スキルランク必須チェック（全員アサイン済みの場合のみ）."""
+    """ルール3: リーダー適性チェック（全員アサイン済みの場合のみ）.
+
+    アサインされたWorkerのスキルランクに ``is_leader_eligible=True`` のものが含まれるか検証する。
+    """
     if len(workers) < requirement.required_headcount:
         return []
     if not rules.require_skill_ranks:
         return []
-    worker_ranks = {str(w.skill_rank) for w in workers}
-    required_ranks = set(rules.require_skill_ranks)
-    if required_ranks.intersection(worker_ranks):
+    skill_rank_ids = [w.skill_rank_id for w in workers if w.skill_rank_id is not None]
+    if not skill_rank_ids:
+        return [
+            ValidationViolationItem(
+                code="SKILL_RANK_A",
+                severity="error",
+                message="リーダー適性（is_leader_eligible）を持つメンバーが含まれていません",
+                worker_ids=[str(w.id) for w in workers],
+            )
+        ]
+    eligible_rank = session.exec(
+        select(TenantSkillRank).where(
+            TenantSkillRank.id.in_(skill_rank_ids),  # type: ignore[attr-defined]
+            TenantSkillRank.is_leader_eligible.is_(True),  # type: ignore[attr-defined]
+        )
+    ).first()
+    if eligible_rank:
         return []
     return [
         ValidationViolationItem(
             code="SKILL_RANK_A",
             severity="error",
-            message=(
-                f"必須スキルランク（{', '.join(rules.require_skill_ranks)}）の"
-                "メンバーが含まれていません"
-            ),
+            message="リーダー適性（is_leader_eligible）を持つメンバーが含まれていません",
             worker_ids=[str(w.id) for w in workers],
         )
     ]
@@ -202,7 +222,7 @@ def validate_shift_assignments(
     return [
         *_check_daily_duplicate(session, tenant_id, requirement, workers),
         *_check_same_department(workers, rules),
-        *_check_skill_rank(requirement, workers, rules),
+        *_check_skill_rank(session, requirement, workers, rules),
         *_check_work_interval(session, tenant_id, requirement, workers, rules),
         *_check_special_employment(requirement, workers, rules),
     ]

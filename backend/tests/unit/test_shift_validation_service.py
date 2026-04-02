@@ -24,6 +24,8 @@ DEPT_A_ID = uuid.uuid4()
 DEPT_B_ID = uuid.uuid4()
 WORKER_ID_1 = uuid.uuid4()
 WORKER_ID_2 = uuid.uuid4()
+SKILL_RANK_LEADER_ID = uuid.uuid4()
+SKILL_RANK_NON_LEADER_ID = uuid.uuid4()
 
 DEFAULT_RULES = ShiftRulesConfig(
     min_interval_days=10,
@@ -63,7 +65,7 @@ def _make_worker(
     tenant_id: str = TENANT_ID,
     name: str = "テストワーカー",
     department_id: uuid.UUID | None = None,
-    skill_rank: str = "rank_a",
+    skill_rank_id: uuid.UUID | None = None,
     is_special: bool = False,
 ) -> Worker:
     """テスト用Workerオブジェクトを生成するヘルパー."""
@@ -72,7 +74,7 @@ def _make_worker(
     w.tenant_id = tenant_id
     w.name = name
     w.department_id = department_id or DEPT_A_ID
-    w.skill_rank = skill_rank  # type: ignore[assignment]
+    w.skill_rank_id = skill_rank_id or SKILL_RANK_LEADER_ID
     w.is_special = is_special
     w.created_at = datetime(2026, 1, 1)
     w.updated_at = datetime(2026, 1, 1)
@@ -188,17 +190,39 @@ class TestValidateShiftAssignments:
     # --- ルール3: スキルランクA必須 ---
 
     def test_missing_rank_a_detected(self) -> None:
-        """異常系（ルール3）: rank_aがいない場合、SKILL_RANK_A を返す."""
+        """異常系（ルール3）: リーダー適性のワーカーがいない場合、SKILL_RANK_A を返す."""
         session = MagicMock()
-        session.exec.return_value = MagicMock(
-            **{"first.return_value": None, "all.return_value": []}
-        )
+        # exec の呼び出し順: daily_duplicate for w1, daily_duplicate for w2, skill_rank check
+        call_index = [0]
+
+        def exec_side_effect(stmt: object) -> MagicMock:
+            m = MagicMock()
+            call_index[0] += 1
+            idx = call_index[0]
+            if idx in (1, 2):
+                # ルール1: daily_duplicate（first → None = 重複なし）
+                m.first.return_value = None
+                m.all.return_value = []
+            elif idx == 3:
+                # ルール3: is_leader_eligible チェック（first → None = リーダーなし）
+                m.first.return_value = None
+                m.all.return_value = []
+            else:
+                m.first.return_value = None
+                m.all.return_value = []
+            return m
+
+        session.exec.side_effect = exec_side_effect
         req = _make_requirement(required_headcount=2)
         w1 = _make_worker(
-            worker_id=WORKER_ID_1, department_id=DEPT_A_ID, skill_rank="rank_b"
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            skill_rank_id=SKILL_RANK_NON_LEADER_ID,
         )
         w2 = _make_worker(
-            worker_id=WORKER_ID_2, department_id=DEPT_B_ID, skill_rank="rank_c"
+            worker_id=WORKER_ID_2,
+            department_id=DEPT_B_ID,
+            skill_rank_id=SKILL_RANK_NON_LEADER_ID,
         )
 
         result = shift_validation_service.validate_shift_assignments(
@@ -209,17 +233,48 @@ class TestValidateShiftAssignments:
         assert "SKILL_RANK_A" in codes
 
     def test_rank_a_present_no_violation(self) -> None:
-        """正常系（ルール3）: rank_aが含まれる場合、SKILL_RANK_A なし."""
+        """正常系（ルール3）: リーダー適性のワーカーが含まれる場合、SKILL_RANK_A なし."""
+        from app.models.models import TenantSkillRank
+
+        leader_rank = TenantSkillRank()
+        leader_rank.id = SKILL_RANK_LEADER_ID
+        leader_rank.is_leader_eligible = True
+
         session = MagicMock()
-        session.exec.return_value = MagicMock(
-            **{"first.return_value": None, "all.return_value": []}
-        )
+        call_index = [0]
+
+        def exec_side_effect(stmt: object) -> MagicMock:
+            m = MagicMock()
+            call_index[0] += 1
+            idx = call_index[0]
+            if idx == 1:
+                # ルール1: daily_duplicate for w1（first → None = 重複なし）
+                m.first.return_value = None
+                m.all.return_value = []
+            elif idx == 2:
+                # ルール1: daily_duplicate for w2（first → None = 重複なし）
+                m.first.return_value = None
+                m.all.return_value = []
+            elif idx == 3:
+                # ルール3: is_leader_eligible チェック（first → leader_rank）
+                m.first.return_value = leader_rank
+                m.all.return_value = [leader_rank]
+            else:
+                m.first.return_value = None
+                m.all.return_value = []
+            return m
+
+        session.exec.side_effect = exec_side_effect
         req = _make_requirement(required_headcount=2)
         w1 = _make_worker(
-            worker_id=WORKER_ID_1, department_id=DEPT_A_ID, skill_rank="rank_a"
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            skill_rank_id=SKILL_RANK_LEADER_ID,
         )
         w2 = _make_worker(
-            worker_id=WORKER_ID_2, department_id=DEPT_B_ID, skill_rank="rank_b"
+            worker_id=WORKER_ID_2,
+            department_id=DEPT_B_ID,
+            skill_rank_id=SKILL_RANK_NON_LEADER_ID,
         )
 
         result = shift_validation_service.validate_shift_assignments(
@@ -238,7 +293,9 @@ class TestValidateShiftAssignments:
         req = _make_requirement(required_headcount=2)
         # 1人だけ（required_headcount=2 に満たない）
         w1 = _make_worker(
-            worker_id=WORKER_ID_1, department_id=DEPT_A_ID, skill_rank="rank_b"
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            skill_rank_id=SKILL_RANK_NON_LEADER_ID,
         )
 
         result = shift_validation_service.validate_shift_assignments(
@@ -363,6 +420,7 @@ class TestValidateShiftAssignments:
     def test_multiple_violations_returned(self) -> None:
         """異常系: 複数のルール違反がある場合、すべての違反を返す."""
         session = MagicMock()
+        # ルール1: daily_duplicate なし, ルール3: リーダー適性なし（first → None）
         session.exec.return_value = MagicMock(
             **{"first.return_value": None, "all.return_value": []}
         )
@@ -371,13 +429,13 @@ class TestValidateShiftAssignments:
         w1 = _make_worker(
             worker_id=WORKER_ID_1,
             department_id=DEPT_A_ID,
-            skill_rank="rank_b",
+            skill_rank_id=SKILL_RANK_NON_LEADER_ID,
             is_special=True,
         )
         w2 = _make_worker(
             worker_id=WORKER_ID_2,
             department_id=DEPT_A_ID,
-            skill_rank="rank_b",
+            skill_rank_id=SKILL_RANK_NON_LEADER_ID,
             is_special=False,
         )
 
