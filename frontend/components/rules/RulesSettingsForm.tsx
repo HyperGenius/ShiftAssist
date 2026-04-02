@@ -50,7 +50,7 @@ function toFormValues(rules: ShiftRules): RulesFormValues {
   };
 }
 
-function toShiftRules(values: RulesFormValues): ShiftRules {
+function toShiftRules(values: RulesFormValues, currentRules: ShiftRules): ShiftRules {
   return {
     shift_rules: {
       min_interval_days: values.min_interval_days,
@@ -64,6 +64,9 @@ function toShiftRules(values: RulesFormValues): ShiftRules {
         .map((s) => s.trim())
         .filter(Boolean),
       workers_per_slot: values.workers_per_slot,
+      // テナント設定（/settings で管理）はそのまま引き継ぐ
+      target_departments: currentRules.shift_rules.target_departments,
+      target_all_departments: currentRules.shift_rules.target_all_departments,
     },
     warnings: {
       avoid_consecutive_holidays: values.avoid_consecutive_holidays,
@@ -109,7 +112,7 @@ export function RulesSettingsForm() {
     setShowConfirm(false);
     setIsSubmitting(true);
     try {
-      await updateRules(toShiftRules(pendingValues));
+      await updateRules(toShiftRules(pendingValues, rules));
       toast.success("シフトルールを保存しました");
       setPendingValues(null);
     } catch {

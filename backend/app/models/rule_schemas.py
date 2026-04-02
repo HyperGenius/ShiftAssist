@@ -26,6 +26,12 @@ class ShiftRulesConfig(BaseModel):
     workers_per_slot: int = 2
     """1スロットあたりの必要人数。"""
 
+    target_departments: list[str] = []
+    """シフト対象とする部門コードの一覧。target_all_departments が False の場合に使用。"""
+
+    target_all_departments: bool = True
+    """テナント全体（全課）を対象とするか。True の場合は target_departments の設定は無視される。"""
+
     @field_validator("min_interval_days")
     @classmethod
     def min_interval_days_non_negative(cls, v: int) -> int:

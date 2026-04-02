@@ -13,6 +13,10 @@ export interface ShiftRulesConfig {
   special_employment_shifts: string[];
   /** 1スロットあたりの必要人数。 */
   workers_per_slot: number;
+  /** シフト対象とする部門コードの一覧。target_all_departments が false の場合に使用。 */
+  target_departments: string[];
+  /** テナント全体（全課）を対象とするか。true の場合は target_departments は無視される。 */
+  target_all_departments: boolean;
 }
 
 /** シフト警告設定 */
@@ -35,6 +39,8 @@ export const DEFAULT_SHIFT_RULES: ShiftRules = {
     allow_same_department: false,
     special_employment_shifts: ["weekday_night"],
     workers_per_slot: 2,
+    target_departments: [],
+    target_all_departments: true,
   },
   warnings: {
     avoid_consecutive_holidays: true,

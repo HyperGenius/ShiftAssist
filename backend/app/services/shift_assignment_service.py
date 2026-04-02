@@ -9,7 +9,12 @@ import uuid
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
-from app.models.models import ShiftRequirement, ShiftRequirementAssignment, Worker
+from app.models.models import (
+    Department,
+    ShiftRequirement,
+    ShiftRequirementAssignment,
+    Worker,
+)
 from app.models.schemas import ShiftAssignmentsSave, WorkerAssignmentItem
 from app.services import shift_rules_service, shift_validation_service
 
@@ -71,6 +76,64 @@ def _validate_workers(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Workers not found in tenant: {missing}",
+        )
+
+
+def _validate_worker_departments(
+    session: Session,
+    tenant_id: str,
+    worker_ids: list[uuid.UUID],
+) -> None:
+    """ワーカーがテナント設定のシフト対象部門に属しているかを検証する.
+
+    ``target_all_departments`` が True の場合は検証をスキップする。
+    ワーカーが対象外の部門に属している場合は 400 Bad Request を送出する。
+
+    Args:
+        session: SQLModelセッション。
+        tenant_id: テナントID。
+        worker_ids: 検証対象のワーカーIDリスト。
+
+    Raises:
+        HTTPException: ワーカーがシフト対象部門外の部門に属している場合（400）。
+    """
+    if not worker_ids:
+        return
+
+    rules = shift_rules_service.get_shift_rules(session, tenant_id).shift_rules
+
+    if rules.target_all_departments:
+        return
+
+    if not rules.target_departments:
+        return
+
+    workers = list(
+        session.exec(
+            select(Worker).where(
+                Worker.id.in_(worker_ids),  # type: ignore[attr-defined]
+                Worker.tenant_id == tenant_id,
+            )
+        ).all()
+    )
+
+    dept_ids = list({w.department_id for w in workers})
+    departments = list(
+        session.exec(
+            select(Department).where(
+                Department.id.in_(dept_ids),  # type: ignore[attr-defined]
+                Department.tenant_id == tenant_id,
+            )
+        ).all()
+    )
+
+    allowed_codes = set(rules.target_departments)
+    disallowed = [dept for dept in departments if dept.code not in allowed_codes]
+    if disallowed:
+        names = [d.name for d in disallowed]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"以下の部門はシフト対象部門として設定されていません: {', '.join(names)}",
         )
 
 
@@ -149,6 +212,7 @@ def upsert_assignments(
     """
     req = _validate_requirement(session, tenant_id, requirement_id)
     _validate_workers(session, tenant_id, data.worker_ids)
+    _validate_worker_departments(session, tenant_id, data.worker_ids)
 
     if not data.is_manual_override:
         _validate_business_rules(session, tenant_id, req, data.worker_ids)

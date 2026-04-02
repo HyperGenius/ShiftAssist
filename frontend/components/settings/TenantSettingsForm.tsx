@@ -1,0 +1,161 @@
+// frontend/components/settings/TenantSettingsForm.tsx
+"use client";
+
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+
+import { SciFiButton } from "@/components/ui/SciFiButton";
+import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { useDepartments } from "@/hooks/useDepartments";
+import { useShiftRules } from "@/hooks/useShiftRules";
+import type { ShiftRules } from "@/types/shiftRules";
+
+/** テナント全体設定フォームコンポーネント */
+export function TenantSettingsForm() {
+  const { rules, isLoading: rulesLoading, updateRules } = useShiftRules();
+  const { departments, isLoading: deptsLoading } = useDepartments();
+
+  const [targetAllDepartments, setTargetAllDepartments] = useState(true);
+  const [selectedDeptCodes, setSelectedDeptCodes] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+
+  const isLoading = rulesLoading || deptsLoading;
+
+  // ロード完了後にフォームを初期化
+  useEffect(() => {
+    if (!isLoading) {
+      setTargetAllDepartments(rules.shift_rules.target_all_departments);
+      setSelectedDeptCodes(rules.shift_rules.target_departments);
+      setIsDirty(false);
+    }
+  }, [rules, isLoading]);
+
+  const handleToggleAllDepartments = (checked: boolean) => {
+    setTargetAllDepartments(checked);
+    setIsDirty(true);
+  };
+
+  const handleDeptCodeChange = (code: string, checked: boolean) => {
+    setSelectedDeptCodes((prev) => {
+      const next = checked ? [...prev, code] : prev.filter((c) => c !== code);
+      setIsDirty(true);
+      return next;
+    });
+  };
+
+  const handleSave = async () => {
+    setIsSubmitting(true);
+    try {
+      const payload: ShiftRules = {
+        ...rules,
+        shift_rules: {
+          ...rules.shift_rules,
+          target_all_departments: targetAllDepartments,
+          target_departments: targetAllDepartments ? [] : selectedDeptCodes,
+        },
+      };
+      await updateRules(payload);
+      setIsDirty(false);
+      toast.success("テナント設定を保存しました");
+    } catch {
+      toast.error("テナント設定の保存に失敗しました");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[...Array(3)].map((_, i) => (
+          <div
+            key={i}
+            className="h-10 rounded bg-slate-800/60 animate-pulse"
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <SciFiPanel className="p-6 space-y-6">
+        <h2 className="text-sm font-semibold tracking-widest text-cyan-300 uppercase">
+          シフト対象部門の設定
+        </h2>
+
+        {/* 全テナント対象トグル */}
+        <div className="flex items-center gap-3">
+          <input
+            id="target_all_departments"
+            type="checkbox"
+            checked={targetAllDepartments}
+            onChange={(e) => handleToggleAllDepartments(e.target.checked)}
+            disabled={isSubmitting}
+            className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
+          />
+          <label
+            htmlFor="target_all_departments"
+            className="text-sm text-slate-300 cursor-pointer"
+          >
+            テナント全体（全課）を対象とする
+          </label>
+        </div>
+
+        {/* 個別部門選択 */}
+        <div
+          className={`space-y-3 transition-opacity ${
+            targetAllDepartments ? "opacity-40 pointer-events-none" : "opacity-100"
+          }`}
+        >
+          <p className="text-xs text-slate-400 uppercase tracking-wider">
+            シフトアサインする対象の所属課（複数選択可）
+          </p>
+          {departments.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              部門が登録されていません。先に部門を登録してください。
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {departments.map((dept) => (
+                <div key={dept.id} className="flex items-center gap-3">
+                  <input
+                    id={`dept-${dept.id}`}
+                    type="checkbox"
+                    checked={selectedDeptCodes.includes(dept.code)}
+                    onChange={(e) =>
+                      handleDeptCodeChange(dept.code, e.target.checked)
+                    }
+                    disabled={isSubmitting || targetAllDepartments}
+                    className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
+                  />
+                  <label
+                    htmlFor={`dept-${dept.id}`}
+                    className="text-sm text-slate-300 cursor-pointer"
+                  >
+                    {dept.name}
+                    <span className="ml-2 text-xs text-slate-500">
+                      ({dept.code})
+                    </span>
+                  </label>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </SciFiPanel>
+
+      <div className="flex justify-end">
+        <SciFiButton
+          type="button"
+          loading={isSubmitting}
+          disabled={!isDirty || isSubmitting}
+          onClick={() => void handleSave()}
+        >
+          設定を保存する
+        </SciFiButton>
+      </div>
+    </div>
+  );
+}
