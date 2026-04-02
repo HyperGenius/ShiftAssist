@@ -21,6 +21,12 @@ export default function Home() {
           >
             シフト枠カレンダーへ →
           </Link>
+          <Link
+            href="/settings"
+            className="inline-block px-6 py-3 bg-slate-700/40 text-slate-300 border border-slate-600/50 rounded font-medium tracking-wider uppercase hover:bg-slate-700/60 transition-all"
+          >
+            テナント設定へ →
+          </Link>
         </div>
       </div>
     </main>
