@@ -7,7 +7,15 @@ import useSWR, { mutate as globalMutate } from "swr";
 
 import { createApiClient } from "@/utils/apiClient";
 import { fetcher } from "@/utils/fetcher";
-import type { Department, DepartmentCreate, DepartmentListResponse, DepartmentUpdate } from "@/types/department";
+import type {
+  Department,
+  DepartmentBulkPreviewResponse,
+  DepartmentBulkRequest,
+  DepartmentBulkUpsertResponse,
+  DepartmentCreate,
+  DepartmentListResponse,
+  DepartmentUpdate,
+} from "@/types/department";
 
 const DEPARTMENTS_PATH = "/api/departments/";
 
@@ -70,6 +78,32 @@ export function useDepartments() {
     [getApiClient, swrKey],
   );
 
+  /** バルクUpsertのプレビューを取得する */
+  const previewBulkUpload = useCallback(
+    async (payload: DepartmentBulkRequest): Promise<DepartmentBulkPreviewResponse> => {
+      const api = await getApiClient();
+      return api.post<DepartmentBulkPreviewResponse>(
+        "/api/departments/bulk/preview",
+        payload,
+      );
+    },
+    [getApiClient],
+  );
+
+  /** Department を一括登録・更新する（Upsert） */
+  const bulkUploadDepartments = useCallback(
+    async (payload: DepartmentBulkRequest): Promise<DepartmentBulkUpsertResponse> => {
+      const api = await getApiClient();
+      const result = await api.post<DepartmentBulkUpsertResponse>(
+        "/api/departments/bulk",
+        payload,
+      );
+      await globalMutate(swrKey);
+      return result;
+    },
+    [getApiClient, swrKey],
+  );
+
   return {
     departments: data?.items ?? [],
     isLoading,
@@ -78,5 +112,8 @@ export function useDepartments() {
     createDepartment,
     updateDepartment,
     deleteDepartment,
+    previewBulkUpload,
+    bulkUploadDepartments,
   };
 }
+
