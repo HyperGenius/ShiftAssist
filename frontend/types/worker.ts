@@ -8,6 +8,7 @@ export interface Worker {
   department_id: string;
   skill_rank_id: string;
   is_special: boolean;
+  joined_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -17,6 +18,7 @@ export interface WorkerCreate {
   department_id: string;
   skill_rank_id: string;
   is_special: boolean;
+  joined_at?: string | null;
 }
 
 export interface WorkerUpdate {
@@ -24,5 +26,6 @@ export interface WorkerUpdate {
   department_id?: string;
   skill_rank_id?: string;
   is_special?: boolean;
+  joined_at?: string | null;
 }
 

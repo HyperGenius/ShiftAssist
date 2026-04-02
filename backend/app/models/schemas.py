@@ -132,6 +132,7 @@ class WorkerCreate(BaseModel):
     department_id: uuid.UUID
     skill_rank_id: uuid.UUID
     is_special: bool = False
+    joined_at: date | None = None
 
 
 class WorkerUpdate(BaseModel):
@@ -144,6 +145,7 @@ class WorkerUpdate(BaseModel):
     department_id: uuid.UUID | None = None
     skill_rank_id: uuid.UUID | None = None
     is_special: bool | None = None
+    joined_at: date | None = None
 
 
 class WorkerResponse(BaseModel):
@@ -160,6 +162,7 @@ class WorkerResponse(BaseModel):
     department_id: uuid.UUID
     skill_rank_id: uuid.UUID
     is_special: bool
+    joined_at: date | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -239,3 +242,46 @@ class ShiftReqResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     assignments: list[WorkerAssignmentItem] = []
+
+
+class WorkerSlotStats(BaseModel):
+    """ワーカーの枠種別ごとの勤務実績スキーマ."""
+
+    slot_type: SlotTypeEnum
+    count: int
+    monthly_avg: float
+
+
+class WorkerStatsResponse(BaseModel):
+    """個別ワーカーの統計レスポンススキーマ."""
+
+    worker_id: uuid.UUID
+    worker_name: str
+    effective_months: float
+    slot_stats: list[WorkerSlotStats]
+    holiday_slot_monthly_avg: float
+
+
+class TenantWorkerStatsResponse(BaseModel):
+    """テナント全ワーカーの統計一括取得レスポンススキーマ."""
+
+    stats_period_months: int
+    items: list[WorkerStatsResponse]
+
+
+class TenantStatsConfigResponse(BaseModel):
+    """テナント統計設定レスポンススキーマ.
+
+    ORMモデルからの変換に対応するため ``from_attributes=True`` を設定。
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    tenant_id: str
+    stats_period_months: int
+
+
+class TenantStatsConfigUpdate(BaseModel):
+    """テナント統計設定更新リクエストスキーマ."""
+
+    stats_period_months: int

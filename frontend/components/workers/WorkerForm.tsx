@@ -20,6 +20,7 @@ const workerSchema = z.object({
   department_id: z.string().uuid("有効な所属課IDを入力してください"),
   skill_rank_id: z.string().uuid("スキルランクを選択してください"),
   is_special: z.boolean(),
+  joined_at: z.string().optional().nullable(),
 });
 
 type WorkerFormValues = z.infer<typeof workerSchema>;
@@ -55,6 +56,7 @@ export function WorkerForm({
       department_id: worker?.department_id ?? "",
       skill_rank_id: worker?.skill_rank_id ?? "",
       is_special: worker?.is_special ?? false,
+      joined_at: worker?.joined_at ?? "",
     },
   });
 
@@ -65,11 +67,15 @@ export function WorkerForm({
       department_id: worker?.department_id ?? "",
       skill_rank_id: worker?.skill_rank_id ?? "",
       is_special: worker?.is_special ?? false,
+      joined_at: worker?.joined_at ?? "",
     });
   }, [worker, reset]);
 
   const handleFormSubmit = async (values: WorkerFormValues) => {
-    await onSubmit(values);
+    await onSubmit({
+      ...values,
+      joined_at: values.joined_at || null,
+    });
   };
 
   const isEditing = !!worker;
@@ -140,6 +146,15 @@ export function WorkerForm({
           特別雇用者（平日夜間枠のみアサイン可能）
         </label>
       </div>
+
+      <SciFiInput
+        id="worker-joined-at"
+        label="着任日（統計集計の基準日）"
+        type="date"
+        {...register("joined_at")}
+        error={errors.joined_at?.message}
+        disabled={isSubmitting}
+      />
 
       <div className="flex justify-end gap-3 mt-2">
         <SciFiButton

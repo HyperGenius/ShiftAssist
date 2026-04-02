@@ -10,7 +10,9 @@ import { SciFiPanel } from "@/components/ui/SciFiPanel";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useSkillRanks } from "@/hooks/useSkillRanks";
 import { useWorkers } from "@/hooks/useWorkers";
+import { useWorkerStats } from "@/hooks/useWorkerStats";
 import type { Worker, WorkerCreate } from "@/types/worker";
+import type { WorkerStatsResponse } from "@/types/workerStats";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
 import { WorkerModal } from "./WorkerModal";
 
@@ -18,7 +20,7 @@ import { WorkerModal } from "./WorkerModal";
 function SkeletonRow() {
   return (
     <tr className="animate-pulse">
-      {[...Array(5)].map((_, i) => (
+      {[...Array(6)].map((_, i) => (
         <td key={i} className="px-4 py-3">
           <div className="h-4 bg-slate-700/60 rounded w-3/4" />
         </td>
@@ -27,17 +29,71 @@ function SkeletonRow() {
   );
 }
 
+/** 休日勤務の偏りを示すバッジ */
+function HolidayStatsBadge({
+  stats,
+  allAvg,
+}: {
+  stats: WorkerStatsResponse | undefined;
+  allAvg: number;
+}) {
+  if (!stats) {
+    return <span className="text-xs text-slate-500">—</span>;
+  }
+
+  const avg = stats.holiday_slot_monthly_avg;
+  const isHigh = allAvg > 0 && avg > allAvg * 1.3;
+  const isLow = allAvg > 0 && avg < allAvg * 0.7;
+
+  const label = avg.toFixed(2);
+
+  if (isHigh) {
+    return (
+      <span
+        title={`休日勤務月平均: ${label}回（テナント平均比 +30%超）`}
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/40 cursor-help"
+      >
+        ⚠ {label}
+      </span>
+    );
+  }
+
+  if (isLow) {
+    return (
+      <span
+        title={`休日勤務月平均: ${label}回（テナント平均比 -30%超）`}
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-300 border border-blue-500/40 cursor-help"
+      >
+        ↓ {label}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      title={`休日勤務月平均: ${label}回`}
+      className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-700/50 text-slate-400 border border-slate-600/40 cursor-help"
+    >
+      {label}
+    </span>
+  );
+}
+
 /** Worker テーブル行 */
 function WorkerRow({
   worker,
   departmentName,
   skillRankName,
+  workerStats,
+  allAvg,
   onEdit,
   onDelete,
 }: {
   worker: Worker;
   departmentName: string;
   skillRankName: string;
+  workerStats: WorkerStatsResponse | undefined;
+  allAvg: number;
   onEdit: (w: Worker) => void;
   onDelete: (w: Worker) => void;
 }) {
@@ -63,6 +119,9 @@ function WorkerRow({
         ) : (
           <span className="text-xs text-slate-500">—</span>
         )}
+      </td>
+      <td className="px-4 py-3">
+        <HolidayStatsBadge stats={workerStats} allAvg={allAvg} />
       </td>
       <td className="px-4 py-3 text-right">
         <div className="flex items-center justify-end gap-2">
@@ -92,10 +151,23 @@ export function WorkerList() {
     useWorkers();
   const { departments } = useDepartments();
   const { skillRankNameById } = useSkillRanks();
+  const { stats } = useWorkerStats();
 
   const departmentNameById = Object.fromEntries(
     departments.map((d) => [d.id, d.name]),
   );
+
+  // ワーカーIDからstatsへのマップ
+  const statsById = Object.fromEntries(
+    (stats?.items ?? []).map((s) => [s.worker_id, s]),
+  );
+
+  // テナント平均の休日勤務月平均
+  const allAvg =
+    stats && stats.items.length > 0
+      ? stats.items.reduce((sum, s) => sum + s.holiday_slot_monthly_avg, 0) /
+        stats.items.length
+      : 0;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState<Worker | undefined>(
@@ -191,6 +263,9 @@ export function WorkerList() {
                 <th className="px-4 py-3 text-xs text-slate-400 uppercase tracking-wider font-medium">
                   特別雇用
                 </th>
+                <th className="px-4 py-3 text-xs text-slate-400 uppercase tracking-wider font-medium">
+                  休日勤務/月
+                </th>
                 <th className="px-4 py-3 text-xs text-slate-400 uppercase tracking-wider font-medium text-right">
                   操作
                 </th>
@@ -206,7 +281,7 @@ export function WorkerList() {
               ) : workers.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-4 py-12 text-center text-slate-500"
                   >
                     <div className="flex flex-col items-center gap-2">
@@ -240,6 +315,8 @@ export function WorkerList() {
                     worker={worker}
                     departmentName={departmentNameById[worker.department_id] ?? worker.department_id}
                     skillRankName={skillRankNameById[worker.skill_rank_id] ?? worker.skill_rank_id}
+                    workerStats={statsById[worker.id]}
+                    allAvg={allAvg}
                     onEdit={handleEdit}
                     onDelete={setDeletingWorker}
                   />

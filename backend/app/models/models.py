@@ -11,6 +11,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
@@ -163,6 +164,7 @@ class Worker(Base):
         UUID(as_uuid=True), ForeignKey("tenant_skill_ranks.id"), nullable=False
     )
     is_special = Column(Boolean, default=False)
+    joined_at = Column(Date, nullable=True)  # 着任日（統計正規化に使用）
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -191,6 +193,10 @@ class ShiftPlan(Base):
     status = Column(Enum(PlanStatusEnum), default=PlanStatusEnum.draft, nullable=False)  # type: ignore[var-annotated]
     created_by = Column(String, nullable=False)  # Clerk User ID
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_shift_plans_tenant_status_month", "tenant_id", "status", "target_year_month"),
+    )
 
 
 class ShiftSlot(Base):
@@ -249,7 +255,10 @@ class ShiftAssignment(Base):
     is_manual_override = Column(Boolean, default=False)  # ルール逸脱の強制保存フラグ
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    __table_args__ = (UniqueConstraint("slot_id", "worker_id", name="uq_slot_worker"),)
+    __table_args__ = (
+        UniqueConstraint("slot_id", "worker_id", name="uq_slot_worker"),
+        Index("ix_shift_assignments_worker_slot", "worker_id", "slot_id"),
+    )
 
 
 class ShiftRequirementAssignment(Base):
@@ -339,3 +348,26 @@ class TenantRulesConfig(Base):
     warnings_json = Column(JSON, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TenantStatsConfig(Base):
+    """テナントごとの統計集計設定を表すSQLAlchemyモデル.
+
+    テナント管理者が統計の集計対象期間を設定する。
+    レコードが存在しない場合はデフォルト値（12ヶ月）を使用する。
+
+    Attributes:
+        id: UUIDによるプライマリキー。
+        tenant_id: Clerk OrganizationのID。テナントごとに一意。
+        stats_period_months: 統計集計対象期間（月数）。デフォルトは12ヶ月。
+        created_at: レコード作成日時。
+        updated_at: レコード最終更新日時。更新時に自動更新される。
+    """
+
+    __tablename__ = "tenant_stats_configs"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String, index=True, nullable=False, unique=True)
+    stats_period_months = Column(Integer, nullable=False, default=12)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
