@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     Column,
     Date,
@@ -304,5 +305,29 @@ class ShiftRequirement(Base):
     shift_date = Column(Date, nullable=False)
     slot_type = Column(Enum(SlotTypeEnum), nullable=False)  # type: ignore[var-annotated]
     required_headcount = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TenantRulesConfig(Base):
+    """テナントごとのシフトルール設定を表すSQLAlchemyモデル.
+
+    テナント管理者がUIから変更したシフトルールをJSONカラムとして保存する。
+    レコードが存在しない場合はデフォルト値を使用する。
+
+    Attributes:
+        id: UUIDによるプライマリキー。
+        tenant_id: Clerk OrganizationのID。テナントごとに一意。
+        rules_json: ShiftRulesConfig の内容をJSON形式で保存。
+        warnings_json: ShiftWarningsConfig の内容をJSON形式で保存。
+        created_at: レコード作成日時。
+        updated_at: レコード最終更新日時。更新時に自動更新される。
+    """
+
+    __tablename__ = "tenant_rules_configs"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String, index=True, nullable=False, unique=True)
+    rules_json = Column(JSON, nullable=False)
+    warnings_json = Column(JSON, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

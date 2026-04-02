@@ -1,7 +1,7 @@
 # backend/app/models/rule_schemas.py
 """シフトルール定義・バリデーション違反に関するPydanticスキーマ定義."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class ShiftRulesConfig(BaseModel):
@@ -25,6 +25,22 @@ class ShiftRulesConfig(BaseModel):
 
     workers_per_slot: int = 2
     """1スロットあたりの必要人数。"""
+
+    @field_validator("min_interval_days")
+    @classmethod
+    def min_interval_days_non_negative(cls, v: int) -> int:
+        """最小勤務間隔は0以上でなければならない."""
+        if v < 0:
+            raise ValueError("min_interval_days は0以上の値を指定してください")
+        return v
+
+    @field_validator("workers_per_slot")
+    @classmethod
+    def workers_per_slot_positive(cls, v: int) -> int:
+        """1スロットあたりの必要人数は1以上でなければならない."""
+        if v < 1:
+            raise ValueError("workers_per_slot は1以上の値を指定してください")
+        return v
 
 
 class ShiftWarningsConfig(BaseModel):

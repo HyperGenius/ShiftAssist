@@ -12,8 +12,17 @@ import pytest
 from fastapi import HTTPException
 
 from app.models.models import ShiftRequirement, ShiftRequirementAssignment, Worker
+from app.models.rule_schemas import ShiftRulesConfig, ShiftRulesResponse, ShiftWarningsConfig
 from app.models.schemas import ShiftAssignmentsSave, WorkerAssignmentItem
 from app.services import shift_assignment_service
+
+
+def _default_rules_response() -> ShiftRulesResponse:
+    """テスト用のデフォルトシフトルールレスポンスを返すヘルパー."""
+    return ShiftRulesResponse(
+        shift_rules=ShiftRulesConfig(),
+        warnings=ShiftWarningsConfig(),
+    )
 
 # ---------------------------------------------------------------------------
 # テスト用フィクスチャ
@@ -106,9 +115,10 @@ class TestUpsertAssignments:
             return_value=req,
         ):
             with patch.object(shift_assignment_service, "_validate_workers"):
-                result = shift_assignment_service.upsert_assignments(
-                    session, TENANT_ID, REQ_ID, data
-                )
+                with patch.object(shift_assignment_service, "_validate_business_rules"):
+                    result = shift_assignment_service.upsert_assignments(
+                        session, TENANT_ID, REQ_ID, data
+                    )
 
         session.commit.assert_called_once()
         assert session.add.call_count == 2
@@ -361,13 +371,17 @@ class TestValidateBusinessRules:
         session.exec.return_value = MagicMock(**{"all.return_value": [worker]})
 
         with patch(
-            "app.services.shift_validation_service.validate_shift_assignments",
-            return_value=[violation],
+            "app.services.shift_rules_service.get_shift_rules",
+            return_value=_default_rules_response(),
         ):
-            with pytest.raises(HTTPException) as exc_info:
-                shift_assignment_service._validate_business_rules(
-                    session, TENANT_ID, req, [WORKER_ID_1]
-                )
+            with patch(
+                "app.services.shift_validation_service.validate_shift_assignments",
+                return_value=[violation],
+            ):
+                with pytest.raises(HTTPException) as exc_info:
+                    shift_assignment_service._validate_business_rules(
+                        session, TENANT_ID, req, [WORKER_ID_1]
+                    )
 
         assert exc_info.value.status_code == 400
         detail = exc_info.value.detail
@@ -385,13 +399,17 @@ class TestValidateBusinessRules:
         session.exec.return_value = MagicMock(**{"all.return_value": [worker]})
 
         with patch(
-            "app.services.shift_validation_service.validate_shift_assignments",
-            return_value=[],
+            "app.services.shift_rules_service.get_shift_rules",
+            return_value=_default_rules_response(),
         ):
-            # Should not raise
-            shift_assignment_service._validate_business_rules(
-                session, TENANT_ID, req, [WORKER_ID_1]
-            )
+            with patch(
+                "app.services.shift_validation_service.validate_shift_assignments",
+                return_value=[],
+            ):
+                # Should not raise
+                shift_assignment_service._validate_business_rules(
+                    session, TENANT_ID, req, [WORKER_ID_1]
+                )
 
     def test_warnings_do_not_trigger_400(self) -> None:
         """正常系: warningのみの場合は400エラーにならない."""
@@ -411,10 +429,14 @@ class TestValidateBusinessRules:
         session.exec.return_value = MagicMock(**{"all.return_value": [worker]})
 
         with patch(
-            "app.services.shift_validation_service.validate_shift_assignments",
-            return_value=[warning],
+            "app.services.shift_rules_service.get_shift_rules",
+            return_value=_default_rules_response(),
         ):
-            # Should not raise (warnings don't block save)
-            shift_assignment_service._validate_business_rules(
-                session, TENANT_ID, req, [WORKER_ID_1]
-            )
+            with patch(
+                "app.services.shift_validation_service.validate_shift_assignments",
+                return_value=[warning],
+            ):
+                # Should not raise (warnings don't block save)
+                shift_assignment_service._validate_business_rules(
+                    session, TENANT_ID, req, [WORKER_ID_1]
+                )

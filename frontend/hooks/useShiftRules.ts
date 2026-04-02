@@ -1,21 +1,23 @@
 // frontend/hooks/useShiftRules.ts
-// バックエンドからシフトルール定義を取得・キャッシュするカスタムフック
+// バックエンドからシフトルール定義を取得・更新するカスタムフック
 "use client";
 
 import { useOrganization, useAuth } from "@clerk/nextjs";
-import { useMemo } from "react";
-import useSWR from "swr";
+import { useCallback, useMemo } from "react";
+import useSWR, { mutate as globalMutate } from "swr";
 
+import { createApiClient } from "@/utils/apiClient";
 import { fetcher } from "@/utils/fetcher";
 import { DEFAULT_SHIFT_RULES, type ShiftRules } from "@/types/shiftRules";
 
 const RULES_PATH = "/api/rules/";
 
-/** バックエンドからシフトルール定義を取得するカスタムフック */
+/** バックエンドからシフトルール定義を取得・更新するカスタムフック */
 export function useShiftRules(): {
   rules: ShiftRules;
   isLoading: boolean;
   isError: boolean;
+  updateRules: (payload: ShiftRules) => Promise<ShiftRules>;
 } {
   const { getToken } = useAuth();
   const { organization } = useOrganization();
@@ -39,9 +41,26 @@ export function useShiftRules(): {
     },
   );
 
+  const getApiClient = useCallback(async () => {
+    const token = await getToken();
+    return createApiClient({ token, tenantId });
+  }, [getToken, tenantId]);
+
+  /** シフトルール定義を更新する */
+  const updateRules = useCallback(
+    async (payload: ShiftRules): Promise<ShiftRules> => {
+      const api = await getApiClient();
+      const updated = await api.put<ShiftRules>(RULES_PATH, payload);
+      await globalMutate(swrKey);
+      return updated;
+    },
+    [getApiClient, swrKey],
+  );
+
   return {
     rules: data ?? DEFAULT_SHIFT_RULES,
     isLoading,
     isError: !!error,
+    updateRules,
   };
 }
