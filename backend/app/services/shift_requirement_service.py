@@ -124,7 +124,9 @@ def list_shift_reqs(session: Session, tenant_id: str) -> list[ShiftReqResponse]:
 
     assignments_by_req: dict[uuid.UUID, list[WorkerAssignmentItem]] = defaultdict(list)
     for a in all_assignments:
-        assignments_by_req[a.requirement_id].append(WorkerAssignmentItem.model_validate(a))
+        assignments_by_req[a.requirement_id].append(
+            WorkerAssignmentItem.model_validate(a)
+        )
 
     result = []
     for r in reqs:
