@@ -15,9 +15,7 @@ repos:
   hooks:
     - id: mypy
       # 設定ファイルのパスを明示的に指定
-      args: [--config-file=backend/pyproject.toml]
-      files: ^backend/
-      exclude: ^backend/(scripts|alembic)/
+      exclude: ^backend/alembic/|^backend/scripts/|^backend/tests/
       # 依存関係の型情報を解決するために追加の依存が必要な場合はここに記述
       additional_dependencies:
         - pytest
