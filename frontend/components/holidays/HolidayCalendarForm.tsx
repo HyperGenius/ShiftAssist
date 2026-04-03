@@ -13,6 +13,28 @@ import type { TenantHoliday, TenantHolidayCreate } from "@/types/holiday";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
+/**
+ * 祝日データ取得中に表示するローディング用スケルトンコンポーネント.
+ *
+ * バックエンドが初回アクセス時に内閣府データを元に祝日を自動投入するため、
+ * その処理中であることをユーザーに示すメッセージを表示する。
+ */
+export function HolidayLoadingSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 rounded border border-cyan-500/30 bg-cyan-500/10 px-4 py-3">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent flex-shrink-0" />
+        <p className="text-sm text-cyan-300">内閣府ウェブサイトより祝日データ取得中</p>
+      </div>
+      <div className="space-y-3">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="h-10 rounded bg-slate-800/60 animate-pulse" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** 新規休日追加フォーム */
 function AddHolidayForm({
   onAdd,
@@ -125,12 +147,27 @@ function HolidayRow({
   );
 }
 
+/**
+ * 翌年祝日取得可能かを判定する.
+ *
+ * 内閣府が翌年の祝日を公開するのは例年9月頃であるため、
+ * 実行月が9月（9）以降の場合のみ翌年データの取得を許可する。
+ */
+export function getMaxSelectableYear(
+  currentYear: number = CURRENT_YEAR,
+  currentMonth: number = new Date().getMonth() + 1,
+): number {
+  return currentMonth >= 9 ? currentYear + 1 : currentYear;
+}
+
 /** 年セレクター */
 function YearSelector({
   year,
+  maxYear,
   onChange,
 }: {
   year: number;
+  maxYear: number;
   onChange: (year: number) => void;
 }) {
   return (
@@ -148,7 +185,9 @@ function YearSelector({
       <SciFiButton
         size="sm"
         variant="ghost"
+        disabled={year >= maxYear}
         onClick={() => onChange(year + 1)}
+        title={year >= maxYear ? "翌年の祝日は9月以降に取得できます" : undefined}
       >
         ▶
       </SciFiButton>
@@ -158,6 +197,7 @@ function YearSelector({
 
 /** 休日カレンダー設定フォームコンポーネント */
 export function HolidayCalendarForm() {
+  const maxYear = getMaxSelectableYear();
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -186,13 +226,7 @@ export function HolidayCalendarForm() {
   };
 
   if (isLoading) {
-    return (
-      <div className="space-y-3">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-10 rounded bg-slate-800/60 animate-pulse" />
-        ))}
-      </div>
-    );
+    return <HolidayLoadingSkeleton />;
   }
 
   if (isError) {
@@ -208,10 +242,13 @@ export function HolidayCalendarForm() {
       <SciFiPanel className="p-6 space-y-4">
         <div className="flex items-center justify-between">
           <SciFiHeading level="h3">休日一覧</SciFiHeading>
-          <YearSelector year={selectedYear} onChange={setSelectedYear} />
+          <YearSelector year={selectedYear} maxYear={maxYear} onChange={setSelectedYear} />
         </div>
         <p className="text-xs text-slate-400">
           対象年のデータが未登録の場合、日本の標準祝日が自動的に投入されます。
+          {maxYear === CURRENT_YEAR && (
+            <span className="ml-1 text-slate-500">（翌年の祝日取得は9月以降に利用可能）</span>
+          )}
         </p>
 
         {holidays.length === 0 ? (
@@ -238,3 +275,4 @@ export function HolidayCalendarForm() {
     </div>
   );
 }
+
