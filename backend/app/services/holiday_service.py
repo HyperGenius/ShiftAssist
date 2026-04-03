@@ -3,6 +3,7 @@
 
 すべての操作において ``tenant_id`` によるデータ分離を保証する。
 対象年のデータが未登録の場合は ``jpholiday`` を用いて日本の標準祝日を自動投入する。
+自動投入は当年以降に限定する（過去年はシーディングを行わない）。
 """
 
 import calendar
@@ -75,7 +76,8 @@ def list_holidays(
     stmt = select(TenantHoliday).where(TenantHoliday.tenant_id == tenant_id)
 
     if year is not None:
-        # 対象年のデータが未存在の場合は自動シーディング
+        # 対象年のデータが未存在かつ当年以降の場合のみ自動シーディング
+        # 過去年はシーディングを行わず、登録済みデータのみ返す
         year_records = session.exec(
             select(TenantHoliday).where(
                 TenantHoliday.tenant_id == tenant_id,
@@ -83,7 +85,7 @@ def list_holidays(
                 TenantHoliday.date <= date(year, 12, 31),
             )
         ).all()
-        if len(year_records) == 0:
+        if len(year_records) == 0 and year >= date.today().year:
             _seed_year_holidays(session, tenant_id, year)
 
         stmt = stmt.where(

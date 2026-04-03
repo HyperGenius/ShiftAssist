@@ -26,6 +26,13 @@ export default async function HolidaysSettingsPage() {
               ShiftAssist
             </Link>
             <span className="text-slate-600">/</span>
+            <Link
+              href="/admin/settings"
+              className="text-sm text-slate-400 tracking-wide hover:text-slate-200 transition-colors"
+            >
+              管理設定
+            </Link>
+            <span className="text-slate-600">/</span>
             <span className="text-sm text-slate-400 tracking-wide">
               休日カレンダー設定
             </span>

@@ -253,7 +253,9 @@ export function HolidayCalendarForm() {
 
         {holidays.length === 0 ? (
           <p className="text-sm text-slate-500 py-4 text-center">
-            {selectedYear}年の休日が登録されていません。
+            {selectedYear < CURRENT_YEAR
+              ? `${selectedYear}年の祝日データが登録されていません。`
+              : `${selectedYear}年の休日が登録されていません。`}
           </p>
         ) : (
           <ul className="space-y-0">
