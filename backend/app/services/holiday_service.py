@@ -185,4 +185,3 @@ def delete_holiday(
         )
     session.delete(record)
     session.commit()
-

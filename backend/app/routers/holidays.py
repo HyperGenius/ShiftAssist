@@ -24,7 +24,9 @@ router = APIRouter(prefix="/api/holidays", tags=["holidays"])
 @router.get("/", response_model=list[TenantHolidayResponse])
 def list_holidays(
     year: int | None = Query(None, description="フィルタ対象の年"),
-    month: int | None = Query(None, ge=1, le=12, description="フィルタ対象の月（yearと組み合わせて使用）"),
+    month: int | None = Query(
+        None, ge=1, le=12, description="フィルタ対象の月（yearと組み合わせて使用）"
+    ),
     tenant_id: str = Depends(get_tenant_id),
     session: Session = Depends(get_session),
 ) -> list[TenantHolidayResponse]:
