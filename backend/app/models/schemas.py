@@ -285,3 +285,33 @@ class TenantStatsConfigUpdate(BaseModel):
     """テナント統計設定更新リクエストスキーマ."""
 
     stats_period_months: int
+
+
+class TenantHolidayCreate(BaseModel):
+    """TenantHoliday作成リクエストスキーマ."""
+
+    date: date
+    name: str
+    is_long_holiday: bool = False
+
+
+class TenantHolidayBulkCreate(BaseModel):
+    """TenantHoliday一括作成リクエストスキーマ."""
+
+    holidays: list[TenantHolidayCreate]
+
+
+class TenantHolidayResponse(BaseModel):
+    """TenantHolidayレスポンススキーマ.
+
+    ORMモデルからの変換に対応するため ``from_attributes=True`` を設定。
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    tenant_id: str
+    date: date
+    name: str
+    is_long_holiday: bool
+    created_at: datetime
