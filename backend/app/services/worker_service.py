@@ -65,7 +65,6 @@ def _validate_skill_rank(
         )
 
 
-
 def create_worker(
     session: Session, tenant_id: str, data: WorkerCreate
 ) -> WorkerResponse:
