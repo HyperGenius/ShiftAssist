@@ -130,7 +130,7 @@ def _validate_worker_departments(
     allowed_codes = set(rules.target_departments)
     disallowed = [dept for dept in departments if dept.code not in allowed_codes]
     if disallowed:
-        names = [d.name for d in disallowed]
+        names = [str(d.name) for d in disallowed]
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"以下の部門はシフト対象部門として設定されていません: {', '.join(names)}",

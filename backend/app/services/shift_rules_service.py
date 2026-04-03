@@ -92,9 +92,9 @@ def update_shift_rules(
         )
         session.add(config)
     else:
-        config.rules_json = payload.shift_rules.model_dump()
-        config.warnings_json = payload.warnings.model_dump()
-        config.updated_at = datetime.now(UTC)
+        config.rules_json = payload.shift_rules.model_dump()  # type: ignore[assignment]
+        config.warnings_json = payload.warnings.model_dump()  # type: ignore[assignment]
+        config.updated_at = datetime.now(UTC)  # type: ignore[assignment]
 
     session.commit()
     session.refresh(config)

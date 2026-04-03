@@ -14,7 +14,6 @@ repos:
   rev: v1.19.0
   hooks:
     - id: mypy
-      # 設定ファイルのパスを明示的に指定
       exclude: ^backend/alembic/|^backend/scripts/|^backend/tests/
       # 依存関係の型情報を解決するために追加の依存が必要な場合はここに記述
       additional_dependencies:

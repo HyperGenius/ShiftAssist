@@ -208,7 +208,7 @@ def delete_department(
             detail="所属しているスタッフがいるため削除できません。",
         )
 
-    department.deleted_at = datetime.now(tz=UTC)
+    department.deleted_at = datetime.now(tz=UTC)  # type: ignore[assignment]
     session.add(department)
     session.commit()
 
@@ -256,7 +256,7 @@ def preview_bulk_upsert_departments(
                     code=item.code,
                     name=item.name,
                     action="reactivate",
-                    old_name=existing.name,
+                    old_name=str(existing.name),
                 )
             )
             reactivate_count += 1
@@ -266,7 +266,7 @@ def preview_bulk_upsert_departments(
                     code=item.code,
                     name=item.name,
                     action="update",
-                    old_name=existing.name,
+                    old_name=str(existing.name),
                 )
             )
             update_count += 1
@@ -335,8 +335,8 @@ def bulk_upsert_departments(
             elif existing.name != item.name:
                 updated += 1
             # else: 変更なし（カウントしない）
-            existing.name = item.name
-            existing.deleted_at = None
+            existing.name = item.name  # type: ignore[assignment]
+            existing.deleted_at = None  # type: ignore[assignment]
             session.add(existing)
             result_items.append(existing)
 
@@ -382,4 +382,4 @@ def _fetch_existing_by_codes(
             Department.code.in_(codes),  # type: ignore[attr-defined]
         )
     ).all()
-    return {row.code: row for row in rows}
+    return {str(row.code): row for row in rows}

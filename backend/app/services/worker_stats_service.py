@@ -96,8 +96,8 @@ def update_stats_config(
         )
         session.add(config)
     else:
-        config.stats_period_months = stats_period_months
-        config.updated_at = datetime.now(UTC)
+        config.stats_period_months = stats_period_months  # type: ignore[assignment]
+        config.updated_at = datetime.now(UTC)  # type: ignore[assignment]
 
     session.commit()
     session.refresh(config)
@@ -154,8 +154,8 @@ def _build_stats_response(
     holiday_monthly_avg = holiday_count / effective_months
 
     return WorkerStatsResponse(
-        worker_id=worker.id,
-        worker_name=worker.name,
+        worker_id=worker.id,  # type: ignore[arg-type]
+        worker_name=worker.name,  # type: ignore[arg-type]
         effective_months=effective_months,
         slot_stats=slot_stats,
         holiday_slot_monthly_avg=holiday_monthly_avg,
@@ -225,7 +225,9 @@ def get_worker_stats(
     count_by_slot: dict[str, int] = {str(row[0]): row[1] for row in rows}
 
     effective_months = _compute_effective_months(
-        worker.joined_at, stats_period_months, today
+        worker.joined_at,  # type: ignore[arg-type]
+        stats_period_months,
+        today,
     )
 
     return _build_stats_response(worker, count_by_slot, effective_months)
@@ -296,9 +298,11 @@ def get_all_worker_stats(
 
     items = []
     for worker in workers:
-        count_by_slot = counts_map.get(worker.id, {})
+        count_by_slot = counts_map.get(worker.id, {})  # type: ignore[call-overload]
         effective_months = _compute_effective_months(
-            worker.joined_at, stats_period_months, today
+            worker.joined_at,  # type: ignore[arg-type]
+            stats_period_months,
+            today,
         )
         items.append(_build_stats_response(worker, count_by_slot, effective_months))
 
