@@ -1,6 +1,8 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Toaster } from "sonner";
+
+import { Header } from "@/components/layout/Header";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,7 +19,10 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="ja" className="h-full antialiased">
         <body className="min-h-full flex flex-col bg-slate-950 text-slate-200 font-sans">
-          {children}
+          <Header />
+          <div className="flex flex-col flex-1 pt-14">
+            {children}
+          </div>
           <Toaster
             position="top-right"
             toastOptions={{

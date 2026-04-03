@@ -1,33 +1,66 @@
+"use client";
+
+import { useOrganization } from "@clerk/nextjs";
 import Link from "next/link";
 
-export default function Home() {
+import { SciFiHeading } from "@/components/ui/SciFiHeading";
+import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import type { UserRole } from "@/constants/routes";
+import { ROUTES } from "@/constants/routes";
+
+/** ダッシュボードに表示するルート（ヘッダーリンク＋設定系）*/
+const DASHBOARD_ROUTES = [
+  ROUTES.SHIFTS,
+  ROUTES.WORKERS,
+  ROUTES.TENANT_SETTINGS,
+  ROUTES.ADMIN_SETTINGS,
+] as const;
+
+/** ダッシュボードページ */
+export default function DashboardPage() {
+  const { membership } = useOrganization();
+
+  const userRole: UserRole | undefined = membership?.role as
+    | UserRole
+    | undefined;
+
+  // ロールが未取得の場合（未ログイン・組織未所属）は "org:member" 相当として扱い、
+  // 管理者専用ルートを非表示にする保守的なフォールバック戦略を採用する。
+  const visibleRoutes = DASHBOARD_ROUTES.filter((route) =>
+    userRole
+      ? route.allowedRoles.includes(userRole)
+      : route.allowedRoles.includes("org:member"),
+  );
+
   return (
-    <main className="flex flex-1 items-center justify-center p-8">
-      <div className="text-center max-w-md">
-        <h1 className="text-4xl font-bold tracking-widest text-cyan-300 mb-4">
-          SHIFT<span className="text-slate-400">ASSIST</span>
-        </h1>
-        <p className="text-slate-400 mb-8">シフト管理システム</p>
-        <div className="flex flex-col gap-3">
-          <Link
-            href="/workers"
-            className="inline-block px-6 py-3 bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 rounded font-medium tracking-wider uppercase hover:bg-cyan-500/30 transition-all"
-          >
-            対応者管理へ →
+    <main className="flex flex-col flex-1 max-w-6xl mx-auto w-full px-4 py-10 gap-8">
+      {/* ページタイトル */}
+      <div>
+        <SciFiHeading level="h1">ダッシュボード</SciFiHeading>
+        <p className="mt-2 text-sm text-slate-400">
+          各機能へのポータルです。利用する機能を選択してください。
+        </p>
+      </div>
+
+      {/* 機能カード一覧 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {visibleRoutes.map((route) => (
+          <Link key={route.path} href={route.path} className="group">
+            <SciFiPanel className="p-6 h-full transition-all duration-200 hover:border-cyan-500/50 hover:shadow-[0_0_16px_rgba(6,182,212,0.15)]">
+              <h2 className="text-base font-semibold tracking-wider text-cyan-300 uppercase group-hover:text-cyan-200 transition-colors">
+                {route.label}
+              </h2>
+              {route.description && (
+                <p className="mt-2 text-sm text-slate-400">
+                  {route.description}
+                </p>
+              )}
+              <span className="mt-4 inline-block text-xs text-slate-500 group-hover:text-cyan-400 transition-colors tracking-widest uppercase">
+                開く →
+              </span>
+            </SciFiPanel>
           </Link>
-          <Link
-            href="/shift-requirements"
-            className="inline-block px-6 py-3 bg-slate-700/40 text-slate-300 border border-slate-600/50 rounded font-medium tracking-wider uppercase hover:bg-slate-700/60 transition-all"
-          >
-            シフト枠カレンダーへ →
-          </Link>
-          <Link
-            href="/settings"
-            className="inline-block px-6 py-3 bg-slate-700/40 text-slate-300 border border-slate-600/50 rounded font-medium tracking-wider uppercase hover:bg-slate-700/60 transition-all"
-          >
-            テナント設定へ →
-          </Link>
-        </div>
+        ))}
       </div>
     </main>
   );
