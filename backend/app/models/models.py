@@ -195,7 +195,12 @@ class ShiftPlan(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (
-        Index("ix_shift_plans_tenant_status_month", "tenant_id", "status", "target_year_month"),
+        Index(
+            "ix_shift_plans_tenant_status_month",
+            "tenant_id",
+            "status",
+            "target_year_month",
+        ),
     )
 
 
@@ -370,4 +375,3 @@ class TenantStatsConfig(Base):
     stats_period_months = Column(Integer, nullable=False, default=12)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-

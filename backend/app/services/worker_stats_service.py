@@ -150,9 +150,7 @@ def _build_stats_response(
         for slot_type in SlotTypeEnum
     ]
 
-    holiday_count = sum(
-        count_by_slot.get(s.value, 0) for s in _HOLIDAY_SLOT_TYPES
-    )
+    holiday_count = sum(count_by_slot.get(s.value, 0) for s in _HOLIDAY_SLOT_TYPES)
     holiday_monthly_avg = holiday_count / effective_months
 
     return WorkerStatsResponse(
@@ -260,9 +258,7 @@ def get_all_worker_stats(
         cutoff_year -= 1
     cutoff_ym = f"{cutoff_year:04d}-{cutoff_month:02d}"
 
-    workers = session.exec(
-        select(Worker).where(Worker.tenant_id == tenant_id)
-    ).all()
+    workers = session.exec(select(Worker).where(Worker.tenant_id == tenant_id)).all()
 
     if not workers:
         return TenantWorkerStatsResponse(

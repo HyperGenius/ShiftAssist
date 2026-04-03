@@ -39,7 +39,9 @@ def list_skill_ranks(
     return skill_rank_service.list_skill_ranks(session, tenant_id)
 
 
-@router.post("/", response_model=TenantSkillRankResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/", response_model=TenantSkillRankResponse, status_code=status.HTTP_201_CREATED
+)
 def create_skill_rank(
     data: TenantSkillRankCreate,
     tenant_id: str = Depends(get_tenant_id),

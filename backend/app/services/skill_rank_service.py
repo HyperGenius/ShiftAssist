@@ -42,9 +42,7 @@ def create_skill_rank(
     return TenantSkillRankResponse.model_validate(rank)
 
 
-def list_skill_ranks(
-    session: Session, tenant_id: str
-) -> list[TenantSkillRankResponse]:
+def list_skill_ranks(session: Session, tenant_id: str) -> list[TenantSkillRankResponse]:
     """テナントに属するTenantSkillRank一覧を取得する（sort_order昇順）.
 
     Args:
