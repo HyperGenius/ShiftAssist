@@ -355,6 +355,34 @@ class TenantRulesConfig(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class TenantHoliday(Base):
+    """テナントごとの祝日・休日データを表すSQLAlchemyモデル.
+
+    テナント管理者が独自の祝日（創立記念日等）を登録・管理する。
+    対象年のデータが未登録の場合は ``jpholiday`` を用いて日本の標準祝日を自動投入する。
+
+    Attributes:
+        id: UUIDによるプライマリキー。
+        tenant_id: Clerk OrganizationのID。テナント分離に使用。
+        date: 祝日・休日の日付。
+        name: 祝日・休日の名称（例: "元日", "創立記念日"）。
+        is_long_holiday: 長期連休フラグ。GW・年末年始等の場合はTrue。
+        created_at: レコード作成日時。
+    """
+
+    __tablename__ = "tenant_holidays"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String, index=True, nullable=False)
+    date = Column(Date, nullable=False)
+    name = Column(String, nullable=False)
+    is_long_holiday = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "date", name="uq_tenant_holiday_date"),
+    )
+
+
 class TenantStatsConfig(Base):
     """テナントごとの統計集計設定を表すSQLAlchemyモデル.
 
