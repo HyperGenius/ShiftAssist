@@ -20,13 +20,6 @@ export default async function SkillRanksSettingsPage() {
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
-              href="/"
-              className="text-sm font-semibold tracking-widest text-cyan-300 uppercase hover:text-cyan-200 transition-colors"
-            >
-              ShiftAssist
-            </Link>
-            <span className="text-slate-600">/</span>
-            <Link
               href="/admin/settings"
               className="text-sm text-slate-400 tracking-wide hover:text-slate-200 transition-colors"
             >
@@ -37,7 +30,6 @@ export default async function SkillRanksSettingsPage() {
               スキルランク設定
             </span>
           </div>
-          <UserButton />
         </div>
       </nav>
 

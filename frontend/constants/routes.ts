@@ -42,7 +42,7 @@ export const ROUTES = {
     description: "テナントの基本設定",
   },
   ADMIN_SETTINGS: {
-    path: "/admin/settings/skill-ranks",
+    path: "/admin/settings/",
     label: "管理者設定",
     allowedRoles: ["org:admin"] as UserRole[],
     description: "スキルランク・シフトルール等の管理者専用設定",
