@@ -366,12 +366,14 @@ def preview_bulk_upsert_workers(
             )
             create_count += 1
         else:
+            existing_dept = dept_map.get(item.department_code)
+            dept_id_changed = dept_is_new or (
+                existing_dept is not None
+                and str(existing.department_id) != str(existing_dept.id)
+            )
             changed = (
                 existing.name != item.name
-                or str(existing.department_id) != str(
-                    dept_map.get(item.department_code, {}) and
-                    dept_map.get(item.department_code)
-                )
+                or dept_id_changed
                 or existing.is_special != item.is_special
             )
             if changed:
