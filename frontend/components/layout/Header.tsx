@@ -8,7 +8,7 @@ import type { UserRole } from "@/constants/routes";
 import { ROUTES } from "@/constants/routes";
 
 /** ヘッダーナビゲーションに表示するルート */
-const NAV_ROUTES = [ROUTES.DASHBOARD, ROUTES.SHIFTS, ROUTES.WORKERS] as const;
+const NAV_ROUTES = [ROUTES.DASHBOARD, ROUTES.SHIFTS] as const;
 
 /** 全画面共通ヘッダーコンポーネント */
 export function Header() {

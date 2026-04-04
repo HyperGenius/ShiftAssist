@@ -14,6 +14,7 @@ import { useWorkerStats } from "@/hooks/useWorkerStats";
 import type { Worker, WorkerCreate } from "@/types/worker";
 import type { WorkerStatsResponse } from "@/types/workerStats";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
+import { WorkerBulkUploadPanel } from "./WorkerBulkUploadPanel";
 import { WorkerModal } from "./WorkerModal";
 
 /** スケルトンローダー行 */
@@ -178,6 +179,7 @@ export function WorkerList() {
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
 
   const handleCreate = () => {
     setEditingWorker(undefined);
@@ -236,7 +238,15 @@ export function WorkerList() {
         {/* ヘッダー */}
         <div className="flex items-center justify-between mb-6">
           <SciFiHeading level="h2">対応者（Worker）管理</SciFiHeading>
-          <SciFiButton onClick={handleCreate}>＋ 新規追加</SciFiButton>
+          <div className="flex items-center gap-2">
+            <SciFiButton
+              variant="secondary"
+              onClick={() => setIsBulkUploadOpen((prev) => !prev)}
+            >
+              一括登録
+            </SciFiButton>
+            <SciFiButton onClick={handleCreate}>＋ 新規追加</SciFiButton>
+          </div>
         </div>
 
         {/* エラー表示 */}
@@ -333,6 +343,13 @@ export function WorkerList() {
           </p>
         )}
       </SciFiPanel>
+
+      {/* 一括登録パネル */}
+      {isBulkUploadOpen && (
+        <div className="mt-4">
+          <WorkerBulkUploadPanel onClose={() => setIsBulkUploadOpen(false)} />
+        </div>
+      )}
 
       {/* 作成・編集モーダル */}
       {isModalOpen && (

@@ -145,6 +145,7 @@ class Worker(Base):
     Attributes:
         id: UUIDによるプライマリキー。
         tenant_id: Clerk OrganizationのID。テナント分離に使用。
+        employee_no: 社員番号。バルクUpsertのキーとして使用。テナント内で一意（NULL許容）。
         name: 対応者の氏名。
         department_id: 所属課のID（departmentsテーブルへのFK）。
         skill_rank_id: スキルランクのID（tenant_skill_ranksテーブルへのFK）。
@@ -156,6 +157,7 @@ class Worker(Base):
     __tablename__ = "workers"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(String, index=True, nullable=False)  # Clerk Organization ID
+    employee_no = Column(String, nullable=True)  # 社員番号（バルクUpsertキー）
     name = Column(String, nullable=False)
     department_id = Column(
         UUID(as_uuid=True), ForeignKey("departments.id"), nullable=False
@@ -167,6 +169,12 @@ class Worker(Base):
     joined_at = Column(Date, nullable=True)  # 着任日（統計正規化に使用）
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "employee_no", name="uq_worker_tenant_employee_no"
+        ),
+    )
 
 
 class ShiftPlan(Base):

@@ -12,10 +12,68 @@ from sqlmodel import Session
 
 from app.db import get_session
 from app.dependencies import get_tenant_id
-from app.models.schemas import WorkerCreate, WorkerResponse, WorkerUpdate
+from app.models.schemas import (
+    WorkerBulkPreviewResponse,
+    WorkerBulkRequest,
+    WorkerBulkUpsertResponse,
+    WorkerCreate,
+    WorkerResponse,
+    WorkerUpdate,
+)
 from app.services import worker_service
 
 router = APIRouter(prefix="/api/workers", tags=["workers"])
+
+
+@router.post(
+    "/bulk/preview",
+    response_model=WorkerBulkPreviewResponse,
+    status_code=status.HTTP_200_OK,
+)
+def preview_bulk_workers(
+    data: WorkerBulkRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    session: Session = Depends(get_session),
+) -> WorkerBulkPreviewResponse:
+    """Worker一括登録・更新の差分プレビューを返す.
+
+    実際のDB更新は行わず、「新規追加」「更新」「変更なし」の件数と
+    未登録の課の自動生成件数を返す。
+
+    Args:
+        data: Worker一括処理リクエストボディ。
+        tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
+        session: DBセッション。
+
+    Returns:
+        差分プレビューレスポンス。
+    """
+    return worker_service.preview_bulk_upsert_workers(session, tenant_id, data.workers)
+
+
+@router.post(
+    "/bulk",
+    response_model=WorkerBulkUpsertResponse,
+    status_code=status.HTTP_200_OK,
+)
+def bulk_upsert_workers(
+    data: WorkerBulkRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    session: Session = Depends(get_session),
+) -> WorkerBulkUpsertResponse:
+    """Workerを一括登録・更新する（Upsert）.
+
+    未登録の課（Department）が含まれる場合、自動的に新規登録する。
+
+    Args:
+        data: Worker一括処理リクエストボディ。
+        tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
+        session: DBセッション。
+
+    Returns:
+        作成・更新件数と処理後のWorkerリスト。
+    """
+    return worker_service.bulk_upsert_workers(session, tenant_id, data.workers)
 
 
 @router.post("/", response_model=WorkerResponse, status_code=status.HTTP_201_CREATED)

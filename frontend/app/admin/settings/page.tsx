@@ -28,6 +28,12 @@ const SETTINGS_LINKS = [
     label: "部門管理",
     description: "シフト対象の部門を管理します。",
     icon: "🏢",
+  },
+  {
+    href: "/admin/settings/workers",
+    label: "対応者管理",
+    description: "シフト作成の際に割り当てる対応者を管理します。",
+    icon: "👥",
   }
 ] as const;
 
@@ -45,7 +51,7 @@ export default async function SettingsIndexPage() {
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <span className="text-sm text-slate-400 tracking-wide">
-              管理設定
+              管理者設定
             </span>
           </div>
         </div>
@@ -55,7 +61,7 @@ export default async function SettingsIndexPage() {
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
         <div>
           <h1 className="text-xl font-bold text-slate-100 tracking-wide">
-            管理設定
+            管理者設定
           </h1>
           <p className="mt-1 text-sm text-slate-400">
             各種テナント設定を管理します。

@@ -128,6 +128,7 @@ class TenantSkillRankResponse(BaseModel):
 class WorkerCreate(BaseModel):
     """Worker作成リクエストスキーマ."""
 
+    employee_no: str | None = None
     name: str
     department_id: uuid.UUID
     skill_rank_id: uuid.UUID
@@ -141,6 +142,7 @@ class WorkerUpdate(BaseModel):
     すべてのフィールドはオプショナル。指定したフィールドのみ更新される。
     """
 
+    employee_no: str | None = None
     name: str | None = None
     department_id: uuid.UUID | None = None
     skill_rank_id: uuid.UUID | None = None
@@ -158,6 +160,7 @@ class WorkerResponse(BaseModel):
 
     id: uuid.UUID
     tenant_id: str
+    employee_no: str | None = None
     name: str
     department_id: uuid.UUID
     skill_rank_id: uuid.UUID
@@ -165,6 +168,54 @@ class WorkerResponse(BaseModel):
     joined_at: date | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class WorkerBulkItem(BaseModel):
+    """Worker一括登録・更新の1件分のリクエストスキーマ."""
+
+    employee_no: str
+    name: str
+    department_code: str
+    department_name: str | None = None
+    skill_rank_id: uuid.UUID
+    is_special: bool = False
+    joined_at: date | None = None
+
+
+class WorkerBulkRequest(BaseModel):
+    """Worker一括登録・更新リクエストスキーマ."""
+
+    workers: list[WorkerBulkItem]
+
+
+class WorkerBulkPreviewItem(BaseModel):
+    """Worker一括処理プレビューの1件分スキーマ."""
+
+    employee_no: str
+    name: str
+    department_code: str
+    action: str  # "create" | "update" | "no_change"
+    old_name: str | None = None
+    department_is_new: bool = False
+
+
+class WorkerBulkPreviewResponse(BaseModel):
+    """Worker一括登録・更新プレビューレスポンススキーマ."""
+
+    preview: list[WorkerBulkPreviewItem]
+    create_count: int
+    update_count: int
+    no_change_count: int
+    new_department_count: int
+
+
+class WorkerBulkUpsertResponse(BaseModel):
+    """Worker一括登録・更新実行結果レスポンススキーマ."""
+
+    created: int
+    updated: int
+    departments_created: int
+    items: list[WorkerResponse]
 
 
 class ShiftReqCreate(BaseModel):

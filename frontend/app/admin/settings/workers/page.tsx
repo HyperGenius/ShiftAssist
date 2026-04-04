@@ -1,12 +1,11 @@
-// frontend/app/admin/settings/rules/page.tsx
-import { UserButton } from "@clerk/nextjs";
+// frontend/app/workers/page.tsx
 import { auth } from "@clerk/nextjs/server";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { RulesSettingsForm } from "@/components/rules/RulesSettingsForm";
+import { WorkerList } from "@/components/workers/WorkerList";
+import Link from "next/dist/client/link";
 
-export default async function RulesSettingsPage() {
+export default async function WorkersPage() {
   const { userId } = await auth();
 
   if (!userId) {
@@ -27,24 +26,15 @@ export default async function RulesSettingsPage() {
             </Link>
             <span className="text-slate-600">/</span>
             <span className="text-sm text-slate-400 tracking-wide">
-              シフトルール設定
+              対応者管理
             </span>
           </div>
         </div>
       </nav>
 
       {/* メインコンテンツ */}
-      <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-        <div>
-          <h1 className="text-xl font-bold text-slate-100 tracking-wide">
-            シフトルール設定
-          </h1>
-          <p className="mt-1 text-sm text-slate-400">
-            シフト作成時に適用されるルールと警告の設定を管理します。
-          </p>
-        </div>
-
-        <RulesSettingsForm />
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        <WorkerList />
       </main>
     </div>
   );
