@@ -59,7 +59,7 @@ def upgrade() -> None:
         sa.Column("tenant_id", sa.String(), nullable=False),
         sa.Column(
             "holiday_type",
-            sa.Enum("gw", "sw", "year_end", name="longholidaytypeenum"),
+            sa.Enum("gw", "sw", "year_end", name="longholidaytypeenum", create_type=False),
             nullable=False,
         ),
         sa.Column("year", sa.Integer(), nullable=False),
@@ -121,7 +121,7 @@ def upgrade() -> None:
         "workers",
         sa.Column(
             "transfer_type",
-            sa.Enum("no_transfer", "transfer_in", "transfer_out", name="transfertypeenum"),
+            sa.Enum("no_transfer", "transfer_in", "transfer_out", name="transfertypeenum", create_type=False),
             nullable=True,
         ),
     )
