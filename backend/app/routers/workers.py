@@ -84,7 +84,10 @@ def bulk_upsert_workers(
 )
 async def upload_workers(
     file: UploadFile,
-    dry_run: bool = Query(True, description="Trueの場合はDry-run（プレビューのみ）、Falseの場合はUpsert実行"),
+    dry_run: bool = Query(
+        True,
+        description="Trueの場合はDry-run（プレビューのみ）、Falseの場合はUpsert実行",
+    ),
     tenant_id: str = Depends(get_tenant_id),
     session: Session = Depends(get_session),
 ) -> WorkerUploadPreviewResponse | WorkerUploadUpsertResponse:
@@ -119,7 +122,11 @@ async def upload_workers(
         "application/vnd.ms-excel",
     ):
         raw_rows = worker_upload_service.parse_excel_bytes(content)
-    elif filename.endswith(".csv") or file.content_type in ("text/csv", "text/plain", "application/csv"):
+    elif filename.endswith(".csv") or file.content_type in (
+        "text/csv",
+        "text/plain",
+        "application/csv",
+    ):
         raw_rows = worker_upload_service.parse_csv_bytes(content)
     else:
         # content_typeが不明な場合はCSVとして試みる

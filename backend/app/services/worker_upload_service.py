@@ -145,23 +145,15 @@ def _parse_transfer_type(value: str) -> TransferTypeEnum | None:
 # --- マスタ一括取得ヘルパー ---
 
 
-def _fetch_positions_by_name(
-    session: Session, tenant_id: str
-) -> dict[str, uuid.UUID]:
+def _fetch_positions_by_name(session: Session, tenant_id: str) -> dict[str, uuid.UUID]:
     """テナントの全役職を名前→IDマップで取得する."""
-    rows = session.exec(
-        select(Position).where(Position.tenant_id == tenant_id)
-    ).all()
+    rows = session.exec(select(Position).where(Position.tenant_id == tenant_id)).all()
     return {str(row.name): row.id for row in rows}  # type: ignore[misc]
 
 
-def _fetch_branches_by_name(
-    session: Session, tenant_id: str
-) -> dict[str, uuid.UUID]:
+def _fetch_branches_by_name(session: Session, tenant_id: str) -> dict[str, uuid.UUID]:
     """テナントの全支所を名前→IDマップで取得する."""
-    rows = session.exec(
-        select(Branch).where(Branch.tenant_id == tenant_id)
-    ).all()
+    rows = session.exec(select(Branch).where(Branch.tenant_id == tenant_id)).all()
     return {str(row.name): row.id for row in rows}  # type: ignore[misc]
 
 
@@ -431,7 +423,9 @@ def _resolve_names_for_row(
         pr.skill_rank_name = sr_name
         sr_id = skill_rank_map.get(sr_name)
         if sr_id is None:
-            pr.errors.append(f"行{i}: スキルランク名『{sr_name}』は登録されていません。")
+            pr.errors.append(
+                f"行{i}: スキルランク名『{sr_name}』は登録されていません。"
+            )
         else:
             pr.skill_rank_id = sr_id
 
@@ -458,7 +452,9 @@ def _parse_single_row(
     pr.name = name
 
     _parse_scalar_fields(pr, row)
-    _resolve_names_for_row(pr, row, position_map, branch_map, department_map, skill_rank_map)
+    _resolve_names_for_row(
+        pr, row, position_map, branch_map, department_map, skill_rank_map
+    )
 
     return pr
 
@@ -483,7 +479,9 @@ def _parse_rows(
         パース済み行データのリスト（エラーがあってもリストに含まれる）。
     """
     return [
-        _parse_single_row(i, row, position_map, branch_map, department_map, skill_rank_map)
+        _parse_single_row(
+            i, row, position_map, branch_map, department_map, skill_rank_map
+        )
         for i, row in enumerate(raw_rows, start=2)
     ]
 
@@ -500,10 +498,14 @@ def _worker_to_row_values(
         department_name=dept_name,
         position_name=pos_name,
         birth_date=str(worker.birth_date) if worker.birth_date else None,
-        skill_acquired_at=str(worker.skill_acquired_at) if worker.skill_acquired_at else None,
+        skill_acquired_at=str(worker.skill_acquired_at)
+        if worker.skill_acquired_at
+        else None,
         transfer_type=str(worker.transfer_type.value) if worker.transfer_type else None,
         transfer_scheduled_month=(
-            str(worker.transfer_scheduled_month) if worker.transfer_scheduled_month else None
+            str(worker.transfer_scheduled_month)
+            if worker.transfer_scheduled_month
+            else None
         ),
         is_cross_division_transfer=(
             bool(worker.is_cross_division_transfer)
@@ -527,17 +529,23 @@ def _parsed_to_row_values(pr: _ParsedRow) -> WorkerUploadRowValues:
     )
 
 
-def _is_row_changed(before: WorkerUploadRowValues, after: WorkerUploadRowValues) -> bool:
+def _is_row_changed(
+    before: WorkerUploadRowValues, after: WorkerUploadRowValues
+) -> bool:
     """更新前後の値を比較して変更があるか判定する."""
     checks = [
         before.name != after.name,
-        after.department_name is not None and before.department_name != after.department_name,
+        after.department_name is not None
+        and before.department_name != after.department_name,
         after.position_name is not None and before.position_name != after.position_name,
         after.birth_date is not None and before.birth_date != after.birth_date,
-        after.skill_acquired_at is not None and before.skill_acquired_at != after.skill_acquired_at,
+        after.skill_acquired_at is not None
+        and before.skill_acquired_at != after.skill_acquired_at,
         after.transfer_type is not None and before.transfer_type != after.transfer_type,
-        after.transfer_scheduled_month is not None and before.transfer_scheduled_month != after.transfer_scheduled_month,
-        after.is_cross_division_transfer is not None and before.is_cross_division_transfer != after.is_cross_division_transfer,
+        after.transfer_scheduled_month is not None
+        and before.transfer_scheduled_month != after.transfer_scheduled_month,
+        after.is_cross_division_transfer is not None
+        and before.is_cross_division_transfer != after.is_cross_division_transfer,
     ]
     return any(checks)
 
@@ -596,9 +604,13 @@ def preview_upload(
     department_map = _fetch_departments_by_name(session, tenant_id)
     skill_rank_map = _fetch_skill_ranks_by_name(session, tenant_id)
 
-    parsed_rows = _parse_rows(raw_rows, position_map, branch_map, department_map, skill_rank_map)
+    parsed_rows = _parse_rows(
+        raw_rows, position_map, branch_map, department_map, skill_rank_map
+    )
 
-    valid_codes = [pr.employee_code for pr in parsed_rows if pr.employee_code and not pr.errors]
+    valid_codes = [
+        pr.employee_code for pr in parsed_rows if pr.employee_code and not pr.errors
+    ]
     existing_map = _fetch_workers_by_employee_code(session, tenant_id, valid_codes)
 
     dept_id_to_name = {str(dept.id): name for name, dept in department_map.items()}
@@ -781,7 +793,9 @@ def execute_upload(
     department_map = _fetch_departments_by_name(session, tenant_id)
     skill_rank_map = _fetch_skill_ranks_by_name(session, tenant_id)
 
-    parsed_rows = _parse_rows(raw_rows, position_map, branch_map, department_map, skill_rank_map)
+    parsed_rows = _parse_rows(
+        raw_rows, position_map, branch_map, department_map, skill_rank_map
+    )
     valid_rows = _validate_upload_rows(parsed_rows)
 
     codes = [pr.employee_code for pr in valid_rows]
