@@ -62,11 +62,6 @@ exclude = [
     '^tests/',
 ]
 
-[[tool.mypy.overrides]]
-module = ["scripts.*"]
-ignore_errors = true
-ignore_missing_imports = true
-
 [tool.pytest.ini_options]
 pythonpath = ["."]
 addopts = "-ra -q"
