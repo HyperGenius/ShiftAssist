@@ -238,7 +238,7 @@ class Worker(Base):
         skill_acquired_at: 現在のスキルランクの取得日。
         transfer_type: 異動種別。
         transfer_scheduled_month: 異動予定月（YYYY-MM形式）。
-        is_cross_division_transfer: 他部門間異動フラグ。
+        is_cross_division_transfer: 事業本部間異動フラグ。
         joined_at: 着任日（統計正規化に使用）。
         created_at: レコード作成日時。
         updated_at: レコード最終更新日時。更新時に自動更新される。
@@ -264,7 +264,7 @@ class Worker(Base):
     transfer_scheduled_month = Column(String, nullable=True)  # 異動予定月 YYYY-MM
     is_cross_division_transfer = Column(
         Boolean, nullable=True, default=False
-    )  # 他部門間異動
+    )  # 事業本部間異動
     joined_at = Column(Date, nullable=True)  # 着任日（統計正規化に使用）
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

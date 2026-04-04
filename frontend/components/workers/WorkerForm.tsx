@@ -267,7 +267,7 @@ export function WorkerForm({
           htmlFor="worker-is-cross-division-transfer"
           className="text-sm text-slate-300 cursor-pointer"
         >
-          他部門間異動
+          事業本部間異動
         </label>
       </div>
 
