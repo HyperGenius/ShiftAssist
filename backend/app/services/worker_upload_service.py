@@ -11,6 +11,7 @@ import re
 import uuid
 from datetime import date, datetime
 
+import openpyxl
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
@@ -249,9 +250,7 @@ def parse_csv_bytes(content: bytes) -> list[dict[str, str]]:
 
 
 def _load_excel_rows(content: bytes) -> list[tuple]:
-    """Excelバイト列からシート行を読み込む（openpyxl依存）."""
-    import openpyxl  # noqa: PLC0415
-
+    """Excelバイト列からシート行を読み込む."""
     wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
     ws = wb.active
     if ws is None:
@@ -277,11 +276,6 @@ def parse_excel_bytes(content: bytes) -> list[dict[str, str]]:
     """
     try:
         rows = _load_excel_rows(content)
-    except ImportError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Excelファイルの処理ライブラリが利用できません。",
-        ) from e
     except HTTPException:
         raise
     except Exception as e:
