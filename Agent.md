@@ -86,7 +86,9 @@
 
 ### Database (Neon/PostgreSQL)
 
-1. **Alembic Migrations**: スキーマ変更は必ず `alembic` を使用してマイグレーションファイルを生成・適用する。
+1. **Alembic Migrations**:
+   - スキーマ変更は必ず `alembic` を使用してマイグレーションファイルを生成・適用する。
+   - マイグレーションファイルを生成したら、必ず `alembic upgrade head --sql` を自分で実行し、意図しない破壊的変更が含まれていないか確認してからプッシュする。
 2. **SQLModel ORM**: データアクセスには SQLModel を使用し、型安全性を確保する。
 
 #### マイグレーション作成時の注意事項
