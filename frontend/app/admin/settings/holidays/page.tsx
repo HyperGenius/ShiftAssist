@@ -23,7 +23,7 @@ export default async function HolidaysSettingsPage() {
               href="/admin/settings"
               className="text-sm text-slate-400 tracking-wide hover:text-slate-200 transition-colors"
             >
-              管理設定
+              管理者設定
             </Link>
             <span className="text-slate-600">/</span>
             <span className="text-sm text-slate-400 tracking-wide">

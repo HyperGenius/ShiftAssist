@@ -29,12 +29,6 @@ export const ROUTES = {
     allowedRoles: ALL_ROLES,
     description: "シフト枠の登録・管理",
   },
-  WORKERS: {
-    path: "/workers",
-    label: "対応者リスト",
-    allowedRoles: ALL_ROLES,
-    description: "対応者の登録・管理",
-  },
   TENANT_SETTINGS: {
     path: "/settings",
     label: "テナント設定",
