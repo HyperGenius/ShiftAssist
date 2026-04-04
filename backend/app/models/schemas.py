@@ -6,7 +6,128 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from app.models.models import SlotTypeEnum
+from app.models.models import LongHolidayTypeEnum, SlotTypeEnum, TransferTypeEnum
+
+
+class BranchCreate(BaseModel):
+    """Branch作成リクエストスキーマ."""
+
+    name: str
+    code: str
+
+
+class BranchUpdate(BaseModel):
+    """Branch更新リクエストスキーマ.
+
+    すべてのフィールドはオプショナル。指定したフィールドのみ更新される。
+    """
+
+    name: str | None = None
+    code: str | None = None
+
+
+class BranchResponse(BaseModel):
+    """Branchレスポンススキーマ.
+
+    ORMモデルからの変換に対応するため ``from_attributes=True`` を設定。
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    tenant_id: str
+    name: str
+    code: str
+    created_at: datetime
+
+
+class PositionCreate(BaseModel):
+    """Position作成リクエストスキーマ."""
+
+    name: str
+    is_excluded_from_gw: bool = False
+    is_excluded_from_sw: bool = False
+    is_excluded_from_year_end: bool = False
+    is_excluded_from_all_shifts: bool = False
+
+
+class PositionUpdate(BaseModel):
+    """Position更新リクエストスキーマ.
+
+    すべてのフィールドはオプショナル。指定したフィールドのみ更新される。
+    """
+
+    name: str | None = None
+    is_excluded_from_gw: bool | None = None
+    is_excluded_from_sw: bool | None = None
+    is_excluded_from_year_end: bool | None = None
+    is_excluded_from_all_shifts: bool | None = None
+
+
+class PositionResponse(BaseModel):
+    """Positionレスポンススキーマ.
+
+    ORMモデルからの変換に対応するため ``from_attributes=True`` を設定。
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    tenant_id: str
+    name: str
+    is_excluded_from_gw: bool
+    is_excluded_from_sw: bool
+    is_excluded_from_year_end: bool
+    is_excluded_from_all_shifts: bool
+    created_at: datetime
+
+
+class LongHolidayPeriodCreate(BaseModel):
+    """LongHolidayPeriod作成リクエストスキーマ."""
+
+    holiday_type: LongHolidayTypeEnum
+    year: int
+    start_date: date
+    end_date: date
+
+    @field_validator("end_date")
+    @classmethod
+    def end_date_must_be_after_start_date(cls, v: date, info: object) -> date:
+        """終了日は開始日以降でなければならない."""
+        from pydantic import ValidationInfo
+
+        if isinstance(info, ValidationInfo) and "start_date" in (info.data or {}):
+            if v < info.data["start_date"]:
+                raise ValueError("end_date must be on or after start_date")
+        return v
+
+
+class LongHolidayPeriodUpdate(BaseModel):
+    """LongHolidayPeriod更新リクエストスキーマ.
+
+    すべてのフィールドはオプショナル。指定したフィールドのみ更新される。
+    """
+
+    start_date: date | None = None
+    end_date: date | None = None
+
+
+class LongHolidayPeriodResponse(BaseModel):
+    """LongHolidayPeriodレスポンススキーマ.
+
+    ORMモデルからの変換に対応するため ``from_attributes=True`` を設定。
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    tenant_id: str
+    holiday_type: LongHolidayTypeEnum
+    year: int
+    start_date: date
+    end_date: date
+    created_at: datetime
+    updated_at: datetime
 
 
 class DepartmentCreate(BaseModel):
@@ -14,6 +135,7 @@ class DepartmentCreate(BaseModel):
 
     name: str
     code: str
+    branch_id: uuid.UUID | None = None
 
 
 class DepartmentUpdate(BaseModel):
@@ -24,6 +146,7 @@ class DepartmentUpdate(BaseModel):
 
     name: str | None = None
     code: str | None = None
+    branch_id: uuid.UUID | None = None
 
 
 class DepartmentResponse(BaseModel):
@@ -38,6 +161,7 @@ class DepartmentResponse(BaseModel):
     tenant_id: str
     name: str
     code: str
+    branch_id: uuid.UUID | None = None
     created_at: datetime
     deleted_at: datetime | None = None
 
@@ -129,10 +253,17 @@ class WorkerCreate(BaseModel):
     """Worker作成リクエストスキーマ."""
 
     employee_no: str | None = None
+    employee_code: str | None = None
     name: str
     department_id: uuid.UUID
     skill_rank_id: uuid.UUID
+    position_id: uuid.UUID | None = None
     is_special: bool = False
+    birth_date: date | None = None
+    skill_acquired_at: date | None = None
+    transfer_type: TransferTypeEnum | None = None
+    transfer_scheduled_month: str | None = None
+    is_cross_division_transfer: bool | None = None
     joined_at: date | None = None
 
 
@@ -143,10 +274,17 @@ class WorkerUpdate(BaseModel):
     """
 
     employee_no: str | None = None
+    employee_code: str | None = None
     name: str | None = None
     department_id: uuid.UUID | None = None
     skill_rank_id: uuid.UUID | None = None
+    position_id: uuid.UUID | None = None
     is_special: bool | None = None
+    birth_date: date | None = None
+    skill_acquired_at: date | None = None
+    transfer_type: TransferTypeEnum | None = None
+    transfer_scheduled_month: str | None = None
+    is_cross_division_transfer: bool | None = None
     joined_at: date | None = None
 
 
@@ -161,10 +299,17 @@ class WorkerResponse(BaseModel):
     id: uuid.UUID
     tenant_id: str
     employee_no: str | None = None
+    employee_code: str | None = None
     name: str
     department_id: uuid.UUID
     skill_rank_id: uuid.UUID
+    position_id: uuid.UUID | None = None
     is_special: bool
+    birth_date: date | None = None
+    skill_acquired_at: date | None = None
+    transfer_type: TransferTypeEnum | None = None
+    transfer_scheduled_month: str | None = None
+    is_cross_division_transfer: bool | None = None
     joined_at: date | None = None
     created_at: datetime
     updated_at: datetime

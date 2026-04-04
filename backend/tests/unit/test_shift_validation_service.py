@@ -67,6 +67,8 @@ def _make_worker(
     department_id: uuid.UUID | None = None,
     skill_rank_id: uuid.UUID | None = None,
     is_special: bool = False,
+    birth_date: object = None,
+    position_id: uuid.UUID | None = None,
 ) -> Worker:
     """テスト用Workerオブジェクトを生成するヘルパー."""
     w = Worker()
@@ -76,6 +78,8 @@ def _make_worker(
     w.department_id = department_id or DEPT_A_ID
     w.skill_rank_id = skill_rank_id or SKILL_RANK_LEADER_ID
     w.is_special = is_special
+    w.birth_date = birth_date  # type: ignore[assignment]
+    w.position_id = position_id  # type: ignore[assignment]
     w.created_at = datetime(2026, 1, 1)
     w.updated_at = datetime(2026, 1, 1)
     return w
@@ -414,6 +418,184 @@ class TestValidateShiftAssignments:
 
         codes = [v.code for v in result]
         assert "SPECIAL_EMPLOYMENT" not in codes
+
+    # --- ルール6: 60歳以上同士のペア禁止 ---
+
+    def test_age_restriction_two_aged_workers_detected(self) -> None:
+        """異常系（ルール6）: 60歳以上のWorker同士がペアになった場合、AGE_RESTRICTION を返す."""
+        from datetime import date
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement(shift_date_str="2026-04-01")
+        # シフト対象月初日（2026-04-01）時点で60歳以上
+        w1 = _make_worker(
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            birth_date=date(1966, 1, 1),
+        )
+        w2 = _make_worker(
+            worker_id=WORKER_ID_2,
+            department_id=DEPT_B_ID,
+            birth_date=date(1965, 3, 1),
+        )
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [w1, w2], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "AGE_RESTRICTION" in codes
+
+    def test_age_restriction_one_aged_one_young_no_violation(self) -> None:
+        """正常系（ルール6）: 片方が60歳以上・片方が60歳未満の場合、AGE_RESTRICTION なし."""
+        from datetime import date
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement(shift_date_str="2026-04-01")
+        w1 = _make_worker(
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            birth_date=date(1966, 1, 1),  # 60歳以上
+        )
+        w2 = _make_worker(
+            worker_id=WORKER_ID_2,
+            department_id=DEPT_B_ID,
+            birth_date=date(1990, 1, 1),  # 36歳
+        )
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [w1, w2], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "AGE_RESTRICTION" not in codes
+
+    def test_age_restriction_no_birth_date_no_violation(self) -> None:
+        """正常系（ルール6）: birth_dateがNullのWorkerは年齢制限チェック対象外."""
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement(shift_date_str="2026-04-01")
+        # birth_dateなし
+        w1 = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        w2 = _make_worker(worker_id=WORKER_ID_2, department_id=DEPT_B_ID)
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [w1, w2], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "AGE_RESTRICTION" not in codes
+
+    # --- ルール7: 役職除外チェック ---
+
+    def test_position_exclusion_detected_during_gw(self) -> None:
+        """異常系（ルール7）: GW期間中に除外フラグを持つ役職のWorkerがアサインされた場合."""
+        from datetime import date
+
+        from app.models.models import LongHolidayPeriod, LongHolidayTypeEnum, Position
+
+        # GW期間
+        gw_period = LongHolidayPeriod()
+        gw_period.id = uuid.uuid4()
+        gw_period.tenant_id = TENANT_ID
+        gw_period.holiday_type = LongHolidayTypeEnum.gw
+        gw_period.year = 2026
+        gw_period.start_date = date(2026, 4, 29)
+        gw_period.end_date = date(2026, 5, 6)
+
+        # GW除外フラグのある役職
+        pos = Position()
+        pos.id = uuid.uuid4()
+        pos.tenant_id = TENANT_ID
+        pos.name = "係長"
+        pos.is_excluded_from_gw = True
+        pos.is_excluded_from_sw = False
+        pos.is_excluded_from_year_end = False
+        pos.is_excluded_from_all_shifts = False
+
+        session = MagicMock()
+        call_index = [0]
+
+        def exec_side_effect(stmt: object) -> MagicMock:
+            m = MagicMock()
+            call_index[0] += 1
+            idx = call_index[0]
+            if idx == 1:
+                # ルール1: daily_duplicate（first → None）
+                m.first.return_value = None
+                m.all.return_value = []
+            elif idx == 2:
+                # ルール4: work_interval all
+                m.all.return_value = []
+                m.first.return_value = None
+            elif idx == 3:
+                # ルール7: get_period_for_date（GW期間を返す）
+                m.all.return_value = [gw_period]
+                m.first.return_value = gw_period
+            elif idx == 4:
+                # ルール7: position lookup
+                m.first.return_value = pos
+                m.all.return_value = [pos]
+            else:
+                m.first.return_value = None
+                m.all.return_value = []
+            return m
+
+        session.exec.side_effect = exec_side_effect
+
+        # GW期間中のシフト
+        req = _make_requirement(shift_date_str="2026-05-03")
+        pos_id = pos.id
+        w = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID, position_id=pos_id)
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [w], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "POSITION_EXCLUDED" in codes
+
+    def test_position_exclusion_no_violation_when_no_long_holiday_period(self) -> None:
+        """正常系（ルール7）: 長期休暇期間外はPOSITION_EXCLUDEDなし."""
+        from app.models.models import Position
+
+        pos = Position()
+        pos.id = uuid.uuid4()
+        pos.tenant_id = TENANT_ID
+        pos.name = "係長"
+        pos.is_excluded_from_gw = True
+        pos.is_excluded_from_sw = False
+        pos.is_excluded_from_year_end = False
+        pos.is_excluded_from_all_shifts = False
+
+        session = MagicMock()
+
+        def exec_side_effect(stmt: object) -> MagicMock:
+            m = MagicMock()
+            # get_period_for_date が None を返す（長期休暇期間外）
+            m.all.return_value = []
+            m.first.return_value = None
+            return m
+
+        session.exec.side_effect = exec_side_effect
+        req = _make_requirement(shift_date_str="2026-04-10")  # 長期休暇期間外
+        pos_id = pos.id
+        w = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID, position_id=pos_id)
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [w], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "POSITION_EXCLUDED" not in codes
 
     # --- 複合ルール ---
 

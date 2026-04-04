@@ -1,14 +1,23 @@
 // frontend/types/worker.ts
 // Worker エンティティの TypeScript 型定義
 
+export type TransferType = "no_transfer" | "transfer_in" | "transfer_out";
+
 export interface Worker {
   id: string;
   tenant_id: string;
   employee_no: string | null;
+  employee_code: string | null;
   name: string;
   department_id: string;
   skill_rank_id: string;
+  position_id: string | null;
   is_special: boolean;
+  birth_date: string | null;
+  skill_acquired_at: string | null;
+  transfer_type: TransferType | null;
+  transfer_scheduled_month: string | null;
+  is_cross_division_transfer: boolean | null;
   joined_at: string | null;
   created_at: string;
   updated_at: string;
@@ -16,19 +25,33 @@ export interface Worker {
 
 export interface WorkerCreate {
   employee_no?: string | null;
+  employee_code?: string | null;
   name: string;
   department_id: string;
   skill_rank_id: string;
+  position_id?: string | null;
   is_special: boolean;
+  birth_date?: string | null;
+  skill_acquired_at?: string | null;
+  transfer_type?: TransferType | null;
+  transfer_scheduled_month?: string | null;
+  is_cross_division_transfer?: boolean | null;
   joined_at?: string | null;
 }
 
 export interface WorkerUpdate {
   employee_no?: string | null;
+  employee_code?: string | null;
   name?: string;
   department_id?: string;
   skill_rank_id?: string;
+  position_id?: string | null;
   is_special?: boolean;
+  birth_date?: string | null;
+  skill_acquired_at?: string | null;
+  transfer_type?: TransferType | null;
+  transfer_scheduled_month?: string | null;
+  is_cross_division_transfer?: boolean | null;
   joined_at?: string | null;
 }
 

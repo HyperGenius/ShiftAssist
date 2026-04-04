@@ -63,7 +63,87 @@ class SlotTypeEnum(enum.StrEnum):
     long_hol_night = "long_hol_night"
 
 
+class LongHolidayTypeEnum(enum.StrEnum):
+    """長期休暇の種別を表す列挙型.
+
+    Attributes:
+        gw: ゴールデンウィーク。
+        sw: シルバーウィーク。
+        year_end: 年末年始。
+    """
+
+    gw = "gw"
+    sw = "sw"
+    year_end = "year_end"
+
+
+class TransferTypeEnum(enum.StrEnum):
+    """異動種別を表す列挙型.
+
+    Attributes:
+        no_transfer: 異動なし。
+        transfer_in: 転入（他所属からの異動）。
+        transfer_out: 転出（他所属への異動）。
+    """
+
+    no_transfer = "no_transfer"
+    transfer_in = "transfer_in"
+    transfer_out = "transfer_out"
+
+
 # --- Models ---
+class Branch(Base):
+    """テナントごとに設定される上位組織（支所等）を表すSQLAlchemyモデル.
+
+    Departmentの上位階層として機能し、組織の階層構造を管理する。
+
+    Attributes:
+        id: UUIDによるプライマリキー。
+        tenant_id: Clerk OrganizationのID。テナント分離に使用。
+        name: 上位組織の表示名（例: "本所", "第一支所"）。
+        code: 上位組織の識別コード（例: "branch_1", "main"）。一意制約あり（テナント内）。
+        created_at: レコード作成日時。
+    """
+
+    __tablename__ = "branches"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    code = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "code", name="uq_branch_tenant_code"),
+    )
+
+
+class Position(Base):
+    """テナントごとに設定される役職マスタを表すSQLAlchemyモデル.
+
+    除外フラグにより長期休暇期間中のアサイン可否を制御する。
+
+    Attributes:
+        id: UUIDによるプライマリキー。
+        tenant_id: Clerk OrganizationのID。テナント分離に使用。
+        name: 役職名（例: "係長", "主任"）。
+        is_excluded_from_gw: GWアサイン除外フラグ。
+        is_excluded_from_sw: SWアサイン除外フラグ。
+        is_excluded_from_year_end: 年末年始アサイン除外フラグ。
+        is_excluded_from_all_shifts: 原則アサイン対象外フラグ。
+        created_at: レコード作成日時。
+    """
+
+    __tablename__ = "positions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    is_excluded_from_gw = Column(Boolean, nullable=False, default=False)
+    is_excluded_from_sw = Column(Boolean, nullable=False, default=False)
+    is_excluded_from_year_end = Column(Boolean, nullable=False, default=False)
+    is_excluded_from_all_shifts = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Department(Base):
     """テナントごとに設定される所属課を表すSQLAlchemyモデル.
 
@@ -75,6 +155,7 @@ class Department(Base):
         tenant_id: Clerk OrganizationのID。テナント分離に使用。
         name: 所属課の表示名（例: "1課", "East"）。
         code: 所属課の識別コード（例: "dept_1", "east"）。一意制約あり（テナント内、有効レコードのみ）。
+        branch_id: 上位組織（支所等）のID（branchesテーブルへのFK）。任意。
         created_at: レコード作成日時。
         deleted_at: 論理削除日時。NULLの場合は有効なレコード。
     """
@@ -84,6 +165,9 @@ class Department(Base):
     tenant_id = Column(String, index=True, nullable=False)
     name = Column(String, nullable=False)
     code = Column(String, nullable=False)
+    branch_id = Column(
+        UUID(as_uuid=True), ForeignKey("branches.id"), nullable=True
+    )
     created_at = Column(DateTime, default=datetime.utcnow)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -146,10 +230,18 @@ class Worker(Base):
         id: UUIDによるプライマリキー。
         tenant_id: Clerk OrganizationのID。テナント分離に使用。
         employee_no: 社員番号。バルクUpsertのキーとして使用。テナント内で一意（NULL許容）。
+        employee_code: 職員番号。テナント内で一意（NULL許容）。
         name: 対応者の氏名。
         department_id: 所属課のID（departmentsテーブルへのFK）。
         skill_rank_id: スキルランクのID（tenant_skill_ranksテーブルへのFK）。
+        position_id: 役職のID（positionsテーブルへのFK）。任意。
         is_special: 特別雇用者フラグ。Trueの場合、平日夜間枠のみアサイン可能。
+        birth_date: 生年月日（年齢計算用）。
+        skill_acquired_at: 現在のスキルランクの取得日。
+        transfer_type: 異動種別。
+        transfer_scheduled_month: 異動予定月（YYYY-MM形式）。
+        is_cross_division_transfer: 他部門間異動フラグ。
+        joined_at: 着任日（統計正規化に使用）。
         created_at: レコード作成日時。
         updated_at: レコード最終更新日時。更新時に自動更新される。
     """
@@ -158,6 +250,7 @@ class Worker(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(String, index=True, nullable=False)  # Clerk Organization ID
     employee_no = Column(String, nullable=True)  # 社員番号（バルクUpsertキー）
+    employee_code = Column(String, nullable=True)  # 職員番号
     name = Column(String, nullable=False)
     department_id = Column(
         UUID(as_uuid=True), ForeignKey("departments.id"), nullable=False
@@ -165,7 +258,15 @@ class Worker(Base):
     skill_rank_id = Column(
         UUID(as_uuid=True), ForeignKey("tenant_skill_ranks.id"), nullable=False
     )
+    position_id = Column(
+        UUID(as_uuid=True), ForeignKey("positions.id"), nullable=True
+    )
     is_special = Column(Boolean, default=False)
+    birth_date = Column(Date, nullable=True)  # 生年月日（年齢計算用）
+    skill_acquired_at = Column(Date, nullable=True)  # スキルランク取得日
+    transfer_type = Column(Enum(TransferTypeEnum), nullable=True)  # type: ignore[var-annotated]
+    transfer_scheduled_month = Column(String, nullable=True)  # 異動予定月 YYYY-MM
+    is_cross_division_transfer = Column(Boolean, nullable=True, default=False)  # 他部門間異動
     joined_at = Column(Date, nullable=True)  # 着任日（統計正規化に使用）
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -173,6 +274,9 @@ class Worker(Base):
     __table_args__ = (
         UniqueConstraint(
             "tenant_id", "employee_no", name="uq_worker_tenant_employee_no"
+        ),
+        UniqueConstraint(
+            "tenant_id", "employee_code", name="uq_worker_tenant_employee_code"
         ),
     )
 
@@ -411,3 +515,40 @@ class TenantStatsConfig(Base):
     stats_period_months = Column(Integer, nullable=False, default=12)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class LongHolidayPeriod(Base):
+    """テナントごとの長期休暇期間設定を表すSQLAlchemyモデル.
+
+    管理者が年度ごとにGW・SW・年末年始の具体的な開始・終了日を設定する。
+    役職の除外フラグと組み合わせてアサイン可否を判定するために使用する。
+
+    Attributes:
+        id: UUIDによるプライマリキー。
+        tenant_id: Clerk OrganizationのID。テナント分離に使用。
+        holiday_type: 長期休暇の種別（gw / sw / year_end）。
+        year: 対象年（例: 2026）。
+        start_date: 長期休暇の開始日。
+        end_date: 長期休暇の終了日。
+        created_at: レコード作成日時。
+        updated_at: レコード最終更新日時。更新時に自動更新される。
+    """
+
+    __tablename__ = "long_holiday_periods"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String, index=True, nullable=False)
+    holiday_type = Column(Enum(LongHolidayTypeEnum), nullable=False)  # type: ignore[var-annotated]
+    year = Column(Integer, nullable=False)
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "holiday_type",
+            "year",
+            name="uq_long_holiday_period_tenant_type_year",
+        ),
+    )
