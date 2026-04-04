@@ -296,7 +296,11 @@ def _ensure_departments(
         else:
             # 未登録の課を自動生成。department_name が未指定の場合はコードを名称として使用
             name = next(
-                (item.department_name for item in items if item.department_code == code and item.department_name),
+                (
+                    item.department_name
+                    for item in items
+                    if item.department_code == code and item.department_name
+                ),
                 code,
             )
             new_dept = Department(
@@ -343,7 +347,8 @@ def preview_bulk_upsert_workers(
     dept_codes = list({item.department_code for item in items})
     dept_map = _fetch_departments_by_codes(session, tenant_id, dept_codes)
     new_dept_codes = {
-        code for code in dept_codes
+        code
+        for code in dept_codes
         if dept_map.get(code) is None or dept_map[code].deleted_at is not None
     }
 
@@ -503,6 +508,3 @@ def _validate_no_duplicate_employee_nos(items: list[WorkerBulkItem]) -> None:
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"重複するemployee_noが含まれています: {', '.join(duplicates)}",
         )
-
-
-

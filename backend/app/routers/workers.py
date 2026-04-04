@@ -166,4 +166,3 @@ def delete_worker(
         session: DBセッション。
     """
     worker_service.delete_worker(session, tenant_id, worker_id)
-

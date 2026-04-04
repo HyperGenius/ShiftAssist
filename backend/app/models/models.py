@@ -171,7 +171,9 @@ class Worker(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     __table_args__ = (
-        UniqueConstraint("tenant_id", "employee_no", name="uq_worker_tenant_employee_no"),
+        UniqueConstraint(
+            "tenant_id", "employee_no", name="uq_worker_tenant_employee_no"
+        ),
     )
 
 
