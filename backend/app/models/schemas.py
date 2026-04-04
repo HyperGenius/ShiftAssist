@@ -4,8 +4,7 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, field_validator
-from pydantic import ValidationInfo
+from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
 
 from app.models.models import LongHolidayTypeEnum, SlotTypeEnum, TransferTypeEnum
 
@@ -359,6 +358,57 @@ class WorkerBulkUpsertResponse(BaseModel):
     created: int
     updated: int
     departments_created: int
+    items: list[WorkerResponse]
+
+
+class WorkerUploadRowValues(BaseModel):
+    """CSV/Excelアップロード行の値スキーマ（差分比較用）."""
+
+    name: str | None = None
+    department_name: str | None = None
+    position_name: str | None = None
+    birth_date: str | None = None
+    skill_acquired_at: str | None = None
+    transfer_type: str | None = None
+    transfer_scheduled_month: str | None = None
+    is_cross_division_transfer: bool | None = None
+
+
+class WorkerUploadDiffItem(BaseModel):
+    """CSV/Excelアップロードの差分表示用スキーマ（1件）."""
+
+    row_index: int
+    employee_code: str
+    action: str  # "create" | "update" | "no_change"
+    before: WorkerUploadRowValues | None = None
+    after: WorkerUploadRowValues
+
+
+class WorkerUploadErrorRow(BaseModel):
+    """CSV/Excelアップロードのバリデーションエラー行スキーマ."""
+
+    row_index: int
+    employee_code: str | None = None
+    errors: list[str]
+
+
+class WorkerUploadPreviewResponse(BaseModel):
+    """CSV/ExcelアップロードのDry-run結果スキーマ."""
+
+    diff_items: list[WorkerUploadDiffItem]
+    error_rows: list[WorkerUploadErrorRow]
+    create_count: int
+    update_count: int
+    no_change_count: int
+    error_count: int
+    has_errors: bool
+
+
+class WorkerUploadUpsertResponse(BaseModel):
+    """CSV/ExcelアップロードのUpsert実行結果スキーマ."""
+
+    created: int
+    updated: int
     items: list[WorkerResponse]
 
 

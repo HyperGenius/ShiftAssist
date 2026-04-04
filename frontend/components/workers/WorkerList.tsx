@@ -15,6 +15,7 @@ import type { Worker, WorkerCreate } from "@/types/worker";
 import type { WorkerStatsResponse } from "@/types/workerStats";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
 import { WorkerBulkUploadPanel } from "./WorkerBulkUploadPanel";
+import { WorkerCsvUploadPanel } from "./WorkerCsvUploadPanel";
 import { WorkerModal } from "./WorkerModal";
 
 /** スケルトンローダー行 */
@@ -180,6 +181,7 @@ export function WorkerList() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
+  const [isCsvUploadOpen, setIsCsvUploadOpen] = useState(false);
 
   const handleCreate = () => {
     setEditingWorker(undefined);
@@ -241,9 +243,21 @@ export function WorkerList() {
           <div className="flex items-center gap-2">
             <SciFiButton
               variant="secondary"
-              onClick={() => setIsBulkUploadOpen((prev) => !prev)}
+              onClick={() => {
+                setIsCsvUploadOpen((prev) => !prev);
+                setIsBulkUploadOpen(false);
+              }}
             >
-              一括登録
+              CSV/Excelアップロード
+            </SciFiButton>
+            <SciFiButton
+              variant="secondary"
+              onClick={() => {
+                setIsBulkUploadOpen((prev) => !prev);
+                setIsCsvUploadOpen(false);
+              }}
+            >
+              JSON一括登録
             </SciFiButton>
             <SciFiButton onClick={handleCreate}>＋ 新規追加</SciFiButton>
           </div>
@@ -344,7 +358,14 @@ export function WorkerList() {
         )}
       </SciFiPanel>
 
-      {/* 一括登録パネル */}
+      {/* CSV/Excelアップロードパネル */}
+      {isCsvUploadOpen && (
+        <div className="mt-4">
+          <WorkerCsvUploadPanel onClose={() => setIsCsvUploadOpen(false)} />
+        </div>
+      )}
+
+      {/* JSON一括登録パネル */}
       {isBulkUploadOpen && (
         <div className="mt-4">
           <WorkerBulkUploadPanel onClose={() => setIsBulkUploadOpen(false)} />
