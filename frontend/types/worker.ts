@@ -93,3 +93,46 @@ export interface WorkerBulkUpsertResponse {
   items: Worker[];
 }
 
+// --- CSV/Excel アップロード（職員番号ベース）---
+
+export interface WorkerUploadRowValues {
+  name: string | null;
+  department_name: string | null;
+  position_name: string | null;
+  birth_date: string | null;
+  skill_acquired_at: string | null;
+  transfer_type: string | null;
+  transfer_scheduled_month: string | null;
+  is_cross_division_transfer: boolean | null;
+}
+
+export interface WorkerUploadDiffItem {
+  row_index: number;
+  employee_code: string;
+  action: "create" | "update" | "no_change";
+  before: WorkerUploadRowValues | null;
+  after: WorkerUploadRowValues;
+}
+
+export interface WorkerUploadErrorRow {
+  row_index: number;
+  employee_code: string | null;
+  errors: string[];
+}
+
+export interface WorkerUploadPreviewResponse {
+  diff_items: WorkerUploadDiffItem[];
+  error_rows: WorkerUploadErrorRow[];
+  create_count: number;
+  update_count: number;
+  no_change_count: number;
+  error_count: number;
+  has_errors: boolean;
+}
+
+export interface WorkerUploadUpsertResponse {
+  created: number;
+  updated: number;
+  items: Worker[];
+}
+

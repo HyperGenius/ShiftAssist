@@ -7,7 +7,7 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from sqlmodel import Session
 
 from app.db import get_session
@@ -19,8 +19,10 @@ from app.models.schemas import (
     WorkerCreate,
     WorkerResponse,
     WorkerUpdate,
+    WorkerUploadPreviewResponse,
+    WorkerUploadUpsertResponse,
 )
-from app.services import worker_service
+from app.services import worker_service, worker_upload_service
 
 router = APIRouter(prefix="/api/workers", tags=["workers"])
 
@@ -74,6 +76,72 @@ def bulk_upsert_workers(
         作成・更新件数と処理後のWorkerリスト。
     """
     return worker_service.bulk_upsert_workers(session, tenant_id, data.workers)
+
+
+@router.post(
+    "/upload",
+    status_code=status.HTTP_200_OK,
+)
+async def upload_workers(
+    file: UploadFile,
+    dry_run: bool = Query(
+        True,
+        description="Trueの場合はDry-run（プレビューのみ）、Falseの場合はUpsert実行",
+    ),
+    tenant_id: str = Depends(get_tenant_id),
+    session: Session = Depends(get_session),
+) -> WorkerUploadPreviewResponse | WorkerUploadUpsertResponse:
+    """CSV/ExcelファイルからWorkerを一括登録・更新する.
+
+    ``dry_run=true``（デフォルト）の場合はDB更新を行わず、差分プレビューを返す。
+    ``dry_run=false``の場合はバリデーション後にUpsertを実行する。
+
+    対応ファイル形式:
+    - CSV（UTF-8、UTF-8 BOM付き、Shift-JIS）
+    - Excel（.xlsx）
+
+    必須列: 職員番号, 氏名
+    任意列: 生年月日, 現在のスキル取得日, 役職名, 支所名, 課名,
+            異動種別, 異動予定月, 事業本部変更の有無, スキルランク名
+
+    Args:
+        file: アップロードするCSV/Excelファイル。
+        dry_run: Trueの場合はDry-runのみ（デフォルト: True）。
+        tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
+        session: DBセッション。
+
+    Returns:
+        dry_run=TrueのときはWorkerUploadPreviewResponse、
+        dry_run=FalseのときはWorkerUploadUpsertResponse。
+    """
+    filename = file.filename or ""
+    content = await file.read()
+
+    if filename.endswith(".xlsx") or file.content_type in (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel",
+    ):
+        raw_rows = worker_upload_service.parse_excel_bytes(content)
+    elif filename.endswith(".csv") or file.content_type in (
+        "text/csv",
+        "text/plain",
+        "application/csv",
+    ):
+        raw_rows = worker_upload_service.parse_csv_bytes(content)
+    else:
+        # content_typeが不明な場合はCSVとして試みる
+        try:
+            raw_rows = worker_upload_service.parse_csv_bytes(content)
+        except HTTPException:
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="対応しているファイル形式はCSV（.csv）またはExcel（.xlsx）のみです。",
+            ) from None
+
+    if dry_run:
+        return worker_upload_service.preview_upload(session, tenant_id, raw_rows)
+    else:
+        return worker_upload_service.execute_upload(session, tenant_id, raw_rows)
 
 
 @router.post("/", response_model=WorkerResponse, status_code=status.HTTP_201_CREATED)

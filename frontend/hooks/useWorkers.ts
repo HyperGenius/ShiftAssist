@@ -14,6 +14,8 @@ import type {
   WorkerBulkUpsertResponse,
   WorkerCreate,
   WorkerUpdate,
+  WorkerUploadPreviewResponse,
+  WorkerUploadUpsertResponse,
 } from "@/types/worker";
 
 const WORKERS_PATH = "/api/workers/";
@@ -103,6 +105,62 @@ export function useWorkers() {
     [getApiClient, swrKey],
   );
 
+  /** CSV/Excelファイルをアップロードして差分プレビューを取得する（dry_run=true） */
+  const previewUploadFile = useCallback(
+    async (file: File): Promise<WorkerUploadPreviewResponse> => {
+      const token = await getToken();
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (tenantId) headers["X-Tenant-Id"] = tenantId;
+
+      const res = await fetch(`/api/workers/upload?dry_run=true`, {
+        method: "POST",
+        headers,
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail ?? "アップロードのプレビューに失敗しました");
+      }
+
+      return res.json() as Promise<WorkerUploadPreviewResponse>;
+    },
+    [getToken, tenantId],
+  );
+
+  /** CSV/Excelファイルをアップロードして Upsert を実行する（dry_run=false） */
+  const executeUploadFile = useCallback(
+    async (file: File): Promise<WorkerUploadUpsertResponse> => {
+      const token = await getToken();
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (tenantId) headers["X-Tenant-Id"] = tenantId;
+
+      const res = await fetch(`/api/workers/upload?dry_run=false`, {
+        method: "POST",
+        headers,
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail ?? "アップロードの実行に失敗しました");
+      }
+
+      const result = (await res.json()) as WorkerUploadUpsertResponse;
+      await globalMutate(swrKey);
+      return result;
+    },
+    [getToken, tenantId, swrKey],
+  );
+
   return {
     workers: data ?? [],
     isLoading,
@@ -113,5 +171,7 @@ export function useWorkers() {
     deleteWorker,
     previewBulkUpload,
     bulkUploadWorkers,
+    previewUploadFile,
+    executeUploadFile,
   };
 }
