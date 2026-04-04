@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 
 import { SciFiButton } from "@/components/ui/SciFiButton";
@@ -67,6 +67,8 @@ export function WorkerForm({
     register,
     handleSubmit,
     reset,
+    control,
+    setValue,
     formState: { errors },
   } = useForm<WorkerFormValues>({
     resolver: zodResolver(workerSchema),
@@ -85,6 +87,19 @@ export function WorkerForm({
       joined_at: worker?.joined_at ?? "",
     },
   });
+
+  const transferType = useWatch({ control, name: "transfer_type" });
+
+  // 異動種別が変わったら関連フィールドをクリア
+  useEffect(() => {
+    if (transferType !== "transfer_out") {
+      setValue("transfer_scheduled_month", null);
+    }
+    if (transferType !== "transfer_in") {
+      setValue("joined_at", null);
+      setValue("is_cross_division_transfer", false);
+    }
+  }, [transferType, setValue]);
 
   // worker が切り替わったらフォームをリセット
   useEffect(() => {
@@ -246,39 +261,45 @@ export function WorkerForm({
         ))}
       </SciFiSelect>
 
-      <SciFiInput
-        id="worker-transfer-scheduled-month"
-        label="異動予定月（YYYY-MM）"
-        placeholder="例: 2026-04"
-        {...register("transfer_scheduled_month")}
-        error={errors.transfer_scheduled_month?.message}
-        disabled={isSubmitting}
-      />
-
-      <div className="flex items-center gap-3">
-        <input
-          id="worker-is-cross-division-transfer"
-          type="checkbox"
-          {...register("is_cross_division_transfer")}
+      {transferType === "transfer_out" && (
+        <SciFiInput
+          id="worker-transfer-scheduled-month"
+          label="異動予定月（YYYY-MM）"
+          placeholder="例: 2026-04"
+          {...register("transfer_scheduled_month")}
+          error={errors.transfer_scheduled_month?.message}
           disabled={isSubmitting}
-          className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
         />
-        <label
-          htmlFor="worker-is-cross-division-transfer"
-          className="text-sm text-slate-300 cursor-pointer"
-        >
-          事業本部間異動
-        </label>
-      </div>
+      )}
 
-      <SciFiInput
-        id="worker-joined-at"
-        label="着任日（統計集計の基準日）"
-        type="date"
-        {...register("joined_at")}
-        error={errors.joined_at?.message}
-        disabled={isSubmitting}
-      />
+      {transferType === "transfer_in" && (
+        <>
+          <SciFiInput
+            id="worker-joined-at"
+            label="着任日（統計集計の基準日）"
+            type="date"
+            {...register("joined_at")}
+            error={errors.joined_at?.message}
+            disabled={isSubmitting}
+          />
+
+          <div className="flex items-center gap-3">
+            <input
+              id="worker-is-cross-division-transfer"
+              type="checkbox"
+              {...register("is_cross_division_transfer")}
+              disabled={isSubmitting}
+              className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
+            />
+            <label
+              htmlFor="worker-is-cross-division-transfer"
+              className="text-sm text-slate-300 cursor-pointer"
+            >
+              事業本部間異動
+            </label>
+          </div>
+        </>
+      )}
 
       <div className="flex justify-end gap-3 mt-2">
         <SciFiButton
