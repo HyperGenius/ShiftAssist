@@ -12,12 +12,18 @@ from typing import cast
 from sqlmodel import Session, select
 
 from app.models.models import (
+    Position,
     ShiftRequirement,
     ShiftRequirementAssignment,
     TenantSkillRank,
     Worker,
 )
 from app.models.rule_schemas import ShiftRulesConfig, ValidationViolationItem
+from app.services.age_utils import is_aged_60_or_over
+from app.services.long_holiday_period_service import (
+    get_period_for_date,
+    is_holiday_type_excluded_by_position,
+)
 
 
 def _check_daily_duplicate(
@@ -197,6 +203,72 @@ def _check_special_employment(
     return violations
 
 
+def _check_age_restriction(
+    workers: list[Worker],
+    shift_date: date,
+) -> list[ValidationViolationItem]:
+    """ルール6: 年齢制限チェック（60歳以上同士のペア禁止）.
+
+    シフト対象日の属する月の初日を基準日として年齢を計算する。
+    一方が60歳以上の場合、相手も60歳以上であればエラーとなる。
+    """
+    reference_date = shift_date.replace(day=1)
+    aged_workers = [
+        w
+        for w in workers
+        if w.birth_date is not None and is_aged_60_or_over(w.birth_date, reference_date)  # type: ignore[arg-type]
+    ]
+    if len(aged_workers) < 2:
+        return []
+    return [
+        ValidationViolationItem(
+            code="AGE_RESTRICTION",
+            severity="error",
+            message="60歳以上のWorker同士がペアになっています。一方は60歳未満である必要があります",
+            worker_ids=[str(w.id) for w in aged_workers],
+        )
+    ]
+
+
+def _check_position_exclusion(
+    session: Session,
+    tenant_id: str,
+    requirement: ShiftRequirement,
+    workers: list[Worker],
+) -> list[ValidationViolationItem]:
+    """ルール7: 役職除外チェック（長期休暇期間中の除外フラグを持つ役職のアサイン禁止）."""
+    shift_date: date = requirement.shift_date  # type: ignore[assignment]
+    period = get_period_for_date(session, tenant_id, shift_date)
+    if period is None:
+        return []
+
+    violations: list[ValidationViolationItem] = []
+    for worker in workers:
+        if worker.position_id is None:
+            continue
+        position = session.exec(
+            select(Position).where(
+                Position.id == worker.position_id,  # type: ignore[arg-type]
+                Position.tenant_id == tenant_id,
+            )
+        ).first()
+        if position is None:
+            continue
+        if is_holiday_type_excluded_by_position(period.holiday_type, position):  # type: ignore[arg-type]
+            violations.append(
+                ValidationViolationItem(
+                    code="POSITION_EXCLUDED",
+                    severity="error",
+                    message=(
+                        f"{worker.name} の役職（{position.name}）は"
+                        f"長期休暇期間（{period.holiday_type}）中のアサインが除外されています"
+                    ),
+                    worker_ids=[str(worker.id)],
+                )
+            )
+    return violations
+
+
 def validate_shift_assignments(
     session: Session,
     tenant_id: str,
@@ -219,10 +291,14 @@ def validate_shift_assignments(
     if not workers:
         return []
 
+    shift_date: date = requirement.shift_date  # type: ignore[assignment]
+
     return [
         *_check_daily_duplicate(session, tenant_id, requirement, workers),
         *_check_same_department(workers, rules),
         *_check_skill_rank(session, requirement, workers, rules),
         *_check_work_interval(session, tenant_id, requirement, workers, rules),
         *_check_special_employment(requirement, workers, rules),
+        *_check_age_restriction(workers, shift_date),
+        *_check_position_exclusion(session, tenant_id, requirement, workers),
     ]

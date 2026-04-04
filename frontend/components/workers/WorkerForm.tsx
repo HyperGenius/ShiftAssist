@@ -2,24 +2,42 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 
 import { SciFiButton } from "@/components/ui/SciFiButton";
 import { SciFiInput } from "@/components/ui/SciFiInput";
 import { SciFiSelect } from "@/components/ui/SciFiSelect";
 import { useDepartments } from "@/hooks/useDepartments";
+import { usePositions } from "@/hooks/usePositions";
 import { useSkillRanks } from "@/hooks/useSkillRanks";
 import type { Worker, WorkerCreate } from "@/types/worker";
+
+const TRANSFER_TYPE_OPTIONS = [
+  { value: "", label: "選択してください" },
+  { value: "no_transfer", label: "異動なし" },
+  { value: "transfer_in", label: "転入" },
+  { value: "transfer_out", label: "転出" },
+] as const;
 
 const workerSchema = z.object({
   name: z
     .string()
     .min(1, "氏名は必須です")
     .max(100, "氏名は100文字以内で入力してください"),
+  employee_code: z.string().optional().nullable(),
   department_id: z.string().uuid("有効な所属課IDを入力してください"),
   skill_rank_id: z.string().uuid("スキルランクを選択してください"),
+  position_id: z.string().uuid("役職を選択してください").optional().nullable(),
   is_special: z.boolean(),
+  birth_date: z.string().optional().nullable(),
+  skill_acquired_at: z.string().optional().nullable(),
+  transfer_type: z
+    .enum(["no_transfer", "transfer_in", "transfer_out"])
+    .optional()
+    .nullable(),
+  transfer_scheduled_month: z.string().optional().nullable(),
+  is_cross_division_transfer: z.boolean().optional().nullable(),
   joined_at: z.string().optional().nullable(),
 });
 
@@ -44,29 +62,59 @@ export function WorkerForm({
 }: WorkerFormProps) {
   const { departments, isLoading: isDepartmentsLoading } = useDepartments();
   const { skillRanks, isLoading: isSkillRanksLoading } = useSkillRanks();
+  const { positions, isLoading: isPositionsLoading } = usePositions();
   const {
     register,
     handleSubmit,
     reset,
+    control,
+    setValue,
     formState: { errors },
   } = useForm<WorkerFormValues>({
     resolver: zodResolver(workerSchema),
     defaultValues: {
       name: worker?.name ?? "",
+      employee_code: worker?.employee_code ?? "",
       department_id: worker?.department_id ?? "",
       skill_rank_id: worker?.skill_rank_id ?? "",
+      position_id: worker?.position_id ?? "",
       is_special: worker?.is_special ?? false,
+      birth_date: worker?.birth_date ?? "",
+      skill_acquired_at: worker?.skill_acquired_at ?? "",
+      transfer_type: worker?.transfer_type ?? null,
+      transfer_scheduled_month: worker?.transfer_scheduled_month ?? "",
+      is_cross_division_transfer: worker?.is_cross_division_transfer ?? false,
       joined_at: worker?.joined_at ?? "",
     },
   });
+
+  const transferType = useWatch({ control, name: "transfer_type" });
+
+  // 異動種別が変わったら関連フィールドをクリア
+  useEffect(() => {
+    if (transferType !== "transfer_out") {
+      setValue("transfer_scheduled_month", null);
+    }
+    if (transferType !== "transfer_in") {
+      setValue("joined_at", null);
+      setValue("is_cross_division_transfer", false);
+    }
+  }, [transferType, setValue]);
 
   // worker が切り替わったらフォームをリセット
   useEffect(() => {
     reset({
       name: worker?.name ?? "",
+      employee_code: worker?.employee_code ?? "",
       department_id: worker?.department_id ?? "",
       skill_rank_id: worker?.skill_rank_id ?? "",
+      position_id: worker?.position_id ?? "",
       is_special: worker?.is_special ?? false,
+      birth_date: worker?.birth_date ?? "",
+      skill_acquired_at: worker?.skill_acquired_at ?? "",
+      transfer_type: worker?.transfer_type ?? null,
+      transfer_scheduled_month: worker?.transfer_scheduled_month ?? "",
+      is_cross_division_transfer: worker?.is_cross_division_transfer ?? false,
       joined_at: worker?.joined_at ?? "",
     });
   }, [worker, reset]);
@@ -74,6 +122,13 @@ export function WorkerForm({
   const handleFormSubmit = async (values: WorkerFormValues) => {
     await onSubmit({
       ...values,
+      employee_code: values.employee_code || null,
+      position_id: values.position_id || null,
+      birth_date: values.birth_date || null,
+      skill_acquired_at: values.skill_acquired_at || null,
+      transfer_type: values.transfer_type || null,
+      transfer_scheduled_month: values.transfer_scheduled_month || null,
+      is_cross_division_transfer: values.is_cross_division_transfer ?? false,
       joined_at: values.joined_at || null,
     });
   };
@@ -91,6 +146,15 @@ export function WorkerForm({
         placeholder="例: 山田 太郎"
         {...register("name")}
         error={errors.name?.message}
+        disabled={isSubmitting}
+      />
+
+      <SciFiInput
+        id="worker-employee-code"
+        label="職員番号"
+        placeholder="例: EMP001"
+        {...register("employee_code")}
+        error={errors.employee_code?.message}
         disabled={isSubmitting}
       />
 
@@ -131,6 +195,24 @@ export function WorkerForm({
         ))}
       </SciFiSelect>
 
+      <SciFiSelect
+        id="worker-position-id"
+        label="役職"
+        {...register("position_id")}
+        error={errors.position_id?.message}
+        disabled={isSubmitting || isPositionsLoading}
+      >
+        <option value="">
+          {isPositionsLoading ? "読み込み中..." : "役職を選択してください（任意）"}
+        </option>
+        {positions.map((pos) => (
+          <option key={pos.id} value={pos.id}>
+            {pos.name}
+            {pos.is_excluded_from_all_shifts ? " ※除外対象" : ""}
+          </option>
+        ))}
+      </SciFiSelect>
+
       <div className="flex items-center gap-3">
         <input
           id="worker-is-special"
@@ -148,13 +230,76 @@ export function WorkerForm({
       </div>
 
       <SciFiInput
-        id="worker-joined-at"
-        label="着任日（統計集計の基準日）"
+        id="worker-birth-date"
+        label="生年月日"
         type="date"
-        {...register("joined_at")}
-        error={errors.joined_at?.message}
+        {...register("birth_date")}
+        error={errors.birth_date?.message}
         disabled={isSubmitting}
       />
+
+      <SciFiInput
+        id="worker-skill-acquired-at"
+        label="スキルランク取得日"
+        type="date"
+        {...register("skill_acquired_at")}
+        error={errors.skill_acquired_at?.message}
+        disabled={isSubmitting}
+      />
+
+      <SciFiSelect
+        id="worker-transfer-type"
+        label="異動種別"
+        {...register("transfer_type")}
+        error={errors.transfer_type?.message}
+        disabled={isSubmitting}
+      >
+        {TRANSFER_TYPE_OPTIONS.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </SciFiSelect>
+
+      {transferType === "transfer_out" && (
+        <SciFiInput
+          id="worker-transfer-scheduled-month"
+          label="異動予定月（YYYY-MM）"
+          placeholder="例: 2026-04"
+          {...register("transfer_scheduled_month")}
+          error={errors.transfer_scheduled_month?.message}
+          disabled={isSubmitting}
+        />
+      )}
+
+      {transferType === "transfer_in" && (
+        <>
+          <SciFiInput
+            id="worker-joined-at"
+            label="着任日（統計集計の基準日）"
+            type="date"
+            {...register("joined_at")}
+            error={errors.joined_at?.message}
+            disabled={isSubmitting}
+          />
+
+          <div className="flex items-center gap-3">
+            <input
+              id="worker-is-cross-division-transfer"
+              type="checkbox"
+              {...register("is_cross_division_transfer")}
+              disabled={isSubmitting}
+              className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
+            />
+            <label
+              htmlFor="worker-is-cross-division-transfer"
+              className="text-sm text-slate-300 cursor-pointer"
+            >
+              事業本部間異動
+            </label>
+          </div>
+        </>
+      )}
 
       <div className="flex justify-end gap-3 mt-2">
         <SciFiButton
