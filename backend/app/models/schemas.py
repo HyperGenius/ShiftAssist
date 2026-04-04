@@ -5,6 +5,7 @@ import uuid
 from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import ValidationInfo
 
 from app.models.models import LongHolidayTypeEnum, SlotTypeEnum, TransferTypeEnum
 
@@ -92,11 +93,9 @@ class LongHolidayPeriodCreate(BaseModel):
 
     @field_validator("end_date")
     @classmethod
-    def end_date_must_be_after_start_date(cls, v: date, info: object) -> date:
+    def end_date_must_be_after_start_date(cls, v: date, info: ValidationInfo) -> date:
         """終了日は開始日以降でなければならない."""
-        from pydantic import ValidationInfo
-
-        if isinstance(info, ValidationInfo) and "start_date" in (info.data or {}):
+        if "start_date" in (info.data or {}):
             if v < info.data["start_date"]:
                 raise ValueError("end_date must be on or after start_date")
         return v

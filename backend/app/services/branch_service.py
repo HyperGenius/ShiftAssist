@@ -62,9 +62,7 @@ def list_branches(session: Session, tenant_id: str) -> list[BranchResponse]:
     Returns:
         Branch一覧のレスポンスモデルリスト。
     """
-    branches = session.exec(
-        select(Branch).where(Branch.tenant_id == tenant_id)
-    ).all()
+    branches = session.exec(select(Branch).where(Branch.tenant_id == tenant_id)).all()
     return [BranchResponse.model_validate(b) for b in branches]
 
 

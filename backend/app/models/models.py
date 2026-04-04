@@ -165,9 +165,7 @@ class Department(Base):
     tenant_id = Column(String, index=True, nullable=False)
     name = Column(String, nullable=False)
     code = Column(String, nullable=False)
-    branch_id = Column(
-        UUID(as_uuid=True), ForeignKey("branches.id"), nullable=True
-    )
+    branch_id = Column(UUID(as_uuid=True), ForeignKey("branches.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -258,15 +256,15 @@ class Worker(Base):
     skill_rank_id = Column(
         UUID(as_uuid=True), ForeignKey("tenant_skill_ranks.id"), nullable=False
     )
-    position_id = Column(
-        UUID(as_uuid=True), ForeignKey("positions.id"), nullable=True
-    )
+    position_id = Column(UUID(as_uuid=True), ForeignKey("positions.id"), nullable=True)
     is_special = Column(Boolean, default=False)
     birth_date = Column(Date, nullable=True)  # 生年月日（年齢計算用）
     skill_acquired_at = Column(Date, nullable=True)  # スキルランク取得日
     transfer_type = Column(Enum(TransferTypeEnum), nullable=True)  # type: ignore[var-annotated]
     transfer_scheduled_month = Column(String, nullable=True)  # 異動予定月 YYYY-MM
-    is_cross_division_transfer = Column(Boolean, nullable=True, default=False)  # 他部門間異動
+    is_cross_division_transfer = Column(
+        Boolean, nullable=True, default=False
+    )  # 他部門間異動
     joined_at = Column(Date, nullable=True)  # 着任日（統計正規化に使用）
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

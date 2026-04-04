@@ -35,9 +35,7 @@ def list_positions(
     return position_service.list_positions(session, tenant_id)
 
 
-@router.post(
-    "/", response_model=PositionResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("/", response_model=PositionResponse, status_code=status.HTTP_201_CREATED)
 def create_position(
     data: PositionCreate,
     tenant_id: str = Depends(get_tenant_id),

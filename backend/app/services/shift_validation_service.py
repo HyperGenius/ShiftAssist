@@ -216,8 +216,7 @@ def _check_age_restriction(
     aged_workers = [
         w
         for w in workers
-        if w.birth_date is not None
-        and is_aged_60_or_over(w.birth_date, reference_date)  # type: ignore[arg-type]
+        if w.birth_date is not None and is_aged_60_or_over(w.birth_date, reference_date)  # type: ignore[arg-type]
     ]
     if len(aged_workers) < 2:
         return []
