@@ -7,7 +7,14 @@ import useSWR, { mutate as globalMutate } from "swr";
 
 import { createApiClient } from "@/utils/apiClient";
 import { fetcher } from "@/utils/fetcher";
-import type { Worker, WorkerCreate, WorkerUpdate } from "@/types/worker";
+import type {
+  Worker,
+  WorkerBulkPreviewResponse,
+  WorkerBulkRequest,
+  WorkerBulkUpsertResponse,
+  WorkerCreate,
+  WorkerUpdate,
+} from "@/types/worker";
 
 const WORKERS_PATH = "/api/workers/";
 
@@ -70,6 +77,32 @@ export function useWorkers() {
     [getApiClient, swrKey],
   );
 
+  /** バルクUpsertのプレビューを取得する */
+  const previewBulkUpload = useCallback(
+    async (payload: WorkerBulkRequest): Promise<WorkerBulkPreviewResponse> => {
+      const api = await getApiClient();
+      return api.post<WorkerBulkPreviewResponse>(
+        "/api/workers/bulk/preview",
+        payload,
+      );
+    },
+    [getApiClient],
+  );
+
+  /** Worker を一括登録・更新する（Upsert） */
+  const bulkUploadWorkers = useCallback(
+    async (payload: WorkerBulkRequest): Promise<WorkerBulkUpsertResponse> => {
+      const api = await getApiClient();
+      const result = await api.post<WorkerBulkUpsertResponse>(
+        "/api/workers/bulk",
+        payload,
+      );
+      await globalMutate(swrKey);
+      return result;
+    },
+    [getApiClient, swrKey],
+  );
+
   return {
     workers: data ?? [],
     isLoading,
@@ -78,5 +111,7 @@ export function useWorkers() {
     createWorker,
     updateWorker,
     deleteWorker,
+    previewBulkUpload,
+    bulkUploadWorkers,
   };
 }
