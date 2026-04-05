@@ -300,7 +300,7 @@ class WorkerResponse(BaseModel):
     employee_code: str | None = None
     name: str
     department_id: uuid.UUID
-    skill_rank_id: uuid.UUID
+    skill_rank_id: uuid.UUID | None = None
     position_id: uuid.UUID | None = None
     is_special: bool
     birth_date: date | None = None
