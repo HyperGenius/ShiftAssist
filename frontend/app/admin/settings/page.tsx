@@ -34,7 +34,13 @@ const SETTINGS_LINKS = [
     label: "対応者管理",
     description: "シフト作成の際に割り当てる対応者を管理します。",
     icon: "👥",
-  }
+  },
+  {
+    href: "/admin/settings/positions",
+    label: "役職マスタ管理",
+    description: "役職名とシフト除外フラグ（GW・SW・年末年始等）を管理します。",
+    icon: "🎖️",
+  },
 ] as const;
 
 export default async function SettingsIndexPage() {
