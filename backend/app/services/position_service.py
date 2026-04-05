@@ -9,7 +9,7 @@ import uuid
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
-from app.models.models import Position
+from app.models.models import Position, Worker
 from app.models.schemas import PositionCreate, PositionResponse, PositionUpdate
 
 
@@ -149,6 +149,16 @@ def delete_position(session: Session, tenant_id: str, position_id: uuid.UUID) ->
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Position '{position_id}' not found.",
+        )
+    existing_worker = session.exec(
+        select(Worker).where(
+            Worker.position_id == position_id,  # type: ignore[arg-type]
+        )
+    ).first()
+    if existing_worker is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="この役職はWorkerに紐づいているため削除できません。",
         )
     session.delete(position)
     session.commit()
