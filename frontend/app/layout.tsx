@@ -18,7 +18,7 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="ja" className="h-full antialiased">
-        <body className="min-h-full flex flex-col bg-slate-950 text-slate-200 font-sans">
+        <body className="min-h-full flex flex-col bg-gray-50 text-gray-900 font-sans">
           <Header />
           <div className="flex flex-col flex-1 pt-14">
             {children}
@@ -28,9 +28,9 @@ export default function RootLayout({
             toastOptions={{
               classNames: {
                 toast:
-                  "bg-slate-900 border border-slate-700 text-slate-200",
-                success: "border-cyan-500/50 text-cyan-300",
-                error: "border-red-500/50 text-red-300",
+                  "bg-white border border-gray-200 text-gray-800 shadow-sm",
+                success: "border-green-300 text-green-700",
+                error: "border-red-300 text-red-700",
               },
             }}
           />
