@@ -133,7 +133,7 @@ export function RulesSettingsForm() {
         {[...Array(5)].map((_, i) => (
           <div
             key={i}
-            className="h-10 rounded bg-slate-800/60 animate-pulse"
+            className="h-10 rounded bg-gray-200 animate-pulse"
           />
         ))}
       </div>
@@ -145,7 +145,7 @@ export function RulesSettingsForm() {
       <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-8">
         {/* シフトルール設定 */}
         <SciFiPanel className="p-6 space-y-6">
-          <h2 className="text-sm font-semibold tracking-widest text-cyan-300 uppercase">
+          <h2 className="text-sm font-semibold text-gray-700">
             シフトルール設定
           </h2>
 
@@ -162,19 +162,19 @@ export function RulesSettingsForm() {
           <div className="flex flex-col gap-1">
             <label
               htmlFor="require_skill_ranks"
-              className="text-xs text-slate-400 uppercase tracking-wider"
+              className="text-xs font-medium text-gray-600"
             >
               必須スキルランク（カンマ区切り）
             </label>
             <input
               id="require_skill_ranks"
               className={[
-                "bg-slate-800/60 border rounded px-3 py-2 text-sm text-slate-200 placeholder-slate-500",
-                "focus:outline-none focus:ring-1 focus:ring-cyan-500/70 focus:border-cyan-500/70",
+                "bg-white border rounded px-3 py-2 text-sm text-gray-900 placeholder-gray-400",
+                "focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500",
                 "transition-colors duration-150",
                 errors.require_skill_ranks
-                  ? "border-red-500/60 focus:ring-red-500/50 focus:border-red-500/50"
-                  : "border-slate-600/50",
+                  ? "border-red-400 focus:ring-red-500/30 focus:border-red-500"
+                  : "border-gray-300",
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -183,11 +183,11 @@ export function RulesSettingsForm() {
               disabled={isSubmitting}
             />
             {errors.require_skill_ranks && (
-              <p className="text-xs text-red-400 mt-0.5">
+              <p className="text-xs text-red-500 mt-0.5">
                 {errors.require_skill_ranks.message}
               </p>
             )}
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-gray-400 mt-0.5">
               利用可能: rank_a, rank_b, rank_c, rank_d
             </p>
           </div>
@@ -198,11 +198,11 @@ export function RulesSettingsForm() {
               type="checkbox"
               {...register("allow_same_department")}
               disabled={isSubmitting}
-              className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
+              className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500/50"
             />
             <label
               htmlFor="allow_same_department"
-              className="text-sm text-slate-300 cursor-pointer"
+              className="text-sm text-gray-700 cursor-pointer"
             >
               同一所属課のペアを許可する
             </label>
@@ -211,19 +211,19 @@ export function RulesSettingsForm() {
           <div className="flex flex-col gap-1">
             <label
               htmlFor="special_employment_shifts"
-              className="text-xs text-slate-400 uppercase tracking-wider"
+              className="text-xs font-medium text-gray-600"
             >
               特別雇用者が参加できるシフト種別（カンマ区切り）
             </label>
             <input
               id="special_employment_shifts"
               className={[
-                "bg-slate-800/60 border rounded px-3 py-2 text-sm text-slate-200 placeholder-slate-500",
-                "focus:outline-none focus:ring-1 focus:ring-cyan-500/70 focus:border-cyan-500/70",
+                "bg-white border rounded px-3 py-2 text-sm text-gray-900 placeholder-gray-400",
+                "focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500",
                 "transition-colors duration-150",
                 errors.special_employment_shifts
-                  ? "border-red-500/60 focus:ring-red-500/50 focus:border-red-500/50"
-                  : "border-slate-600/50",
+                  ? "border-red-400 focus:ring-red-500/30 focus:border-red-500"
+                  : "border-gray-300",
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -232,7 +232,7 @@ export function RulesSettingsForm() {
               disabled={isSubmitting}
             />
             {errors.special_employment_shifts && (
-              <p className="text-xs text-red-400 mt-0.5">
+              <p className="text-xs text-red-500 mt-0.5">
                 {errors.special_employment_shifts.message}
               </p>
             )}
@@ -251,7 +251,7 @@ export function RulesSettingsForm() {
 
         {/* 警告設定 */}
         <SciFiPanel className="p-6 space-y-6">
-          <h2 className="text-sm font-semibold tracking-widest text-cyan-300 uppercase">
+          <h2 className="text-sm font-semibold text-gray-700">
             警告設定
           </h2>
 
@@ -261,11 +261,11 @@ export function RulesSettingsForm() {
               type="checkbox"
               {...register("avoid_consecutive_holidays")}
               disabled={isSubmitting}
-              className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
+              className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500/50"
             />
             <label
               htmlFor="avoid_consecutive_holidays"
-              className="text-sm text-slate-300 cursor-pointer"
+              className="text-sm text-gray-700 cursor-pointer"
             >
               休日枠への連続アサインを警告する
             </label>
@@ -285,12 +285,12 @@ export function RulesSettingsForm() {
 
       {/* 保存確認ダイアログ */}
       {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
           <SciFiPanel className="p-8 max-w-md w-full mx-4 space-y-6">
-            <h3 className="text-base font-semibold text-slate-100">
+            <h3 className="text-base font-semibold text-gray-900">
               ルールの適用確認
             </h3>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-gray-500">
               このシフトルールを適用しますか？変更後は新しいルールに基づいてシフトバリデーションが動作します。
             </p>
             <div className="flex justify-end gap-3">

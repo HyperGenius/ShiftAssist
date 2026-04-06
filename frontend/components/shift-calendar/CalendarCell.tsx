@@ -65,17 +65,17 @@ export function CalendarCell({
 
   const cellBg =
     dayType === "saturday"
-      ? "bg-blue-900/20 border-blue-700/40"
+      ? "bg-blue-50 border-blue-200"
       : dayType === "sunday_holiday"
-        ? "bg-red-900/20 border-red-700/40"
-        : "bg-slate-800/30 border-slate-700/40";
+        ? "bg-red-50 border-red-200"
+        : "bg-white border-gray-200";
 
   const dayColor =
     dayType === "saturday"
-      ? "text-blue-300"
+      ? "text-blue-600"
       : dayType === "sunday_holiday"
-        ? "text-red-300"
-        : "text-slate-200";
+        ? "text-red-600"
+        : "text-gray-800";
 
   const slotEntries = Object.entries(dayState) as [SlotType, DayState[string]][];
   const daytimeSlots = slotEntries.filter(([t]) => DAYTIME_TYPES.has(t));
@@ -88,7 +88,7 @@ export function CalendarCell({
       {/* 日付ヘッダー */}
       <div className="flex items-center justify-between mb-0.5">
         <span className={`text-sm font-semibold ${dayColor}`}>{dayNum}</span>
-        <span className="text-[10px] text-slate-500">
+        <span className="text-[10px] text-gray-400">
           {DAY_NAMES[dayOfWeek]}
         </span>
         {isHoliday && (
@@ -101,7 +101,7 @@ export function CalendarCell({
       {/* 昼間スロット */}
       {daytimeSlots.length > 0 && (
         <div className="flex flex-col gap-1">
-          <div className="text-[9px] text-slate-500 border-b border-slate-700/50 pb-0.5 text-center">
+          <div className="text-[9px] text-gray-400 border-b border-gray-200 pb-0.5 text-center">
               昼間
             </div>
           {daytimeSlots.map(([slotType, slotState]) => (
@@ -126,7 +126,7 @@ export function CalendarCell({
       {nighttimeSlots.length > 0 && (
         <div className="flex flex-col gap-1">
           {daytimeSlots.length > 0 && (
-            <div className="text-[9px] text-slate-500 border-b border-slate-700/50 pb-0.5 text-center mt-0.5">
+            <div className="text-[9px] text-gray-400 border-b border-gray-200 pb-0.5 text-center mt-0.5">
               夜間
             </div>
           )}

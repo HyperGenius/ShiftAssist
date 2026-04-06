@@ -39,19 +39,19 @@ export function ValidationBadge({ violations }: ValidationBadgeProps) {
       {tooltipVisible && (
         <div
           role="tooltip"
-          className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-60 rounded border border-slate-600 bg-slate-900 shadow-lg p-2 text-xs"
+          className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-60 rounded border border-gray-200 bg-white shadow-lg p-2 text-xs"
         >
           {violations.map((v, i) => (
             <div
               key={`${v.code}_${v.workerIds.join("_")}_${i}`}
-              className={`flex items-start gap-1 ${i > 0 ? "mt-1 border-t border-slate-700 pt-1" : ""}`}
+              className={`flex items-start gap-1 ${i > 0 ? "mt-1 border-t border-gray-100 pt-1" : ""}`}
             >
               <span
-                className={`shrink-0 font-bold ${v.severity === "error" ? "text-red-400" : "text-yellow-400"}`}
+                className={`shrink-0 font-bold ${v.severity === "error" ? "text-red-500" : "text-yellow-600"}`}
               >
                 {v.severity === "error" ? "[ERROR]" : "[WARN]"}
               </span>
-              <span className="text-slate-200">{v.message}</span>
+              <span className="text-gray-700">{v.message}</span>
             </div>
           ))}
         </div>

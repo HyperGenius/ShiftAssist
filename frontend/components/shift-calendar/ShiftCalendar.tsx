@@ -363,9 +363,9 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
               <SciFiButton variant="secondary" size="sm" onClick={prevMonth}>
                 &lt;&lt; 前月
               </SciFiButton>
-              <h2 className="text-base font-semibold tracking-widest text-cyan-300">
+              <h2 className="text-base font-semibold text-gray-800">
                 {year}年 {month}月
-                <span className="ml-2 text-xs text-slate-400 normal-case">
+                <span className="ml-2 text-xs text-gray-400 normal-case">
                   {department.name}
                 </span>
               </h2>
@@ -387,8 +387,8 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
 
             {/* ローディング状態 */}
             {isLoading && (
-              <div className="flex items-center justify-center py-12 text-slate-400 text-sm">
-                <span className="animate-spin h-4 w-4 border-2 border-cyan-500 border-t-transparent rounded-full mr-2" />
+              <div className="flex items-center justify-center py-12 text-gray-400 text-sm">
+                <span className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full mr-2" />
                 読み込み中...
               </div>
             )}
@@ -401,12 +401,12 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
                   {WEEK_HEADERS.map((h, i) => (
                     <div
                       key={h}
-                      className={`text-center text-xs py-1 font-medium tracking-widest ${
+                      className={`text-center text-xs py-1 font-medium ${
                         i === 0
-                          ? "text-red-400"
+                          ? "text-red-500"
                           : i === 6
-                            ? "text-blue-400"
-                            : "text-slate-400"
+                            ? "text-blue-500"
+                            : "text-gray-500"
                       }`}
                     >
                       {h}
@@ -460,17 +460,17 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
                 </div>
 
                 {/* 凡例 */}
-                <div className="mt-4 flex items-center gap-4 text-[10px] text-slate-500">
+                <div className="mt-4 flex items-center gap-4 text-[10px] text-gray-500">
                   <span className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded bg-slate-800/30 border border-slate-700/40 inline-block" />
+                    <span className="w-3 h-3 rounded bg-white border border-gray-200 inline-block" />
                     平日
                   </span>
                   <span className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded bg-blue-900/20 border border-blue-700/40 inline-block" />
+                    <span className="w-3 h-3 rounded bg-blue-50 border border-blue-200 inline-block" />
                     土曜日
                   </span>
                   <span className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded bg-red-900/20 border border-red-700/40 inline-block" />
+                    <span className="w-3 h-3 rounded bg-red-50 border border-red-200 inline-block" />
                     日曜・祝日
                   </span>
                   <span className="flex items-center gap-1">🎌 祝日</span>

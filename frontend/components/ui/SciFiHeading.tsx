@@ -10,10 +10,10 @@ interface SciFiHeadingProps extends HTMLAttributes<HTMLHeadingElement> {
 }
 
 const levelClasses: Record<Level, string> = {
-  h1: "text-3xl font-bold tracking-widest",
-  h2: "text-2xl font-semibold tracking-wider",
-  h3: "text-xl font-semibold tracking-wide",
-  h4: "text-lg font-medium tracking-wide",
+  h1: "text-3xl font-bold tracking-tight",
+  h2: "text-2xl font-semibold tracking-tight",
+  h3: "text-xl font-semibold",
+  h4: "text-lg font-medium",
 };
 
 export function SciFiHeading({
@@ -27,8 +27,8 @@ export function SciFiHeading({
   return (
     <Tag
       className={[
-        "text-cyan-300",
-        accent && "border-b border-cyan-500/30 pb-2",
+        "text-gray-900",
+        accent && "border-b border-gray-200 pb-2",
         levelClasses[level],
         className,
       ]
