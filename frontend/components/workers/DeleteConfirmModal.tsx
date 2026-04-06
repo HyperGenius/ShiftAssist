@@ -20,7 +20,7 @@ export function DeleteConfirmModal({
 }: DeleteConfirmModalProps) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50"
       role="dialog"
       aria-modal="true"
       aria-labelledby="delete-modal-title"
@@ -48,12 +48,12 @@ export function DeleteConfirmModal({
           <div className="text-center">
             <h2
               id="delete-modal-title"
-              className="text-lg font-semibold text-slate-200 mb-1"
+              className="text-lg font-semibold text-gray-800 mb-1"
             >
               対応者を削除
             </h2>
-            <p className="text-sm text-slate-400">
-              <span className="text-slate-200 font-medium">
+            <p className="text-sm text-gray-500">
+              <span className="text-gray-800 font-medium">
                 &quot;{worker.name}&quot;
               </span>{" "}
               を削除しますか？

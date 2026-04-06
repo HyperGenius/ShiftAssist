@@ -20,7 +20,7 @@ function SkeletonRow() {
     <tr className="animate-pulse">
       {[...Array(4)].map((_, i) => (
         <td key={i} className="px-4 py-3">
-          <div className="h-4 bg-slate-700/60 rounded w-3/4" />
+          <div className="h-4 bg-gray-200 rounded w-3/4" />
         </td>
       ))}
     </tr>
@@ -38,12 +38,12 @@ function DepartmentRow({
   onDelete: (d: Department) => void;
 }) {
   return (
-    <tr className="border-b border-slate-700/50 hover:bg-slate-800/40 transition-colors">
-      <td className="px-4 py-3 text-slate-200 font-medium">{department.name}</td>
-      <td className="px-4 py-3 text-slate-400 font-mono text-xs">
+    <tr className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+      <td className="px-4 py-3 text-gray-800 font-medium">{department.name}</td>
+      <td className="px-4 py-3 text-gray-500 font-mono text-xs">
         {department.code}
       </td>
-      <td className="px-4 py-3 text-slate-500 font-mono text-xs">
+      <td className="px-4 py-3 text-gray-400 font-mono text-xs">
         {department.id.slice(0, 8)}…
       </td>
       <td className="px-4 py-3 text-right">
@@ -175,17 +175,17 @@ export function DepartmentList() {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-700/60">
-                <th className="px-4 py-3 text-xs text-slate-400 uppercase tracking-wider font-medium">
+              <tr className="border-b border-gray-200">
+                <th className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wider font-medium">
                   部門名
                 </th>
-                <th className="px-4 py-3 text-xs text-slate-400 uppercase tracking-wider font-medium">
+                <th className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wider font-medium">
                   部門コード
                 </th>
-                <th className="px-4 py-3 text-xs text-slate-400 uppercase tracking-wider font-medium">
+                <th className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wider font-medium">
                   ID
                 </th>
-                <th className="px-4 py-3 text-xs text-slate-400 uppercase tracking-wider font-medium text-right">
+                <th className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wider font-medium text-right">
                   操作
                 </th>
               </tr>
@@ -201,11 +201,11 @@ export function DepartmentList() {
                 <tr>
                   <td
                     colSpan={4}
-                    className="px-4 py-12 text-center text-slate-500"
+                    className="px-4 py-12 text-center text-gray-400"
                   >
                     <div className="flex flex-col items-center gap-2">
                       <svg
-                        className="w-10 h-10 text-slate-600"
+                        className="w-10 h-10 text-gray-300"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -243,7 +243,7 @@ export function DepartmentList() {
 
         {/* 件数表示 */}
         {!isLoading && departments.length > 0 && (
-          <p className="mt-3 text-xs text-slate-500 text-right">
+          <p className="mt-3 text-xs text-gray-400 text-right">
             {departments.length} 件
           </p>
         )}

@@ -71,7 +71,7 @@ export function TenantSettingsForm() {
         {[...Array(3)].map((_, i) => (
           <div
             key={i}
-            className="h-10 rounded bg-slate-800/60 animate-pulse"
+            className="h-10 rounded bg-gray-200 animate-pulse"
           />
         ))}
       </div>
@@ -81,7 +81,7 @@ export function TenantSettingsForm() {
   return (
     <div className="space-y-8">
       <SciFiPanel className="p-6 space-y-6">
-        <h2 className="text-sm font-semibold tracking-widest text-cyan-300 uppercase">
+        <h2 className="text-sm font-semibold tracking-widest text-gray-700 uppercase">
           シフト対象部門の設定
         </h2>
 
@@ -93,11 +93,11 @@ export function TenantSettingsForm() {
             checked={targetAllDepartments}
             onChange={(e) => handleToggleAllDepartments(e.target.checked)}
             disabled={isSubmitting}
-            className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
+            className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500/30"
           />
           <label
             htmlFor="target_all_departments"
-            className="text-sm text-slate-300 cursor-pointer"
+            className="text-sm text-gray-700 cursor-pointer"
           >
             テナント全体（全課）を対象とする
           </label>
@@ -109,11 +109,11 @@ export function TenantSettingsForm() {
             targetAllDepartments ? "opacity-40 pointer-events-none" : "opacity-100"
           }`}
         >
-          <p className="text-xs text-slate-400 uppercase tracking-wider">
+          <p className="text-xs text-gray-500 uppercase tracking-wider">
             シフトアサインする対象の所属課（複数選択可）
           </p>
           {departments.length === 0 ? (
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-gray-400">
               部門が登録されていません。先に部門を登録してください。
             </p>
           ) : (
@@ -128,14 +128,14 @@ export function TenantSettingsForm() {
                       handleDeptCodeChange(dept.code, e.target.checked)
                     }
                     disabled={isSubmitting || targetAllDepartments}
-                    className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
+                    className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500/30"
                   />
                   <label
                     htmlFor={`dept-${dept.id}`}
-                    className="text-sm text-slate-300 cursor-pointer"
+                    className="text-sm text-gray-700 cursor-pointer"
                   >
                     {dept.name}
-                    <span className="ml-2 text-xs text-slate-500">
+                    <span className="ml-2 text-xs text-gray-400">
                       ({dept.code})
                     </span>
                   </label>

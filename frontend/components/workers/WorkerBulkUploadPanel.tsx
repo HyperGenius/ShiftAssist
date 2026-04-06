@@ -24,9 +24,9 @@ const ACTION_LABELS: Record<WorkerBulkPreviewItem["action"], string> = {
 };
 
 const ACTION_COLORS: Record<WorkerBulkPreviewItem["action"], string> = {
-  create: "text-cyan-400",
+  create: "text-blue-600",
   update: "text-yellow-400",
-  no_change: "text-slate-500",
+  no_change: "text-gray-400",
 };
 
 /** プレビュー差分テーブル */
@@ -38,33 +38,33 @@ function PreviewTable({
   return (
     <div className="overflow-x-auto max-h-64 overflow-y-auto">
       <table className="w-full text-left text-xs">
-        <thead className="sticky top-0 bg-slate-800">
-          <tr className="border-b border-slate-700/60">
-            <th className="px-3 py-2 text-slate-400 font-medium">アクション</th>
-            <th className="px-3 py-2 text-slate-400 font-medium">社員番号</th>
-            <th className="px-3 py-2 text-slate-400 font-medium">氏名</th>
-            <th className="px-3 py-2 text-slate-400 font-medium">課コード</th>
-            <th className="px-3 py-2 text-slate-400 font-medium">変更前</th>
+        <thead className="sticky top-0 bg-gray-50">
+          <tr className="border-b border-gray-200">
+            <th className="px-3 py-2 text-gray-500 font-medium">アクション</th>
+            <th className="px-3 py-2 text-gray-500 font-medium">社員番号</th>
+            <th className="px-3 py-2 text-gray-500 font-medium">氏名</th>
+            <th className="px-3 py-2 text-gray-500 font-medium">課コード</th>
+            <th className="px-3 py-2 text-gray-500 font-medium">変更前</th>
           </tr>
         </thead>
         <tbody>
           {preview.map((item) => (
             <tr
               key={item.employee_no}
-              className="border-b border-slate-700/30 hover:bg-slate-800/40"
+              className="border-b border-gray-100 hover:bg-gray-50"
             >
               <td className={`px-3 py-2 font-semibold ${ACTION_COLORS[item.action]}`}>
                 {ACTION_LABELS[item.action]}
               </td>
-              <td className="px-3 py-2 text-slate-300 font-mono">{item.employee_no}</td>
-              <td className="px-3 py-2 text-slate-200">{item.name}</td>
-              <td className="px-3 py-2 text-slate-300 font-mono">
+              <td className="px-3 py-2 text-gray-700 font-mono">{item.employee_no}</td>
+              <td className="px-3 py-2 text-gray-800">{item.name}</td>
+              <td className="px-3 py-2 text-gray-700 font-mono">
                 {item.department_code}
                 {item.department_is_new && (
-                  <span className="ml-1 text-xs text-cyan-400">（新規）</span>
+                  <span className="ml-1 text-xs text-blue-600">（新規）</span>
                 )}
               </td>
-              <td className="px-3 py-2 text-slate-500">
+              <td className="px-3 py-2 text-gray-400">
                 {item.old_name ?? "—"}
               </td>
             </tr>
@@ -316,12 +316,12 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
       </div>
 
       {/* JSONフォーマット例 */}
-      <p className="text-xs text-slate-400 mb-3">
+      <p className="text-xs text-gray-500 mb-3">
         以下のJSON形式のファイルをアップロードしてください。
         <br />
         未登録の課コード（department_code）は自動で作成されます。
       </p>
-      <pre className="text-xs text-slate-400 bg-slate-800/60 rounded px-3 py-2 mb-4 font-mono overflow-x-auto">
+      <pre className="text-xs text-gray-500 bg-gray-50 rounded px-3 py-2 mb-4 font-mono border border-gray-200 font-mono overflow-x-auto">
         {`[
   {
     "employee_no": "EMP001",
@@ -343,8 +343,8 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
           className={[
             "border-2 border-dashed rounded-lg px-6 py-10 text-center cursor-pointer transition-colors",
             isDragging
-              ? "border-cyan-400 bg-cyan-500/10"
-              : "border-slate-600 hover:border-slate-500",
+              ? "border-blue-400 bg-blue-50"
+              : "border-gray-300 hover:border-gray-400",
           ].join(" ")}
           onClick={() => fileInputRef.current?.click()}
           role="button"
@@ -355,7 +355,7 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
           }}
         >
           <svg
-            className="w-10 h-10 mx-auto mb-3 text-slate-500"
+            className="w-10 h-10 mx-auto mb-3 text-gray-400"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -368,10 +368,10 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
               d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
             />
           </svg>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-gray-500">
             JSONファイルをここにドラッグ＆ドロップ
           </p>
-          <p className="text-xs text-slate-500 mt-1">またはクリックしてファイルを選択</p>
+          <p className="text-xs text-gray-400 mt-1">またはクリックしてファイルを選択</p>
           <input
             ref={fileInputRef}
             type="file"
@@ -398,9 +398,9 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
       {/* パース成功後の操作 */}
       {parsedItems && !parseError && (
         <div className="mt-4 space-y-4">
-          <div className="flex items-center gap-3 text-sm text-slate-300">
+          <div className="flex items-center gap-3 text-sm text-gray-700">
             <svg
-              className="w-5 h-5 text-cyan-400 flex-shrink-0"
+              className="w-5 h-5 text-blue-600 flex-shrink-0"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -437,7 +437,7 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
                 <CountBadge
                   label="新規追加"
                   count={preview.create_count}
-                  colorClass="bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                  colorClass="bg-blue-50 text-blue-600 border border-blue-300"
                 />
                 <CountBadge
                   label="更新"
@@ -447,7 +447,7 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
                 <CountBadge
                   label="変更なし"
                   count={preview.no_change_count}
-                  colorClass="bg-slate-700/40 text-slate-400 border border-slate-600/40"
+                  colorClass="bg-gray-100 text-gray-500 border border-gray-200"
                 />
                 <CountBadge
                   label="課を自動作成"

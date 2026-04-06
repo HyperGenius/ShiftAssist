@@ -63,14 +63,14 @@ export function OverrideConfirmDialog({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
       <SciFiPanel className="w-full max-w-lg mx-4 p-6" corners>
         {/* タイトル */}
         <div className="mb-4">
           <h2 className="text-base font-semibold tracking-widest text-yellow-400 uppercase">
             ⚠ ルール違反の検出
           </h2>
-          <p className="mt-1 text-xs text-slate-400">
+          <p className="mt-1 text-xs text-gray-500">
             以下のシフト枠にルール違反が検出されました。内容を確認の上、強制保存を行う場合は承諾してください。
           </p>
         </div>
@@ -80,9 +80,9 @@ export function OverrideConfirmDialog({
           {entries.map(({ dateStr, slotType, violations: vs }) => (
             <div
               key={`${dateStr}__${slotType}`}
-              className="rounded border border-slate-700/60 bg-slate-800/50 px-3 py-2"
+              className="rounded border border-gray-200 bg-gray-50 px-3 py-2"
             >
-              <div className="text-xs font-semibold text-cyan-300 mb-1">
+              <div className="text-xs font-semibold text-blue-600 mb-1">
                 {dateStr} — {SLOT_TYPE_FULL_LABELS[slotType] ?? slotType}
               </div>
               <ul className="space-y-0.5">
@@ -97,7 +97,7 @@ export function OverrideConfirmDialog({
                     >
                       {v.severity === "error" ? "✗" : "△"}
                     </span>
-                    <span className="text-slate-300">{v.message}</span>
+                    <span className="text-gray-700">{v.message}</span>
                   </li>
                 ))}
               </ul>
@@ -125,9 +125,9 @@ export function OverrideConfirmDialog({
             type="checkbox"
             checked={acknowledged}
             onChange={(e) => setAcknowledged(e.target.checked)}
-            className="mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 accent-cyan-500 cursor-pointer"
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 bg-white text-blue-600 accent-blue-600 cursor-pointer"
           />
-          <span className="text-xs text-slate-300 group-hover:text-slate-200 transition-colors">
+          <span className="text-xs text-gray-700 group-hover:text-gray-900 transition-colors">
             上記のルール違反を確認し、現場での合意に基づき強制保存することに承諾します。
           </span>
         </label>

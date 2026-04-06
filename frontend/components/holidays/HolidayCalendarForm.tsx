@@ -22,13 +22,13 @@ const CURRENT_YEAR = new Date().getFullYear();
 export function HolidayLoadingSkeleton() {
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 rounded border border-cyan-500/30 bg-cyan-500/10 px-4 py-3">
-        <span className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent flex-shrink-0" />
-        <p className="text-sm text-cyan-300">内閣府ウェブサイトより祝日データ取得中</p>
+      <div className="flex items-center gap-3 rounded border border-blue-300 bg-blue-50 px-4 py-3">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-400 border-t-transparent flex-shrink-0" />
+        <p className="text-sm text-blue-600">内閣府ウェブサイトより祝日データ取得中</p>
       </div>
       <div className="space-y-3">
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-10 rounded bg-slate-800/60 animate-pulse" />
+          <div key={i} className="h-10 rounded bg-gray-200 animate-pulse" />
         ))}
       </div>
     </div>
@@ -86,11 +86,11 @@ function AddHolidayForm({
             checked={isLongHoliday}
             onChange={(e) => setIsLongHoliday(e.target.checked)}
             disabled={isSubmitting}
-            className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
+            className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500/30"
           />
           <label
             htmlFor="new-is-long-holiday"
-            className="text-sm text-slate-300 cursor-pointer whitespace-nowrap"
+            className="text-sm text-gray-700 cursor-pointer whitespace-nowrap"
           >
             長期連休
           </label>
@@ -127,9 +127,9 @@ function HolidayRow({
   };
 
   return (
-    <li className="flex items-center gap-3 py-2 border-b border-slate-700/40">
-      <span className="w-32 text-sm text-slate-300 tabular-nums">{holiday.date}</span>
-      <span className="flex-1 text-sm text-slate-200">{holiday.name}</span>
+    <li className="flex items-center gap-3 py-2 border-b border-gray-200">
+      <span className="w-32 text-sm text-gray-700 tabular-nums">{holiday.date}</span>
+      <span className="flex-1 text-sm text-gray-800">{holiday.name}</span>
       {holiday.is_long_holiday && (
         <span className="text-xs text-amber-400 border border-amber-500/40 px-1.5 py-0.5 rounded">
           長期連休
@@ -179,7 +179,7 @@ function YearSelector({
       >
         ◀
       </SciFiButton>
-      <span className="w-16 text-center text-sm font-semibold text-slate-200 tabular-nums">
+      <span className="w-16 text-center text-sm font-semibold text-gray-800 tabular-nums">
         {year}年
       </span>
       <SciFiButton
@@ -244,15 +244,15 @@ export function HolidayCalendarForm() {
           <SciFiHeading level="h3">休日一覧</SciFiHeading>
           <YearSelector year={selectedYear} maxYear={maxYear} onChange={setSelectedYear} />
         </div>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-gray-500">
           対象年のデータが未登録の場合、日本の標準祝日が自動的に投入されます。
           {maxYear === CURRENT_YEAR && (
-            <span className="ml-1 text-slate-500">（翌年の祝日取得は9月以降に利用可能）</span>
+            <span className="ml-1 text-gray-400">（翌年の祝日取得は9月以降に利用可能）</span>
           )}
         </p>
 
         {holidays.length === 0 ? (
-          <p className="text-sm text-slate-500 py-4 text-center">
+          <p className="text-sm text-gray-400 py-4 text-center">
             {selectedYear < CURRENT_YEAR
               ? `${selectedYear}年の祝日データが登録されていません。`
               : `${selectedYear}年の休日が登録されていません。`}
