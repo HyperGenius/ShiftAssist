@@ -1,15 +1,30 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import { toast } from "sonner";
 
 import { SciFiButton } from "@/components/ui/SciFiButton";
 import { SciFiPanel } from "@/components/ui/SciFiPanel";
 import { CalendarCell } from "./CalendarCell";
 import { OverrideConfirmDialog } from "./OverrideConfirmDialog";
+import { WorkerCard } from "./WorkerCard";
+import { WorkerListPanel } from "./WorkerListPanel";
+import { parseDropZoneId } from "./ShiftSlotDropZone";
 import { useShiftRequirements } from "@/hooks/useShiftRequirements";
 import { useSkillRanks } from "@/hooks/useSkillRanks";
 import { useWorkers } from "@/hooks/useWorkers";
+import { useDepartments } from "@/hooks/useDepartments";
+import { useAvailableWorkers } from "@/hooks/useAvailableWorkers";
 import type {
   CalendarState,
   SlotState,
@@ -45,10 +60,23 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [showOverrideDialog, setShowOverrideDialog] = useState(false);
 
+  // アクティブスロット（サイドパネルのフィルタリングに使用）
+  const [activeSlot, setActiveSlot] = useState<{
+    dateStr: string;
+    slotType: SlotType;
+  } | null>(null);
+
+  // DnD オーバーライドモード
+  const [showAll, setShowAll] = useState(false);
+
+  // ドラッグ中のWorkerID
+  const [draggingWorkerId, setDraggingWorkerId] = useState<string | null>(null);
+
   const { shiftRequirements, isLoading, createShiftRequirement, updateShiftRequirement, saveAssignments } =
     useShiftRequirements();
   const { workers } = useWorkers();
   const { skillRanks } = useSkillRanks();
+  const { departments } = useDepartments();
 
   const validationMap = useShiftValidation(calendarState, workers, undefined, skillRanks);
 
@@ -57,6 +85,31 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
   const calendarGrid = useMemo(
     () => getCalendarGrid(year, month),
     [year, month],
+  );
+
+  // アクティブスロットの現在アサイン済みWorkerID一覧
+  const activeAssignedWorkerIds = useMemo<(string | null)[]>(() => {
+    if (!activeSlot) return [];
+    return (
+      calendarState[activeSlot.dateStr]?.[activeSlot.slotType]
+        ?.workerSelections ?? []
+    );
+  }, [activeSlot, calendarState]);
+
+  // アサイン可能なWorker一覧（サイドパネル＆ドロップゾーンの許可判定に使用）
+  const { isWorkerAvailable } = useAvailableWorkers({
+    workers,
+    skillRanks,
+    rules: undefined,
+    slotType: activeSlot?.slotType ?? null,
+    assignedWorkerIds: activeAssignedWorkerIds,
+    showAll,
+  });
+
+  // DnDセンサー設定
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
   );
 
   /** 月のシフト枠データをカレンダーステートに変換して初期化する */
@@ -135,6 +188,50 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
       });
     },
     [],
+  );
+
+  /** スロットフォーカスハンドラ（サイドパネルフィルタリング更新） */
+  const handleSlotFocus = useCallback((dateStr: string, slotType: SlotType) => {
+    setActiveSlot({ dateStr, slotType });
+  }, []);
+
+  /** DnD開始ハンドラ */
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const workerId =
+      typeof event.active.data.current?.workerId === "string"
+        ? event.active.data.current.workerId
+        : null;
+    setDraggingWorkerId(workerId);
+  }, []);
+
+  /** DnD終了ハンドラ */
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      setDraggingWorkerId(null);
+      const { active, over } = event;
+      if (!over) return;
+
+      const workerId =
+        typeof active.data.current?.workerId === "string"
+          ? active.data.current.workerId
+          : null;
+      if (!workerId) return;
+
+      const parsed = parseDropZoneId(String(over.id));
+      if (!parsed) return;
+
+      const { dateStr, slotType, index } = parsed;
+
+      // ルール違反チェック（showAll時に警告表示）
+      if (showAll && !isWorkerAvailable(workerId)) {
+        toast.warning("制約違反のアサインです。is_manual_override=true として保存されます。");
+      }
+
+      handleWorkerChange(dateStr, slotType as SlotType, index, workerId);
+      // ドロップ先スロットをアクティブに設定
+      setActiveSlot({ dateStr, slotType: slotType as SlotType });
+    },
+    [handleWorkerChange, isWorkerAvailable, showAll],
   );
 
   /** 実際の保存処理（バリデーションチェック後に呼ばれる） */
@@ -245,124 +342,172 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
     return false;
   }, [calendarState]);
 
+  // ドラッグ中のWorkerオブジェクト（DragOverlay用）
+  const draggingWorker = useMemo(
+    () => workers.find((w) => w.id === draggingWorkerId) ?? null,
+    [workers, draggingWorkerId],
+  );
+
   return (
-    <>
-      <SciFiPanel className="p-4">
-        {/* ヘッダー：月ナビゲーション＆保存ボタン */}
-        <div className="flex items-center justify-between mb-4">
-          <SciFiButton variant="secondary" size="sm" onClick={prevMonth}>
-            &lt;&lt; 前月
-          </SciFiButton>
-          <h2 className="text-base font-semibold tracking-widest text-cyan-300">
-            {year}年 {month}月
-            <span className="ml-2 text-xs text-slate-400 normal-case">
-              {department.name}
-            </span>
-          </h2>
-          <div className="flex items-center gap-2">
-            <SciFiButton variant="secondary" size="sm" onClick={nextMonth}>
-              翌月 &gt;&gt;
-            </SciFiButton>
-            <SciFiButton
-              variant="primary"
-              size="sm"
-              onClick={handleSave}
-              loading={isSaving}
-              disabled={!hasDirtySlots}
-            >
-              保存
-            </SciFiButton>
-          </div>
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="flex gap-4">
+        {/* カレンダーパネル */}
+        <div className="flex-1 min-w-0">
+          <SciFiPanel className="p-4">
+            {/* ヘッダー：月ナビゲーション＆保存ボタン */}
+            <div className="flex items-center justify-between mb-4">
+              <SciFiButton variant="secondary" size="sm" onClick={prevMonth}>
+                &lt;&lt; 前月
+              </SciFiButton>
+              <h2 className="text-base font-semibold tracking-widest text-cyan-300">
+                {year}年 {month}月
+                <span className="ml-2 text-xs text-slate-400 normal-case">
+                  {department.name}
+                </span>
+              </h2>
+              <div className="flex items-center gap-2">
+                <SciFiButton variant="secondary" size="sm" onClick={nextMonth}>
+                  翌月 &gt;&gt;
+                </SciFiButton>
+                <SciFiButton
+                  variant="primary"
+                  size="sm"
+                  onClick={handleSave}
+                  loading={isSaving}
+                  disabled={!hasDirtySlots}
+                >
+                  保存
+                </SciFiButton>
+              </div>
+            </div>
+
+            {/* ローディング状態 */}
+            {isLoading && (
+              <div className="flex items-center justify-center py-12 text-slate-400 text-sm">
+                <span className="animate-spin h-4 w-4 border-2 border-cyan-500 border-t-transparent rounded-full mr-2" />
+                読み込み中...
+              </div>
+            )}
+
+            {/* カレンダーグリッド */}
+            {!isLoading && (
+              <>
+                {/* 曜日ヘッダー */}
+                <div className="grid grid-cols-7 gap-1 mb-1">
+                  {WEEK_HEADERS.map((h, i) => (
+                    <div
+                      key={h}
+                      className={`text-center text-xs py-1 font-medium tracking-widest ${
+                        i === 0
+                          ? "text-red-400"
+                          : i === 6
+                            ? "text-blue-400"
+                            : "text-slate-400"
+                      }`}
+                    >
+                      {h}
+                    </div>
+                  ))}
+                </div>
+
+                {/* カレンダーセル */}
+                <div className="grid grid-cols-7 gap-1">
+                  {calendarGrid.map((date, idx) => {
+                    if (!date) {
+                      return <div key={`empty-${idx}`} className="min-h-[120px]" />;
+                    }
+                    const dateStr = toDateStr(date);
+                    const holidayFlag = isHoliday(dateStr, holidaySet);
+                    const holidayName = holidayMap.get(dateStr);
+                    const dayType = getDayType(date, dateStr, holidaySet);
+                    const dayState = calendarState[dateStr] ?? {};
+
+                    // この日のスロットごとのバリデーション違反を収集する
+                    const dayViolations: Partial<Record<SlotType, ValidationViolation[]>> = {};
+                    for (const slotType of Object.keys(dayState) as SlotType[]) {
+                      const key = buildSlotKey(dateStr, slotType);
+                      const violations = validationMap[key];
+                      if (violations && violations.length > 0) {
+                        dayViolations[slotType] = violations;
+                      }
+                    }
+
+                    return (
+                      <CalendarCell
+                        key={dateStr}
+                        date={date}
+                        dateStr={dateStr}
+                        dayType={dayType}
+                        isHoliday={holidayFlag}
+                        holidayName={holidayName}
+                        dayState={dayState}
+                        workers={workers}
+                        departments={departments}
+                        skillRanks={skillRanks}
+                        dayViolations={dayViolations}
+                        isWorkerAvailable={isWorkerAvailable}
+                        onWorkerChange={(slotType, idx2, wid) =>
+                          handleWorkerChange(dateStr, slotType, idx2, wid)
+                        }
+                        onSlotFocus={handleSlotFocus}
+                      />
+                    );
+                  })}
+                </div>
+
+                {/* 凡例 */}
+                <div className="mt-4 flex items-center gap-4 text-[10px] text-slate-500">
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded bg-slate-800/30 border border-slate-700/40 inline-block" />
+                    平日
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded bg-blue-900/20 border border-blue-700/40 inline-block" />
+                    土曜日
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded bg-red-900/20 border border-red-700/40 inline-block" />
+                    日曜・祝日
+                  </span>
+                  <span className="flex items-center gap-1">🎌 祝日</span>
+                </div>
+              </>
+            )}
+          </SciFiPanel>
         </div>
 
-        {/* ローディング状態 */}
-        {isLoading && (
-          <div className="flex items-center justify-center py-12 text-slate-400 text-sm">
-            <span className="animate-spin h-4 w-4 border-2 border-cyan-500 border-t-transparent rounded-full mr-2" />
-            読み込み中...
+        {/* サイドパネル */}
+        <div className="w-52 shrink-0">
+          <div className="sticky top-4 h-[calc(100vh-8rem)]">
+            <WorkerListPanel
+              workers={workers}
+              departments={departments}
+              skillRanks={skillRanks}
+              activeSlotType={activeSlot?.slotType ?? null}
+              activeAssignedWorkerIds={activeAssignedWorkerIds}
+              showAll={showAll}
+              onShowAllChange={setShowAll}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ドラッグ中のWorkerCardオーバーレイ */}
+      <DragOverlay>
+        {draggingWorker && (
+          <div className="opacity-90 rotate-2 scale-105">
+            <WorkerCard
+              worker={draggingWorker}
+              departments={departments}
+              skillRanks={skillRanks}
+            />
           </div>
         )}
-
-        {/* カレンダーグリッド */}
-        {!isLoading && (
-          <>
-            {/* 曜日ヘッダー */}
-            <div className="grid grid-cols-7 gap-1 mb-1">
-              {WEEK_HEADERS.map((h, i) => (
-                <div
-                  key={h}
-                  className={`text-center text-xs py-1 font-medium tracking-widest ${
-                    i === 0
-                      ? "text-red-400"
-                      : i === 6
-                        ? "text-blue-400"
-                        : "text-slate-400"
-                  }`}
-                >
-                  {h}
-                </div>
-              ))}
-            </div>
-
-            {/* カレンダーセル */}
-            <div className="grid grid-cols-7 gap-1">
-              {calendarGrid.map((date, idx) => {
-                if (!date) {
-                  return <div key={`empty-${idx}`} className="min-h-[120px]" />;
-                }
-                const dateStr = toDateStr(date);
-                const holidayFlag = isHoliday(dateStr, holidaySet);
-                const holidayName = holidayMap.get(dateStr);
-                const dayType = getDayType(date, dateStr, holidaySet);
-                const dayState = calendarState[dateStr] ?? {};
-
-                // この日のスロットごとのバリデーション違反を収集する
-                const dayViolations: Partial<Record<SlotType, ValidationViolation[]>> = {};
-                for (const slotType of Object.keys(dayState) as SlotType[]) {
-                  const key = buildSlotKey(dateStr, slotType);
-                  const violations = validationMap[key];
-                  if (violations && violations.length > 0) {
-                    dayViolations[slotType] = violations;
-                  }
-                }
-
-                return (
-                  <CalendarCell
-                    key={dateStr}
-                    date={date}
-                    dayType={dayType}
-                    isHoliday={holidayFlag}
-                    holidayName={holidayName}
-                    dayState={dayState}
-                    workers={workers}
-                    dayViolations={dayViolations}
-                    onWorkerChange={(slotType, idx2, wid) =>
-                      handleWorkerChange(dateStr, slotType, idx2, wid)
-                    }
-                  />
-                );
-              })}
-            </div>
-
-            {/* 凡例 */}
-            <div className="mt-4 flex items-center gap-4 text-[10px] text-slate-500">
-              <span className="flex items-center gap-1">
-                <span className="w-3 h-3 rounded bg-slate-800/30 border border-slate-700/40 inline-block" />
-                平日
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-3 h-3 rounded bg-blue-900/20 border border-blue-700/40 inline-block" />
-                土曜日
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-3 h-3 rounded bg-red-900/20 border border-red-700/40 inline-block" />
-                日曜・祝日
-              </span>
-              <span className="flex items-center gap-1">🎌 祝日</span>
-            </div>
-          </>
-        )}
-      </SciFiPanel>
+      </DragOverlay>
 
       {/* オーバーライド確認ダイアログ */}
       <OverrideConfirmDialog
@@ -371,6 +516,6 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
         onCancel={handleOverrideCancel}
         onConfirm={handleOverrideConfirm}
       />
-    </>
+    </DndContext>
   );
 }

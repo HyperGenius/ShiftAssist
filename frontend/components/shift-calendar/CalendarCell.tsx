@@ -1,7 +1,9 @@
 "use client";
 
+import type { Department } from "@/types/department";
 import type { Worker } from "@/types/worker";
 import type { DayState, SlotType } from "@/types/shiftRequirement";
+import type { TenantSkillRank } from "@/types/skillRank";
 import type { DayType } from "@/utils/calendarUtils";
 import type { ValidationViolation } from "@/utils/shiftValidators";
 import { ShiftSlot } from "./ShiftSlot";
@@ -22,30 +24,41 @@ const NIGHTTIME_TYPES = new Set<SlotType>([
 
 interface CalendarCellProps {
   date: Date;
+  dateStr: string;
   dayType: DayType;
   isHoliday: boolean;
   holidayName?: string;
   dayState: DayState;
   workers: Worker[];
+  departments: Department[];
+  skillRanks: TenantSkillRank[];
   /** スロットタイプ → バリデーション違反リスト */
   dayViolations?: Partial<Record<SlotType, ValidationViolation[]>>;
+  /** ドラッグ中WorkerIDがアサイン可能かチェックする関数 */
+  isWorkerAvailable: (workerId: string) => boolean;
   onWorkerChange: (
     slotType: SlotType,
     index: number,
     workerId: string | null,
   ) => void;
+  onSlotFocus: (dateStr: string, slotType: SlotType) => void;
 }
 
 /** 1日分のカレンダーセルコンポーネント */
 export function CalendarCell({
   date,
+  dateStr,
   dayType,
   isHoliday,
   holidayName,
   dayState,
   workers,
+  departments,
+  skillRanks,
   dayViolations = {},
+  isWorkerAvailable,
   onWorkerChange,
+  onSlotFocus,
 }: CalendarCellProps) {
   const dayOfWeek = date.getDay();
   const dayNum = date.getDate();
@@ -94,11 +107,16 @@ export function CalendarCell({
           {daytimeSlots.map(([slotType, slotState]) => (
             <ShiftSlot
               key={slotType}
+              dateStr={dateStr}
               slotType={slotType}
               workerSelections={slotState.workerSelections}
               workers={workers}
+              departments={departments}
+              skillRanks={skillRanks}
               violations={dayViolations[slotType] ?? []}
+              isWorkerAvailable={isWorkerAvailable}
               onWorkerChange={(idx, wid) => onWorkerChange(slotType, idx, wid)}
+              onSlotFocus={onSlotFocus}
             />
           ))}
         </div>
@@ -115,11 +133,16 @@ export function CalendarCell({
           {nighttimeSlots.map(([slotType, slotState]) => (
             <ShiftSlot
               key={slotType}
+              dateStr={dateStr}
               slotType={slotType}
               workerSelections={slotState.workerSelections}
               workers={workers}
+              departments={departments}
+              skillRanks={skillRanks}
               violations={dayViolations[slotType] ?? []}
+              isWorkerAvailable={isWorkerAvailable}
               onWorkerChange={(idx, wid) => onWorkerChange(slotType, idx, wid)}
+              onSlotFocus={onSlotFocus}
             />
           ))}
         </div>
