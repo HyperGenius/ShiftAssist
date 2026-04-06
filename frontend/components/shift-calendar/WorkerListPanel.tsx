@@ -88,7 +88,7 @@ export function WorkerListPanel({
       <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1">
         {workers.length === 0 ? (
           <p className="text-[11px] text-slate-500 text-center py-4">
-            Workerが登録されていません
+            対応者が登録されていません
           </p>
         ) : showAll ? (
           // 全表示モード: フィルタで除外されるWorkerを薄く表示

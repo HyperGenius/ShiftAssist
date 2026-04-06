@@ -77,11 +77,6 @@ export function useAvailableWorkers({
 
       const rank = skillRankMap.get(w.skill_rank_id);
 
-      // 例3: 休日スロットの場合、特別雇用者を除外
-      if (HOLIDAY_SLOT_TYPES.has(slotType) && w.is_special) {
-        return false;
-      }
-
       // 例1: リーダー必須チェック
       // アサイン済みにリーダー適性者がいない場合はリーダー適性者のみ表示
       const hasLeader = [...assignedSet].some((id) => {
@@ -103,6 +98,11 @@ export function useAvailableWorkers({
             .filter((d): d is string => !!d),
         );
         if (assignedDepts.has(w.department_id)) return false;
+      }
+
+      // 例3: 休日スロットの場合、特別雇用者を除外
+      if (HOLIDAY_SLOT_TYPES.has(slotType) && w.is_special) {
+        return false;
       }
 
       return true;
