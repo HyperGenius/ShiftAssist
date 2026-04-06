@@ -9,7 +9,7 @@ import uuid
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
-from app.models.models import Department, TenantSkillRank, Worker
+from app.models.models import Department, EmploymentType, TenantSkillRank, Worker
 from app.models.schemas import (
     WorkerBulkItem,
     WorkerBulkPreviewItem,
@@ -73,6 +73,32 @@ def _validate_skill_rank(
         )
 
 
+def _validate_employment_type(
+    session: Session, tenant_id: str, employment_type_id: uuid.UUID
+) -> None:
+    """指定された ``employment_type_id`` が同一テナントに存在するか検証する.
+
+    Args:
+        session: SQLModelセッション。
+        tenant_id: テナントID。
+        employment_type_id: 検証対象の雇用形態ID。
+
+    Raises:
+        HTTPException: 雇用形態が存在しない、または異なるテナントに属する場合。
+    """
+    et = session.exec(
+        select(EmploymentType).where(
+            EmploymentType.id == employment_type_id,  # type: ignore[arg-type]
+            EmploymentType.tenant_id == tenant_id,
+        )
+    ).first()
+    if et is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"EmploymentType '{employment_type_id}' not found in tenant.",
+        )
+
+
 def create_worker(
     session: Session, tenant_id: str, data: WorkerCreate
 ) -> WorkerResponse:
@@ -91,14 +117,25 @@ def create_worker(
     """
     _validate_department(session, tenant_id, data.department_id)
     _validate_skill_rank(session, tenant_id, data.skill_rank_id)
+    if data.employment_type_id is not None:
+        _validate_employment_type(session, tenant_id, data.employment_type_id)
 
     worker = Worker(
         tenant_id=tenant_id,
         employee_no=data.employee_no,
+        employee_code=data.employee_code,
         name=data.name,
         department_id=data.department_id,
         skill_rank_id=data.skill_rank_id,
-        is_special=data.is_special,
+        position_id=data.position_id,
+        employment_type_id=data.employment_type_id,
+        birth_date=data.birth_date,
+        skill_acquired_at=data.skill_acquired_at,
+        transfer_type=data.transfer_type,
+        transfer_scheduled_month=data.transfer_scheduled_month,
+        is_cross_division_transfer=data.is_cross_division_transfer,
+        joined_at=data.joined_at,
+        transferred_at=data.transferred_at,
     )
     session.add(worker)
     session.commit()
@@ -192,6 +229,9 @@ def update_worker(
 
     if "skill_rank_id" in update_data:
         _validate_skill_rank(session, tenant_id, update_data["skill_rank_id"])
+
+    if "employment_type_id" in update_data and update_data["employment_type_id"] is not None:
+        _validate_employment_type(session, tenant_id, update_data["employment_type_id"])
 
     for field, value in update_data.items():
         setattr(worker, field, value)

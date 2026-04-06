@@ -287,7 +287,6 @@ class WorkerCreate(BaseModel):
     skill_rank_id: uuid.UUID
     position_id: uuid.UUID | None = None
     employment_type_id: uuid.UUID | None = None
-    is_special: bool = False
     birth_date: date | None = None
     skill_acquired_at: date | None = None
     transfer_type: TransferTypeEnum | None = None
@@ -310,7 +309,6 @@ class WorkerUpdate(BaseModel):
     skill_rank_id: uuid.UUID | None = None
     position_id: uuid.UUID | None = None
     employment_type_id: uuid.UUID | None = None
-    is_special: bool | None = None
     birth_date: date | None = None
     skill_acquired_at: date | None = None
     transfer_type: TransferTypeEnum | None = None

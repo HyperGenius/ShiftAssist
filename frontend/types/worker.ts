@@ -33,7 +33,6 @@ export interface WorkerCreate {
   skill_rank_id: string;
   position_id?: string | null;
   employment_type_id?: string | null;
-  is_special: boolean;
   birth_date?: string | null;
   skill_acquired_at?: string | null;
   transfer_type?: TransferType | null;
@@ -51,7 +50,6 @@ export interface WorkerUpdate {
   skill_rank_id?: string;
   position_id?: string | null;
   employment_type_id?: string | null;
-  is_special?: boolean;
   birth_date?: string | null;
   skill_acquired_at?: string | null;
   transfer_type?: TransferType | null;

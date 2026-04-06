@@ -9,6 +9,7 @@ import { SciFiButton } from "@/components/ui/SciFiButton";
 import { SciFiInput } from "@/components/ui/SciFiInput";
 import { SciFiSelect } from "@/components/ui/SciFiSelect";
 import { useDepartments } from "@/hooks/useDepartments";
+import { useEmploymentTypes } from "@/hooks/useEmploymentTypes";
 import { usePositions } from "@/hooks/usePositions";
 import { useSkillRanks } from "@/hooks/useSkillRanks";
 import type { Worker, WorkerCreate } from "@/types/worker";
@@ -29,7 +30,11 @@ const workerSchema = z.object({
   department_id: z.string().uuid("有効な所属課IDを入力してください"),
   skill_rank_id: z.string().uuid("スキルランクを選択してください"),
   position_id: z.string().uuid("役職を選択してください").optional().nullable(),
-  is_special: z.boolean(),
+  employment_type_id: z
+    .string()
+    .uuid("雇用形態を選択してください")
+    .optional()
+    .nullable(),
   birth_date: z.string().optional().nullable(),
   skill_acquired_at: z.string().optional().nullable(),
   transfer_type: z
@@ -63,6 +68,8 @@ export function WorkerForm({
   const { departments, isLoading: isDepartmentsLoading } = useDepartments();
   const { skillRanks, isLoading: isSkillRanksLoading } = useSkillRanks();
   const { positions, isLoading: isPositionsLoading } = usePositions();
+  const { employmentTypes, isLoading: isEmploymentTypesLoading } =
+    useEmploymentTypes();
   const {
     register,
     handleSubmit,
@@ -78,7 +85,7 @@ export function WorkerForm({
       department_id: worker?.department_id ?? "",
       skill_rank_id: worker?.skill_rank_id ?? "",
       position_id: worker?.position_id ?? "",
-      is_special: worker?.is_special ?? false,
+      employment_type_id: worker?.employment_type_id ?? "",
       birth_date: worker?.birth_date ?? "",
       skill_acquired_at: worker?.skill_acquired_at ?? "",
       transfer_type: worker?.transfer_type ?? null,
@@ -109,7 +116,7 @@ export function WorkerForm({
       department_id: worker?.department_id ?? "",
       skill_rank_id: worker?.skill_rank_id ?? "",
       position_id: worker?.position_id ?? "",
-      is_special: worker?.is_special ?? false,
+      employment_type_id: worker?.employment_type_id ?? "",
       birth_date: worker?.birth_date ?? "",
       skill_acquired_at: worker?.skill_acquired_at ?? "",
       transfer_type: worker?.transfer_type ?? null,
@@ -124,6 +131,7 @@ export function WorkerForm({
       ...values,
       employee_code: values.employee_code || null,
       position_id: values.position_id || null,
+      employment_type_id: values.employment_type_id || null,
       birth_date: values.birth_date || null,
       skill_acquired_at: values.skill_acquired_at || null,
       transfer_type: values.transfer_type || null,
@@ -213,21 +221,26 @@ export function WorkerForm({
         ))}
       </SciFiSelect>
 
-      <div className="flex items-center gap-3">
-        <input
-          id="worker-is-special"
-          type="checkbox"
-          {...register("is_special")}
-          disabled={isSubmitting}
-          className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500/30"
-        />
-        <label
-          htmlFor="worker-is-special"
-          className="text-sm text-gray-700 cursor-pointer"
-        >
-          特別雇用者（平日夜間枠のみアサイン可能）
-        </label>
-      </div>
+      <SciFiSelect
+        id="worker-employment-type-id"
+        label="雇用形態"
+        {...register("employment_type_id")}
+        error={errors.employment_type_id?.message}
+        disabled={isSubmitting || isEmploymentTypesLoading}
+      >
+        <option value="">
+          {isEmploymentTypesLoading
+            ? "読み込み中..."
+            : employmentTypes.length === 0
+              ? "雇用形態が登録されていません"
+              : "雇用形態を選択してください（任意）"}
+        </option>
+        {employmentTypes.map((et) => (
+          <option key={et.id} value={et.id}>
+            {et.name}
+          </option>
+        ))}
+      </SciFiSelect>
 
       <SciFiInput
         id="worker-birth-date"
