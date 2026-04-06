@@ -49,11 +49,11 @@ function AddSkillRankForm({
           checked={isLeaderEligible}
           onChange={(e) => setIsLeaderEligible(e.target.checked)}
           disabled={isSubmitting}
-          className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
+          className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500/30"
         />
         <label
           htmlFor="new-is-leader-eligible"
-          className="text-sm text-slate-300 cursor-pointer whitespace-nowrap"
+          className="text-sm text-gray-700 cursor-pointer whitespace-nowrap"
         >
           リーダー適性
         </label>
@@ -103,7 +103,7 @@ function SkillRankRow({
 
   if (isEditing) {
     return (
-      <li className="flex items-center gap-3 py-2 border-b border-slate-700/40">
+      <li className="flex items-center gap-3 py-2 border-b border-gray-200">
         <SciFiInput
           id={`edit-rank-${rank.id}`}
           label=""
@@ -119,11 +119,11 @@ function SkillRankRow({
             checked={editIsLeader}
             onChange={(e) => setEditIsLeader(e.target.checked)}
             disabled={isSaving}
-            className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
+            className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500/30"
           />
           <label
             htmlFor={`edit-leader-${rank.id}`}
-            className="text-sm text-slate-300 whitespace-nowrap"
+            className="text-sm text-gray-700 whitespace-nowrap"
           >
             リーダー適性
           </label>
@@ -144,8 +144,8 @@ function SkillRankRow({
   }
 
   return (
-    <li className="flex items-center gap-3 py-2 border-b border-slate-700/40">
-      <span className="flex-1 text-sm text-slate-200">{rank.name}</span>
+    <li className="flex items-center gap-3 py-2 border-b border-gray-200">
+      <span className="flex-1 text-sm text-gray-800">{rank.name}</span>
       {rank.is_leader_eligible && (
         <span className="text-xs text-yellow-400 border border-yellow-500/40 px-1.5 py-0.5 rounded">
           リーダー適性
@@ -210,7 +210,7 @@ export function SkillRankSettingsForm() {
     return (
       <div className="space-y-3">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="h-10 rounded bg-slate-800/60 animate-pulse" />
+          <div key={i} className="h-10 rounded bg-gray-200 animate-pulse" />
         ))}
       </div>
     );
@@ -228,12 +228,12 @@ export function SkillRankSettingsForm() {
     <div className="space-y-6">
       <SciFiPanel className="p-6 space-y-4">
         <SciFiHeading level="h3">スキルランク一覧</SciFiHeading>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-gray-500">
           リーダー適性（★印）を持つランクは、シフト編成時にペアに1名以上含める必要があります。
         </p>
 
         {skillRanks.length === 0 ? (
-          <p className="text-sm text-slate-500 py-4 text-center">
+          <p className="text-sm text-gray-400 py-4 text-center">
             スキルランクが登録されていません。以下から追加してください。
           </p>
         ) : (

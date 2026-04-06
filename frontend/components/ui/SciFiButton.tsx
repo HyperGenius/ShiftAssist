@@ -14,13 +14,13 @@ interface SciFiButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<Variant, string> = {
   primary:
-    "bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-500/30 hover:border-cyan-400 hover:shadow-[0_0_12px_rgba(6,182,212,0.4)]",
+    "bg-blue-600 text-white border border-blue-600 hover:bg-blue-700 hover:border-blue-700 shadow-sm",
   secondary:
-    "bg-slate-700/40 text-slate-300 border border-slate-600/50 hover:bg-slate-700/60 hover:border-slate-500",
+    "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 shadow-sm",
   danger:
-    "bg-red-500/20 text-red-300 border border-red-500/50 hover:bg-red-500/30 hover:border-red-400 hover:shadow-[0_0_12px_rgba(239,68,68,0.4)]",
+    "bg-red-600 text-white border border-red-600 hover:bg-red-700 hover:border-red-700 shadow-sm",
   ghost:
-    "bg-transparent text-slate-400 border border-transparent hover:bg-slate-700/30 hover:text-slate-300",
+    "bg-transparent text-gray-600 border border-transparent hover:bg-gray-100 hover:text-gray-800",
 };
 
 const sizeClasses: Record<Size, string> = {
@@ -47,7 +47,7 @@ const SciFiButton = forwardRef<HTMLButtonElement, SciFiButtonProps>(
         ref={ref}
         disabled={disabled || loading}
         className={[
-          "relative inline-flex items-center justify-center gap-2 rounded font-medium tracking-wider uppercase transition-all duration-200 cursor-pointer",
+          "relative inline-flex items-center justify-center gap-2 rounded font-medium tracking-wide transition-all duration-200 cursor-pointer",
           "disabled:opacity-50 disabled:cursor-not-allowed",
           variantClasses[variant],
           sizeClasses[size],

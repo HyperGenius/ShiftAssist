@@ -24,7 +24,7 @@ function SkeletonRow() {
     <tr className="animate-pulse">
       {[...Array(6)].map((_, i) => (
         <td key={i} className="px-4 py-3">
-          <div className="h-4 bg-slate-700/60 rounded w-3/4" />
+          <div className="h-4 bg-gray-200 rounded w-3/4" />
         </td>
       ))}
     </tr>
@@ -40,7 +40,7 @@ function HolidayStatsBadge({
   allAvg: number;
 }) {
   if (!stats) {
-    return <span className="text-xs text-slate-500">—</span>;
+    return <span className="text-xs text-gray-400">—</span>;
   }
 
   const avg = stats.holiday_slot_monthly_avg;
@@ -53,7 +53,7 @@ function HolidayStatsBadge({
     return (
       <span
         title={`休日勤務月平均: ${label}回（テナント平均比 +30%超）`}
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/40 cursor-help"
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200 cursor-help"
       >
         ⚠ {label}
       </span>
@@ -64,7 +64,7 @@ function HolidayStatsBadge({
     return (
       <span
         title={`休日勤務月平均: ${label}回（テナント平均比 -30%超）`}
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-300 border border-blue-500/40 cursor-help"
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 cursor-help"
       >
         ↓ {label}
       </span>
@@ -74,7 +74,7 @@ function HolidayStatsBadge({
   return (
     <span
       title={`休日勤務月平均: ${label}回`}
-      className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-700/50 text-slate-400 border border-slate-600/40 cursor-help"
+      className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200 cursor-help"
     >
       {label}
     </span>
@@ -100,26 +100,26 @@ function WorkerRow({
   onDelete: (w: Worker) => void;
 }) {
   return (
-    <tr className="border-b border-slate-700/50 hover:bg-slate-800/40 transition-colors">
-      <td className="px-4 py-3 text-slate-200 font-medium">{worker.name}</td>
-      <td className="px-4 py-3 text-slate-300">
+    <tr className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+      <td className="px-4 py-3 text-gray-900 font-medium">{worker.name}</td>
+      <td className="px-4 py-3 text-gray-600">
         {departmentName}
       </td>
       <td className="px-4 py-3">
         <span
-          className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+          className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200"
         >
           {skillRankName}
         </span>
       </td>
       <td className="px-4 py-3">
         {worker.is_special ? (
-          <span className="inline-flex items-center gap-1 text-xs text-purple-300">
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block" />
+          <span className="inline-flex items-center gap-1 text-xs text-purple-700">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-500 inline-block" />
             特別
           </span>
         ) : (
-          <span className="text-xs text-slate-500">—</span>
+          <span className="text-xs text-gray-400">—</span>
         )}
       </td>
       <td className="px-4 py-3">
@@ -265,7 +265,7 @@ export function WorkerList() {
 
         {/* エラー表示 */}
         {isError && (
-          <div className="rounded border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400 mb-4">
+          <div className="rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-600 mb-4">
             データの取得中にエラーが発生しました。再度お試しください。
           </div>
         )}
@@ -274,23 +274,23 @@ export function WorkerList() {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-700/60">
-                <th className="px-4 py-3 text-xs text-slate-400 uppercase tracking-wider font-medium">
+              <tr className="border-b border-gray-200">
+                <th className="px-4 py-3 text-xs text-gray-500 font-medium">
                   氏名
                 </th>
-                <th className="px-4 py-3 text-xs text-slate-400 uppercase tracking-wider font-medium">
+                <th className="px-4 py-3 text-xs text-gray-500 font-medium">
                   所属課
                 </th>
-                <th className="px-4 py-3 text-xs text-slate-400 uppercase tracking-wider font-medium">
+                <th className="px-4 py-3 text-xs text-gray-500 font-medium">
                   スキルランク
                 </th>
-                <th className="px-4 py-3 text-xs text-slate-400 uppercase tracking-wider font-medium">
+                <th className="px-4 py-3 text-xs text-gray-500 font-medium">
                   特別雇用
                 </th>
-                <th className="px-4 py-3 text-xs text-slate-400 uppercase tracking-wider font-medium">
+                <th className="px-4 py-3 text-xs text-gray-500 font-medium">
                   休日勤務/月
                 </th>
-                <th className="px-4 py-3 text-xs text-slate-400 uppercase tracking-wider font-medium text-right">
+                <th className="px-4 py-3 text-xs text-gray-500 font-medium text-right">
                   操作
                 </th>
               </tr>
@@ -306,11 +306,11 @@ export function WorkerList() {
                 <tr>
                   <td
                     colSpan={6}
-                    className="px-4 py-12 text-center text-slate-500"
+                    className="px-4 py-12 text-center text-gray-400"
                   >
                     <div className="flex flex-col items-center gap-2">
                       <svg
-                        className="w-10 h-10 text-slate-600"
+                        className="w-10 h-10 text-gray-300"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -352,7 +352,7 @@ export function WorkerList() {
 
         {/* 件数表示 */}
         {!isLoading && workers.length > 0 && (
-          <p className="mt-3 text-xs text-slate-500 text-right">
+          <p className="mt-3 text-xs text-gray-400 text-right">
             {workers.length} 件
           </p>
         )}

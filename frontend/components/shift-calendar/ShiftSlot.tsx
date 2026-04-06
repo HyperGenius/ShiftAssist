@@ -42,15 +42,15 @@ export function ShiftSlot({
   const hasWarning = violations.some((v) => v.severity === "warning");
 
   const containerBorderClass = hasError
-    ? "border-red-500/40"
+    ? "border-red-400"
     : hasWarning
-      ? "border-yellow-500/40"
-      : "border-slate-700/40";
+      ? "border-yellow-400"
+      : "border-gray-200";
 
   return (
     <div className={`flex flex-col gap-1 rounded border p-1 ${containerBorderClass}`}>
       <div className="flex items-center justify-center gap-1">
-        <span className="text-[10px] text-slate-400 uppercase tracking-wider text-center">
+        <span className="text-[10px] text-gray-500 uppercase tracking-wider text-center">
           {label}
         </span>
         <ValidationBadge violations={violations} />

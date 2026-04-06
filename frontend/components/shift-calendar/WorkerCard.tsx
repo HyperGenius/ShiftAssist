@@ -9,12 +9,12 @@ import type { Worker } from "@/types/worker";
 
 /** 課IDごとの色クラスパレット（固定6色でサイクル） */
 const DEPT_COLORS = [
-  "bg-cyan-500/20 text-cyan-300 border-cyan-500/40",
-  "bg-purple-500/20 text-purple-300 border-purple-500/40",
-  "bg-green-500/20 text-green-300 border-green-500/40",
-  "bg-orange-500/20 text-orange-300 border-orange-500/40",
-  "bg-pink-500/20 text-pink-300 border-pink-500/40",
-  "bg-indigo-500/20 text-indigo-300 border-indigo-500/40",
+  "bg-blue-50 text-blue-700 border-blue-200",
+  "bg-purple-50 text-purple-700 border-purple-200",
+  "bg-green-50 text-green-700 border-green-200",
+  "bg-orange-50 text-orange-700 border-orange-200",
+  "bg-pink-50 text-pink-700 border-pink-200",
+  "bg-indigo-50 text-indigo-700 border-indigo-200",
 ];
 
 function getDeptColorClass(deptId: string, departments: Department[]): string {
@@ -64,10 +64,10 @@ export function WorkerCard({
       className={[
         "flex items-center gap-1.5 px-2 py-1.5 rounded border text-xs select-none transition-all",
         disabled
-          ? "opacity-40 cursor-not-allowed bg-slate-800/20 border-slate-700/30 text-slate-500"
+          ? "opacity-40 cursor-not-allowed bg-gray-50 border-gray-200 text-gray-400"
           : isDragging
-            ? "opacity-80 bg-slate-700/80 border-cyan-500/60 shadow-[0_0_12px_rgba(6,182,212,0.3)] cursor-grabbing z-50"
-            : "bg-slate-800/60 border-slate-600/50 text-slate-200 cursor-grab hover:bg-slate-700/60 hover:border-slate-500/60",
+            ? "opacity-80 bg-gray-100 border-blue-400 shadow-sm cursor-grabbing z-50"
+            : "bg-white border-gray-200 text-gray-700 cursor-grab hover:bg-gray-50 hover:border-gray-300",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -86,14 +86,14 @@ export function WorkerCard({
 
       {/* リーダーバッジ */}
       {rank?.is_leader_eligible && (
-        <span className="shrink-0 px-1 py-0.5 rounded border bg-yellow-500/20 text-yellow-300 border-yellow-500/40 text-[9px] font-bold">
+        <span className="shrink-0 px-1 py-0.5 rounded border bg-yellow-50 text-yellow-700 border-yellow-200 text-[9px] font-bold">
           Ldr
         </span>
       )}
 
       {/* 特別雇用ラベル */}
       {worker.is_special && (
-        <span className="shrink-0 px-1 py-0.5 rounded border bg-rose-500/20 text-rose-300 border-rose-500/40 text-[9px] font-medium">
+        <span className="shrink-0 px-1 py-0.5 rounded border bg-rose-50 text-rose-700 border-rose-200 text-[9px] font-medium">
           特別
         </span>
       )}

@@ -22,9 +22,9 @@ const ACTION_LABELS: Record<WorkerUploadDiffItem["action"], string> = {
 };
 
 const ACTION_COLORS: Record<WorkerUploadDiffItem["action"], string> = {
-  create: "text-cyan-400",
+  create: "text-blue-600",
   update: "text-yellow-400",
-  no_change: "text-slate-500",
+  no_change: "text-gray-400",
 };
 
 /** 差分値セル（更新前 / 更新後の比較表示） */
@@ -38,11 +38,11 @@ function DiffCell({
   action: WorkerUploadDiffItem["action"];
 }) {
   const hasChange = action === "update" && before !== after && after != null;
-  if (!after) return <span className="text-slate-600">—</span>;
-  if (!hasChange) return <span className="text-slate-300">{after}</span>;
+  if (!after) return <span className="text-gray-400">—</span>;
+  if (!hasChange) return <span className="text-gray-700">{after}</span>;
   return (
     <span className="inline-flex flex-col gap-0.5">
-      <span className="text-slate-500 line-through text-xs">{before ?? "—"}</span>
+      <span className="text-gray-400 line-through text-xs">{before ?? "—"}</span>
       <span className="text-yellow-300 font-semibold">{after}</span>
     </span>
   );
@@ -54,29 +54,29 @@ function DiffTable({ diffItems }: { diffItems: WorkerUploadDiffItem[] }) {
   return (
     <div className="overflow-x-auto max-h-72 overflow-y-auto">
       <table className="w-full text-left text-xs">
-        <thead className="sticky top-0 bg-slate-800">
-          <tr className="border-b border-slate-700/60">
-            <th className="px-3 py-2 text-slate-400 font-medium">行</th>
-            <th className="px-3 py-2 text-slate-400 font-medium">アクション</th>
-            <th className="px-3 py-2 text-slate-400 font-medium">職員番号</th>
-            <th className="px-3 py-2 text-slate-400 font-medium">氏名</th>
-            <th className="px-3 py-2 text-slate-400 font-medium">課名</th>
-            <th className="px-3 py-2 text-slate-400 font-medium">役職名</th>
-            <th className="px-3 py-2 text-slate-400 font-medium">生年月日</th>
-            <th className="px-3 py-2 text-slate-400 font-medium">異動種別</th>
+        <thead className="sticky top-0 bg-gray-50">
+          <tr className="border-b border-gray-200">
+            <th className="px-3 py-2 text-gray-500 font-medium">行</th>
+            <th className="px-3 py-2 text-gray-500 font-medium">アクション</th>
+            <th className="px-3 py-2 text-gray-500 font-medium">職員番号</th>
+            <th className="px-3 py-2 text-gray-500 font-medium">氏名</th>
+            <th className="px-3 py-2 text-gray-500 font-medium">課名</th>
+            <th className="px-3 py-2 text-gray-500 font-medium">役職名</th>
+            <th className="px-3 py-2 text-gray-500 font-medium">生年月日</th>
+            <th className="px-3 py-2 text-gray-500 font-medium">異動種別</th>
           </tr>
         </thead>
         <tbody>
           {diffItems.map((item) => (
             <tr
               key={`${item.employee_code}-${item.row_index}`}
-              className="border-b border-slate-700/30 hover:bg-slate-800/40"
+              className="border-b border-gray-100 hover:bg-gray-50"
             >
-              <td className="px-3 py-2 text-slate-500 font-mono">{item.row_index}</td>
+              <td className="px-3 py-2 text-gray-400 font-mono">{item.row_index}</td>
               <td className={`px-3 py-2 font-semibold ${ACTION_COLORS[item.action]}`}>
                 {ACTION_LABELS[item.action]}
               </td>
-              <td className="px-3 py-2 text-slate-300 font-mono">{item.employee_code}</td>
+              <td className="px-3 py-2 text-gray-700 font-mono">{item.employee_code}</td>
               <td className="px-3 py-2">
                 <DiffCell
                   before={item.before?.name}
@@ -126,7 +126,7 @@ function ErrorTable({ errorRows }: { errorRows: WorkerUploadErrorRow[] }) {
   return (
     <div className="overflow-x-auto max-h-48 overflow-y-auto rounded border border-red-500/30 bg-red-500/5">
       <table className="w-full text-left text-xs">
-        <thead className="sticky top-0 bg-slate-800">
+        <thead className="sticky top-0 bg-gray-50">
           <tr className="border-b border-red-500/30">
             <th className="px-3 py-2 text-red-400 font-medium">行</th>
             <th className="px-3 py-2 text-red-400 font-medium">職員番号</th>
@@ -287,13 +287,13 @@ export function WorkerCsvUploadPanel({ onClose }: WorkerCsvUploadPanelProps) {
         )}
       </div>
 
-      <p className="text-xs text-slate-400 mb-2">
+      <p className="text-xs text-gray-500 mb-2">
         以下の列を含むCSV（.csv）またはExcel（.xlsx）ファイルをアップロードしてください。
       </p>
-      <div className="text-xs text-slate-400 bg-slate-800/60 rounded px-3 py-2 mb-4 font-mono overflow-x-auto">
-        <span className="text-cyan-400">必須:</span> 職員番号, 氏名
+      <div className="text-xs text-gray-500 bg-gray-50 rounded px-3 py-2 mb-4 font-mono overflow-x-auto">
+        <span className="text-blue-600">必須:</span> 職員番号, 氏名
         <br />
-        <span className="text-slate-500">任意:</span>{" "}
+        <span className="text-gray-400">任意:</span>{" "}
         生年月日, 現在のスキル取得日, 役職名, 支所名, 課名, 異動種別, 異動予定月,
         事業本部変更の有無, スキルランク名
       </div>
@@ -307,8 +307,8 @@ export function WorkerCsvUploadPanel({ onClose }: WorkerCsvUploadPanelProps) {
           className={[
             "border-2 border-dashed rounded-lg px-6 py-10 text-center cursor-pointer transition-colors",
             isDragging
-              ? "border-cyan-400 bg-cyan-500/10"
-              : "border-slate-600 hover:border-slate-500",
+              ? "border-blue-400 bg-blue-50"
+              : "border-gray-300 hover:border-gray-400",
           ].join(" ")}
           onClick={() => fileInputRef.current?.click()}
           role="button"
@@ -319,7 +319,7 @@ export function WorkerCsvUploadPanel({ onClose }: WorkerCsvUploadPanelProps) {
           }}
         >
           <svg
-            className="w-10 h-10 mx-auto mb-3 text-slate-500"
+            className="w-10 h-10 mx-auto mb-3 text-gray-400"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -332,10 +332,10 @@ export function WorkerCsvUploadPanel({ onClose }: WorkerCsvUploadPanelProps) {
               d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
             />
           </svg>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-gray-500">
             CSV/Excelファイルをここにドラッグ＆ドロップ
           </p>
-          <p className="text-xs text-slate-500 mt-1">またはクリックしてファイルを選択（.csv / .xlsx）</p>
+          <p className="text-xs text-gray-400 mt-1">またはクリックしてファイルを選択（.csv / .xlsx）</p>
           <input
             ref={fileInputRef}
             type="file"
@@ -362,9 +362,9 @@ export function WorkerCsvUploadPanel({ onClose }: WorkerCsvUploadPanelProps) {
       {/* ファイル選択後の操作 */}
       {selectedFile && !uploadError && (
         <div className="mt-4 space-y-4">
-          <div className="flex items-center gap-3 text-sm text-slate-300">
+          <div className="flex items-center gap-3 text-sm text-gray-700">
             <svg
-              className="w-5 h-5 text-cyan-400 flex-shrink-0"
+              className="w-5 h-5 text-blue-600 flex-shrink-0"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -402,7 +402,7 @@ export function WorkerCsvUploadPanel({ onClose }: WorkerCsvUploadPanelProps) {
                 <CountBadge
                   label="新規追加"
                   count={preview.create_count}
-                  colorClass="bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                  colorClass="bg-blue-50 text-blue-600 border border-blue-300"
                 />
                 <CountBadge
                   label="更新"
@@ -412,7 +412,7 @@ export function WorkerCsvUploadPanel({ onClose }: WorkerCsvUploadPanelProps) {
                 <CountBadge
                   label="変更なし"
                   count={preview.no_change_count}
-                  colorClass="bg-slate-700/40 text-slate-400 border border-slate-600/40"
+                  colorClass="bg-gray-100 text-gray-500 border border-gray-200"
                 />
                 {preview.error_count > 0 && (
                   <CountBadge
@@ -437,7 +437,7 @@ export function WorkerCsvUploadPanel({ onClose }: WorkerCsvUploadPanelProps) {
               {preview.diff_items.length > 0 && (
                 <div>
                   {preview.has_errors && (
-                    <p className="text-xs text-slate-400 mb-2">
+                    <p className="text-xs text-gray-500 mb-2">
                       エラーのない行の差分プレビュー（エラー行はUpsert時にスキップされます）
                     </p>
                   )}

@@ -219,11 +219,11 @@ export function WorkerForm({
           type="checkbox"
           {...register("is_special")}
           disabled={isSubmitting}
-          className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
+          className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500/30"
         />
         <label
           htmlFor="worker-is-special"
-          className="text-sm text-slate-300 cursor-pointer"
+          className="text-sm text-gray-700 cursor-pointer"
         >
           特別雇用者（平日夜間枠のみアサイン可能）
         </label>
@@ -289,11 +289,11 @@ export function WorkerForm({
               type="checkbox"
               {...register("is_cross_division_transfer")}
               disabled={isSubmitting}
-              className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
+              className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500/30"
             />
             <label
               htmlFor="worker-is-cross-division-transfer"
-              className="text-sm text-slate-300 cursor-pointer"
+              className="text-sm text-gray-700 cursor-pointer"
             >
               事業本部間異動
             </label>

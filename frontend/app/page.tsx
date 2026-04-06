@@ -36,7 +36,7 @@ export default function DashboardPage() {
       {/* ページタイトル */}
       <div>
         <SciFiHeading level="h1">ダッシュボード</SciFiHeading>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="mt-2 text-sm text-gray-500">
           各機能へのポータルです。利用する機能を選択してください。
         </p>
       </div>
@@ -45,16 +45,16 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {visibleRoutes.map((route) => (
           <Link key={route.path} href={route.path} className="group">
-            <SciFiPanel className="p-6 h-full transition-all duration-200 hover:border-cyan-500/50 hover:shadow-[0_0_16px_rgba(6,182,212,0.15)]">
-              <h2 className="text-base font-semibold tracking-wider text-cyan-300 uppercase group-hover:text-cyan-200 transition-colors">
+            <SciFiPanel className="p-6 h-full transition-all duration-200 hover:border-gray-300 hover:shadow-md">
+              <h2 className="text-base font-semibold text-gray-800 group-hover:text-blue-600 transition-colors">
                 {route.label}
               </h2>
               {route.description && (
-                <p className="mt-2 text-sm text-slate-400">
+                <p className="mt-2 text-sm text-gray-500">
                   {route.description}
                 </p>
               )}
-              <span className="mt-4 inline-block text-xs text-slate-500 group-hover:text-cyan-400 transition-colors tracking-widest uppercase">
+              <span className="mt-4 inline-block text-xs text-gray-400 group-hover:text-blue-500 transition-colors">
                 開く →
               </span>
             </SciFiPanel>

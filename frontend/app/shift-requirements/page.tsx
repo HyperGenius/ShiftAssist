@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 
 import { SciFiHeading } from "@/components/ui/SciFiHeading";
@@ -35,7 +34,7 @@ export default function ShiftRequirementsPage() {
   }, [targetDepts, activeDeptId]);
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen bg-gray-50">
       {/* メインコンテンツ */}
       <main className="max-w-7xl mx-auto px-4 py-8">
         <SciFiHeading level="h1" className="mb-6">
@@ -50,10 +49,10 @@ export default function ShiftRequirementsPage() {
                 key={dept.id}
                 onClick={() => setActiveDeptId(dept.id)}
                 className={[
-                  "px-4 py-1.5 rounded text-sm font-medium tracking-wide transition-colors",
+                  "px-4 py-1.5 rounded text-sm font-medium transition-colors",
                   dept.id === activeDept?.id
-                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/50"
-                    : "bg-slate-800/60 text-slate-400 border border-slate-600/50 hover:text-slate-200 hover:bg-slate-700/60",
+                    ? "bg-gray-100 text-gray-800 border border-gray-300"
+                    : "bg-white text-gray-500 border border-gray-200 hover:text-gray-700 hover:bg-gray-50",
                 ].join(" ")}
               >
                 {dept.name}
@@ -64,17 +63,17 @@ export default function ShiftRequirementsPage() {
 
         {/* カレンダー */}
         {isLoading ? (
-          <div className="flex items-center justify-center py-20 text-slate-500 text-sm">
+          <div className="flex items-center justify-center py-20 text-gray-400 text-sm">
             読み込み中...
           </div>
         ) : activeDept ? (
           <ShiftCalendar department={activeDept} />
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-slate-500 text-sm gap-3">
+          <div className="flex flex-col items-center justify-center py-20 text-gray-400 text-sm gap-3">
             <p>シフト対象部門が設定されていません。</p>
             <Link
               href="/settings"
-              className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors"
+              className="text-blue-500 hover:text-blue-600 underline underline-offset-2 transition-colors"
             >
               テナント設定画面で対象部門を設定する →
             </Link>

@@ -70,9 +70,9 @@ function AddPositionForm({
                 setFlags((prev) => ({ ...prev, [key]: e.target.checked }))
               }
               disabled={isSubmitting}
-              className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
+              className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500/30"
             />
-            <span className="text-sm text-slate-300">{label}</span>
+            <span className="text-sm text-gray-700">{label}</span>
           </label>
         ))}
       </div>
@@ -131,7 +131,7 @@ function PositionRow({
 
   if (isEditing) {
     return (
-      <li className="py-3 border-b border-slate-700/40 space-y-3">
+      <li className="py-3 border-b border-gray-200 space-y-3">
         <SciFiInput
           id={`edit-position-${position.id}`}
           label=""
@@ -149,9 +149,9 @@ function PositionRow({
                   setEditFlags((prev) => ({ ...prev, [key]: e.target.checked }))
                 }
                 disabled={isSaving}
-                className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
+                className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500/30"
               />
-              <span className="text-sm text-slate-300">{label}</span>
+              <span className="text-sm text-gray-700">{label}</span>
             </label>
           ))}
         </div>
@@ -182,13 +182,13 @@ function PositionRow({
   }
 
   return (
-    <li className="flex items-center gap-3 py-2 border-b border-slate-700/40">
-      <span className="flex-1 text-sm text-slate-200">{position.name}</span>
+    <li className="flex items-center gap-3 py-2 border-b border-gray-200">
+      <span className="flex-1 text-sm text-gray-800">{position.name}</span>
       <div className="flex flex-wrap gap-1">
         {activeFlags.map((label) => (
           <span
             key={label}
-            className="text-xs text-cyan-400 border border-cyan-500/40 px-1.5 py-0.5 rounded"
+            className="text-xs text-blue-600 border border-blue-300 px-1.5 py-0.5 rounded"
           >
             {label}
           </span>
@@ -257,7 +257,7 @@ export function PositionSettingsForm() {
     return (
       <div className="space-y-3">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="h-10 rounded bg-slate-800/60 animate-pulse" />
+          <div key={i} className="h-10 rounded bg-gray-200 animate-pulse" />
         ))}
       </div>
     );
@@ -275,12 +275,12 @@ export function PositionSettingsForm() {
     <div className="space-y-6">
       <SciFiPanel className="p-6 space-y-4">
         <SciFiHeading level="h3">役職一覧</SciFiHeading>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-gray-500">
           各除外フラグが有効な役職は、該当する長期休暇期間中のシフトアサインから除外されます。
         </p>
 
         {positions.length === 0 ? (
-          <p className="text-sm text-slate-500 py-4 text-center">
+          <p className="text-sm text-gray-400 py-4 text-center">
             役職が登録されていません。以下から追加してください。
           </p>
         ) : (
