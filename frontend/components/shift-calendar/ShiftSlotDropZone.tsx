@@ -97,61 +97,69 @@ export function ShiftSlotDropZone({
       ref={setNodeRef}
       onClick={onFocus}
       className={[
-        "relative min-h-[26px] rounded border px-1.5 py-1 text-[10px] transition-all cursor-pointer flex items-center gap-1",
-        // 通常状態
-        !isDragActive && "bg-slate-800/40 border-slate-600/40 hover:border-slate-500/60",
+        "group relative min-h-[26px] rounded border px-1.5 py-1 text-[10px] transition-all cursor-pointer",
+        // 通常状態: クリーンなモダンUI
+        !isDragActive && "bg-white border-gray-200 hover:border-gray-300",
         // ドラッグ中: 禁止
-        showDropForbidden && "bg-red-900/20 border-red-500/40 cursor-no-drop",
+        showDropForbidden && "bg-red-50 border-red-300 cursor-no-drop",
         // ドラッグ中: ドロップ可能
-        showDropReady && "bg-cyan-900/20 border-cyan-500/40 border-dashed",
+        showDropReady && "bg-blue-50 border-blue-300 border-dashed",
         // ドラッグ中: ホバー中（ドロップ可）
-        showDropActive && "bg-cyan-500/20 border-cyan-400/70 shadow-[0_0_8px_rgba(6,182,212,0.4)]",
+        showDropActive && "bg-blue-100 border-blue-400 shadow-sm",
       ]
         .filter(Boolean)
         .join(" ")}
     >
       {assignedWorker ? (
         <>
-          {/* アサイン済みWorker情報 */}
-          <span className="text-slate-200 font-medium truncate flex-1">
-            {assignedWorker.name}
-          </span>
-          {dept && (
-            <span className="shrink-0 text-[8px] px-0.5 rounded bg-slate-700/60 text-slate-400">
-              {dept.name}
-            </span>
-          )}
-          {rank?.is_leader_eligible && (
-            <span className="shrink-0 text-[8px] text-yellow-400">★</span>
-          )}
-          {/* クリアボタン */}
+          {/* アサイン済みWorker情報: 縦積みレイアウト */}
+          <div className="flex flex-col min-w-0">
+            {/* 1行目: 名前 + リーダーアイコン（pr-5は右上✕ボタン分のスペース） */}
+            <div className="flex items-center gap-0.5 pr-5">
+              <span className="text-gray-800 font-medium truncate">
+                {assignedWorker.name}
+              </span>
+              {rank?.is_leader_eligible && (
+                <span className="shrink-0 text-[8px] text-yellow-500">★</span>
+              )}
+            </div>
+            {/* 2行目: 所属バッジ */}
+            {dept && (
+              <span className="mt-0.5 self-start text-[8px] px-1 rounded bg-gray-100 text-gray-500 border border-gray-200">
+                {dept.name}
+              </span>
+            )}
+          </div>
+          {/* クリアボタン: ホバー時のみ表示 */}
           <button
             onClick={(e) => {
               e.stopPropagation();
               onClear();
             }}
-            className="shrink-0 text-slate-500 hover:text-red-400 transition-colors ml-0.5"
+            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 text-gray-400 hover:text-red-500 transition-opacity"
             aria-label="アサイン解除"
           >
             ✕
           </button>
         </>
       ) : (
-        <span
-          className={[
-            "text-slate-600 flex-1 text-center",
-            showDropActive && "text-cyan-400",
-            showDropForbidden && "text-red-400",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-        >
-          {showDropForbidden
-            ? "⊘ 不可"
-            : showDropActive
-              ? "ここへドロップ"
-              : "---"}
-        </span>
+        <div className="flex items-center justify-center min-h-[18px]">
+          <span
+            className={[
+              "text-gray-400 text-center",
+              showDropActive && "text-blue-500",
+              showDropForbidden && "text-red-400",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            {showDropForbidden
+              ? "⊘ 不可"
+              : showDropActive
+                ? "ここへドロップ"
+                : "---"}
+          </span>
+        </div>
       )}
     </div>
   );
