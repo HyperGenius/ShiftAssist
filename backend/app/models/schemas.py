@@ -247,6 +247,36 @@ class TenantSkillRankResponse(BaseModel):
     created_at: datetime
 
 
+class EmploymentTypeCreate(BaseModel):
+    """EmploymentType作成リクエストスキーマ."""
+
+    name: str
+
+
+class EmploymentTypeUpdate(BaseModel):
+    """EmploymentType更新リクエストスキーマ.
+
+    すべてのフィールドはオプショナル。指定したフィールドのみ更新される。
+    """
+
+    name: str | None = None
+
+
+class EmploymentTypeResponse(BaseModel):
+    """EmploymentTypeレスポンススキーマ.
+
+    ORMモデルからの変換に対応するため ``from_attributes=True`` を設定。
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    tenant_id: str
+    name: str
+    created_at: datetime
+    updated_at: datetime
+
+
 class WorkerCreate(BaseModel):
     """Worker作成リクエストスキーマ."""
 
@@ -256,6 +286,7 @@ class WorkerCreate(BaseModel):
     department_id: uuid.UUID
     skill_rank_id: uuid.UUID
     position_id: uuid.UUID | None = None
+    employment_type_id: uuid.UUID | None = None
     is_special: bool = False
     birth_date: date | None = None
     skill_acquired_at: date | None = None
@@ -263,6 +294,7 @@ class WorkerCreate(BaseModel):
     transfer_scheduled_month: str | None = None
     is_cross_division_transfer: bool | None = None
     joined_at: date | None = None
+    transferred_at: date | None = None
 
 
 class WorkerUpdate(BaseModel):
@@ -277,6 +309,7 @@ class WorkerUpdate(BaseModel):
     department_id: uuid.UUID | None = None
     skill_rank_id: uuid.UUID | None = None
     position_id: uuid.UUID | None = None
+    employment_type_id: uuid.UUID | None = None
     is_special: bool | None = None
     birth_date: date | None = None
     skill_acquired_at: date | None = None
@@ -284,6 +317,7 @@ class WorkerUpdate(BaseModel):
     transfer_scheduled_month: str | None = None
     is_cross_division_transfer: bool | None = None
     joined_at: date | None = None
+    transferred_at: date | None = None
 
 
 class WorkerResponse(BaseModel):
@@ -302,6 +336,7 @@ class WorkerResponse(BaseModel):
     department_id: uuid.UUID
     skill_rank_id: uuid.UUID | None = None
     position_id: uuid.UUID | None = None
+    employment_type_id: uuid.UUID | None = None
     is_special: bool
     birth_date: date | None = None
     skill_acquired_at: date | None = None
@@ -309,6 +344,7 @@ class WorkerResponse(BaseModel):
     transfer_scheduled_month: str | None = None
     is_cross_division_transfer: bool | None = None
     joined_at: date | None = None
+    transferred_at: date | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -560,3 +596,27 @@ class TenantHolidayResponse(BaseModel):
     name: str
     is_long_holiday: bool
     created_at: datetime
+
+
+class ValidationContextWorkerStats(BaseModel):
+    """バリデーションコンテキスト用のワーカー実績サマリースキーマ."""
+
+    worker_id: uuid.UUID
+    sun_hol_day_this_month: int
+    """当月の日曜・祝日昼間シフト回数."""
+    gw_last_year: int
+    """前年GWシフト参加回数."""
+    year_end_last_year: int
+    """前年年末年始シフト参加回数."""
+    last_shift_date: date | None
+    """直近のシフト日付（間隔チェック用）."""
+
+
+class ValidationContextResponse(BaseModel):
+    """シフト作成画面マウント時の一括バリデーションコンテキストレスポンス.
+
+    フロントエンドがリアルタイムバリデーションに必要なデータを一括で返す。
+    """
+
+    workers: list[WorkerResponse]
+    worker_stats: list[ValidationContextWorkerStats]

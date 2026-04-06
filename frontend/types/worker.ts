@@ -12,6 +12,7 @@ export interface Worker {
   department_id: string;
   skill_rank_id: string;
   position_id: string | null;
+  employment_type_id: string | null;
   is_special: boolean;
   birth_date: string | null;
   skill_acquired_at: string | null;
@@ -19,6 +20,7 @@ export interface Worker {
   transfer_scheduled_month: string | null;
   is_cross_division_transfer: boolean | null;
   joined_at: string | null;
+  transferred_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -30,6 +32,7 @@ export interface WorkerCreate {
   department_id: string;
   skill_rank_id: string;
   position_id?: string | null;
+  employment_type_id?: string | null;
   is_special: boolean;
   birth_date?: string | null;
   skill_acquired_at?: string | null;
@@ -37,6 +40,7 @@ export interface WorkerCreate {
   transfer_scheduled_month?: string | null;
   is_cross_division_transfer?: boolean | null;
   joined_at?: string | null;
+  transferred_at?: string | null;
 }
 
 export interface WorkerUpdate {
@@ -46,6 +50,7 @@ export interface WorkerUpdate {
   department_id?: string;
   skill_rank_id?: string;
   position_id?: string | null;
+  employment_type_id?: string | null;
   is_special?: boolean;
   birth_date?: string | null;
   skill_acquired_at?: string | null;
@@ -53,6 +58,7 @@ export interface WorkerUpdate {
   transfer_scheduled_month?: string | null;
   is_cross_division_transfer?: boolean | null;
   joined_at?: string | null;
+  transferred_at?: string | null;
 }
 
 export interface WorkerBulkItem {
