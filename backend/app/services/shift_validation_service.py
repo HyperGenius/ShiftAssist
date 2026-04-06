@@ -361,6 +361,7 @@ def _check_sun_hol_day_monthly_limit(
     shift_date: date = requirement.shift_date  # type: ignore[assignment]
     month_start = shift_date.replace(day=1)
     import calendar
+
     last_day = calendar.monthrange(shift_date.year, shift_date.month)[1]
     month_end = shift_date.replace(day=last_day)
 
@@ -448,7 +449,9 @@ def _check_long_holiday_prev_year_exclusion(
         ).first()
         if prev_year_assignment:
             holiday_name = (
-                "GW" if current_period.holiday_type == LongHolidayTypeEnum.gw else "年末年始"
+                "GW"
+                if current_period.holiday_type == LongHolidayTypeEnum.gw
+                else "年末年始"
             )
             violations.append(
                 ValidationViolationItem(

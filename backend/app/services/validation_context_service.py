@@ -50,9 +50,7 @@ def get_validation_context(
     prev_year = year - 1
 
     # 全ワーカーを取得
-    workers = session.exec(
-        select(Worker).where(Worker.tenant_id == tenant_id)
-    ).all()
+    workers = session.exec(select(Worker).where(Worker.tenant_id == tenant_id)).all()
 
     worker_ids = [w.id for w in workers]
 
@@ -108,6 +106,7 @@ def _count_sun_hol_day_current_month(
 
     # 対象月の開始日・終了日を計算
     import calendar
+
     start_date = date(year, month, 1)
     last_day = calendar.monthrange(year, month)[1]
     end_date = date(year, month, last_day)
@@ -115,10 +114,12 @@ def _count_sun_hol_day_current_month(
     rows = session.exec(
         select(
             ShiftRequirementAssignment.worker_id,
-        ).join(
+        )
+        .join(
             ShiftRequirement,
             ShiftRequirementAssignment.requirement_id == ShiftRequirement.id,  # type: ignore[arg-type]
-        ).where(
+        )
+        .where(
             ShiftRequirementAssignment.tenant_id == tenant_id,
             ShiftRequirementAssignment.worker_id.in_(worker_ids),  # type: ignore[attr-defined]
             ShiftRequirement.slot_type == SlotTypeEnum.sun_hol_day,
@@ -162,10 +163,12 @@ def _count_long_holiday_prev_year(
         rows = session.exec(
             select(
                 ShiftRequirementAssignment.worker_id,
-            ).join(
+            )
+            .join(
                 ShiftRequirement,
                 ShiftRequirementAssignment.requirement_id == ShiftRequirement.id,  # type: ignore[arg-type]
-            ).where(
+            )
+            .where(
                 ShiftRequirementAssignment.tenant_id == tenant_id,
                 ShiftRequirementAssignment.worker_id.in_(worker_ids),  # type: ignore[attr-defined]
                 ShiftRequirement.shift_date >= period.start_date,
@@ -198,13 +201,16 @@ def _get_last_shift_dates(
         select(
             ShiftRequirementAssignment.worker_id,
             ShiftRequirement.shift_date,
-        ).join(
+        )
+        .join(
             ShiftRequirement,
             ShiftRequirementAssignment.requirement_id == ShiftRequirement.id,  # type: ignore[arg-type]
-        ).where(
+        )
+        .where(
             ShiftRequirementAssignment.tenant_id == tenant_id,
             ShiftRequirementAssignment.worker_id.in_(worker_ids),  # type: ignore[attr-defined]
-        ).order_by(ShiftRequirement.shift_date.desc())  # type: ignore[attr-defined]
+        )
+        .order_by(ShiftRequirement.shift_date.desc())  # type: ignore[attr-defined]
     ).all()
 
     last_dates: dict[str, date] = {}
