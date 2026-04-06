@@ -28,15 +28,15 @@ export function Header() {
   );
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm">
+    <header className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
         {/* ブランドロゴ */}
         <div className="flex items-center gap-6">
           <Link
             href="/"
-            className="text-sm font-bold tracking-widest text-cyan-300 uppercase hover:text-cyan-200 transition-colors"
+            className="text-sm font-bold tracking-widest text-gray-800 uppercase hover:text-gray-600 transition-colors"
           >
-            SHIFT<span className="text-slate-400">ASSIST</span>
+            SHIFT<span className="text-gray-400">ASSIST</span>
           </Link>
 
           {/* ナビゲーションリンク */}
@@ -50,8 +50,8 @@ export function Header() {
                   className={[
                     "px-3 py-1.5 text-xs font-medium tracking-wider uppercase rounded transition-all duration-200",
                     isActive
-                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/50"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/40 border border-transparent",
+                      ? "bg-gray-100 text-gray-800 border border-gray-300"
+                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-100 border border-transparent",
                   ].join(" ")}
                 >
                   {route.label}
