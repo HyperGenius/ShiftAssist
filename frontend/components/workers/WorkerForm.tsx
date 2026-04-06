@@ -232,7 +232,7 @@ export function WorkerForm({
           {isEmploymentTypesLoading
             ? "読み込み中..."
             : employmentTypes.length === 0
-              ? "雇用形態が登録されていません"
+              ? "雇用形態が登録されていません（管理設定から登録できます）"
               : "雇用形態を選択してください（任意）"}
         </option>
         {employmentTypes.map((et) => (
