@@ -69,6 +69,9 @@ def _make_worker(
     is_special: bool = False,
     birth_date: object = None,
     position_id: uuid.UUID | None = None,
+    joined_at: object = None,
+    transferred_at: object = None,
+    is_cross_division_transfer: bool | None = None,
 ) -> Worker:
     """テスト用Workerオブジェクトを生成するヘルパー."""
     w = Worker()
@@ -80,6 +83,9 @@ def _make_worker(
     w.is_special = is_special
     w.birth_date = birth_date  # type: ignore[assignment]
     w.position_id = position_id  # type: ignore[assignment]
+    w.joined_at = joined_at  # type: ignore[assignment]
+    w.transferred_at = transferred_at  # type: ignore[assignment]
+    w.is_cross_division_transfer = is_cross_division_transfer
     w.created_at = datetime(2026, 1, 1)
     w.updated_at = datetime(2026, 1, 1)
     return w
@@ -422,7 +428,7 @@ class TestValidateShiftAssignments:
     # --- ルール6: 60歳以上同士のペア禁止 ---
 
     def test_age_restriction_two_aged_workers_detected(self) -> None:
-        """異常系（ルール6）: 60歳以上のWorker同士がペアになった場合、AGE_RESTRICTION を返す."""
+        """異常系（ルール6）: 60歳以上のWorker同士がペアになって年齢合計が120超の場合、AGE_SUM_EXCEEDED を返す."""
         from datetime import date
 
         session = MagicMock()
@@ -430,7 +436,7 @@ class TestValidateShiftAssignments:
             **{"first.return_value": None, "all.return_value": []}
         )
         req = _make_requirement(shift_date_str="2026-04-01")
-        # シフト対象月初日（2026-04-01）時点で60歳以上
+        # シフト対象月初日（2026-04-01）時点で60歳以上 → 合計121歳
         w1 = _make_worker(
             worker_id=WORKER_ID_1,
             department_id=DEPT_A_ID,
@@ -447,10 +453,10 @@ class TestValidateShiftAssignments:
         )
 
         codes = [v.code for v in result]
-        assert "AGE_RESTRICTION" in codes
+        assert "AGE_SUM_EXCEEDED" in codes
 
     def test_age_restriction_one_aged_one_young_no_violation(self) -> None:
-        """正常系（ルール6）: 片方が60歳以上・片方が60歳未満の場合、AGE_RESTRICTION なし."""
+        """正常系（ルール6）: 年齢合計が120以下の場合、AGE_SUM_EXCEEDED なし."""
         from datetime import date
 
         session = MagicMock()
@@ -461,12 +467,12 @@ class TestValidateShiftAssignments:
         w1 = _make_worker(
             worker_id=WORKER_ID_1,
             department_id=DEPT_A_ID,
-            birth_date=date(1966, 1, 1),  # 60歳以上
+            birth_date=date(1966, 1, 1),  # 60歳
         )
         w2 = _make_worker(
             worker_id=WORKER_ID_2,
             department_id=DEPT_B_ID,
-            birth_date=date(1990, 1, 1),  # 36歳
+            birth_date=date(1990, 1, 1),  # 36歳 → 合計96歳 ≤ 120
         )
 
         result = shift_validation_service.validate_shift_assignments(
@@ -474,7 +480,7 @@ class TestValidateShiftAssignments:
         )
 
         codes = [v.code for v in result]
-        assert "AGE_RESTRICTION" not in codes
+        assert "AGE_SUM_EXCEEDED" not in codes
 
     def test_age_restriction_no_birth_date_no_violation(self) -> None:
         """正常系（ルール6）: birth_dateがNullのWorkerは年齢制限チェック対象外."""
@@ -492,7 +498,7 @@ class TestValidateShiftAssignments:
         )
 
         codes = [v.code for v in result]
-        assert "AGE_RESTRICTION" not in codes
+        assert "AGE_SUM_EXCEEDED" not in codes
 
     # --- ルール7: 役職除外チェック ---
 
@@ -646,3 +652,169 @@ class TestValidateShiftAssignments:
 
         for v in result:
             assert v.severity == "error"
+
+    # --- ルール8: 着任・異動後の期間制限 ---
+
+    def test_new_hire_tenure_violation(self) -> None:
+        """異常系（ルール8）: 着任から6ヶ月未満のワーカーがアサインされた場合、NEW_HIRE_TENURE を返す."""
+        from datetime import date
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement(shift_date_str="2026-04-01")
+        # 着任2ヶ月前 → 6ヶ月未満
+        w = _make_worker(
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            joined_at=date(2026, 2, 1),
+        )
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [w], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "NEW_HIRE_TENURE" in codes
+
+    def test_new_hire_tenure_no_violation_after_6_months(self) -> None:
+        """正常系（ルール8）: 着任から6ヶ月以上経過している場合、NEW_HIRE_TENURE なし."""
+        from datetime import date
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement(shift_date_str="2026-04-01")
+        # 着任8ヶ月前 → 6ヶ月以上経過
+        w = _make_worker(
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            joined_at=date(2025, 8, 1),
+        )
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [w], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "NEW_HIRE_TENURE" not in codes
+
+    def test_cross_division_transfer_tenure_violation(self) -> None:
+        """異常系（ルール8）: 事業本部間異動後3ヶ月未満のワーカーがアサインされた場合、TRANSFER_TENURE を返す."""
+        from datetime import date
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement(shift_date_str="2026-04-01")
+        # 異動1ヶ月前 → 3ヶ月未満
+        w = _make_worker(
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            is_cross_division_transfer=True,
+            transferred_at=date(2026, 3, 1),
+        )
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [w], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "TRANSFER_TENURE" in codes
+
+    def test_cross_division_transfer_tenure_no_violation_after_3_months(self) -> None:
+        """正常系（ルール8）: 事業本部間異動後3ヶ月以上経過している場合、TRANSFER_TENURE なし."""
+        from datetime import date
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement(shift_date_str="2026-04-01")
+        # 異動4ヶ月前 → 3ヶ月以上経過
+        w = _make_worker(
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            is_cross_division_transfer=True,
+            transferred_at=date(2025, 12, 1),
+        )
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [w], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "TRANSFER_TENURE" not in codes
+
+    # --- ルール9: 日曜・祝日昼間シフトの月1回制限 ---
+
+    def test_sun_hol_day_monthly_limit_violation(self) -> None:
+        """異常系（ルール9）: 当月に日曜・祝日昼間シフトに既にアサイン済みの場合、SUN_HOL_DAY_MONTHLY_LIMIT を返す."""
+        session = MagicMock()
+
+        def exec_side_effect(stmt: object) -> MagicMock:
+            m = MagicMock()
+            m.first.return_value = MagicMock()  # 既存アサインあり
+            m.all.return_value = []
+            return m
+
+        session.exec.side_effect = exec_side_effect
+        req = _make_requirement(shift_date_str="2026-04-15", slot_type="sun_hol_day", required_headcount=1)
+        w = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [w], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "SUN_HOL_DAY_MONTHLY_LIMIT" in codes
+
+    def test_sun_hol_day_monthly_limit_no_violation_for_other_slot(self) -> None:
+        """正常系（ルール9）: sun_hol_day以外のスロットでは月1回制限は適用されない."""
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": MagicMock(), "all.return_value": []}
+        )
+        # weekday_night スロット → 月1回制限は不適用
+        req = _make_requirement(shift_date_str="2026-04-15", slot_type="weekday_night", required_headcount=1)
+        w = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [w], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "SUN_HOL_DAY_MONTHLY_LIMIT" not in codes
+
+    # --- ルール6（新）: 年齢合計チェック ---
+
+    def test_age_sum_exactly_120_no_violation(self) -> None:
+        """正常系（ルール6）: 年齢合計がちょうど120歳の場合は違反なし."""
+        from datetime import date
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement(shift_date_str="2026-04-01")
+        # 2026-04-01 時点で60歳ちょうどの2人 → 合計120歳
+        w1 = _make_worker(
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            birth_date=date(1966, 4, 1),  # 60歳
+        )
+        w2 = _make_worker(
+            worker_id=WORKER_ID_2,
+            department_id=DEPT_B_ID,
+            birth_date=date(1966, 4, 1),  # 60歳
+        )
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [w1, w2], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "AGE_SUM_EXCEEDED" not in codes

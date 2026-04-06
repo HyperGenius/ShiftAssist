@@ -218,11 +218,38 @@ class TenantSkillRank(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class EmploymentType(Base):
+    """テナントごとの雇用形態マスタを表すSQLAlchemyモデル.
+
+    テナント管理者が任意の名称で雇用形態を定義できる。
+    Worker の ``employment_type_id`` FK により雇用形態を紐付ける。
+
+    Attributes:
+        id: UUIDによるプライマリキー。
+        tenant_id: Clerk OrganizationのID。テナント分離に使用。
+        name: 雇用形態の表示名（例: "正職員", "非常勤", "特別雇用"）。
+        created_at: レコード作成日時。
+        updated_at: レコード最終更新日時。更新時に自動更新される。
+    """
+
+    __tablename__ = "employment_types"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "name", name="uq_employment_type_tenant_name"),
+    )
+
+
 class Worker(Base):
     """シフトにアサインされる対応者を表すSQLAlchemyモデル.
 
     マルチテナント対応のため ``tenant_id`` で論理分離される。
     特別雇用者（``is_special=True``）は平日夜間枠のみアサイン可能。
+    ``employment_type_id`` により雇用形態マスタと紐付く。
 
     Attributes:
         id: UUIDによるプライマリキー。
@@ -233,13 +260,15 @@ class Worker(Base):
         department_id: 所属課のID（departmentsテーブルへのFK）。
         skill_rank_id: スキルランクのID（tenant_skill_ranksテーブルへのFK）。
         position_id: 役職のID（positionsテーブルへのFK）。任意。
-        is_special: 特別雇用者フラグ。Trueの場合、平日夜間枠のみアサイン可能。
+        employment_type_id: 雇用形態のID（employment_typesテーブルへのFK）。任意。
+        is_special: 特別雇用者フラグ（後方互換性のため残存。新規は employment_type_id を使用）。
         birth_date: 生年月日（年齢計算用）。
         skill_acquired_at: 現在のスキルランクの取得日。
         transfer_type: 異動種別。
         transfer_scheduled_month: 異動予定月（YYYY-MM形式）。
         is_cross_division_transfer: 事業本部間異動フラグ。
-        joined_at: 着任日（統計正規化に使用）。
+        joined_at: 着任日（新人・異動者の期間制限判定、統計正規化に使用）。
+        transferred_at: 異動日（異動後3ヶ月経過判定に使用）。
         created_at: レコード作成日時。
         updated_at: レコード最終更新日時。更新時に自動更新される。
     """
@@ -257,7 +286,10 @@ class Worker(Base):
         UUID(as_uuid=True), ForeignKey("tenant_skill_ranks.id"), nullable=False
     )
     position_id = Column(UUID(as_uuid=True), ForeignKey("positions.id"), nullable=True)
-    is_special = Column(Boolean, default=False)
+    employment_type_id = Column(
+        UUID(as_uuid=True), ForeignKey("employment_types.id"), nullable=True
+    )  # 雇用形態ID（employment_typesテーブルへのFK）
+    is_special = Column(Boolean, default=False)  # 後方互換性フラグ
     birth_date = Column(Date, nullable=True)  # 生年月日（年齢計算用）
     skill_acquired_at = Column(Date, nullable=True)  # スキルランク取得日
     transfer_type = Column(Enum(TransferTypeEnum), nullable=True)  # type: ignore[var-annotated]
@@ -266,6 +298,7 @@ class Worker(Base):
         Boolean, nullable=True, default=False
     )  # 事業本部間異動
     joined_at = Column(Date, nullable=True)  # 着任日（統計正規化に使用）
+    transferred_at = Column(Date, nullable=True)  # 異動日（異動後3ヶ月経過判定）
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

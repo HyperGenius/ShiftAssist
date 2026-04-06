@@ -6,11 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers.branches import router as branches_router
 from app.routers.departments import router as departments_router
+from app.routers.employment_types import router as employment_types_router
 from app.routers.holidays import router as holidays_router
 from app.routers.long_holiday_periods import router as long_holiday_periods_router
 from app.routers.positions import router as positions_router
 from app.routers.rules import router as rules_router
 from app.routers.shift_requirements import router as shift_requirements_router
+from app.routers.shifts import router as shifts_router
 from app.routers.skill_ranks import router as skill_ranks_router
 from app.routers.worker_stats import router as worker_stats_router
 from app.routers.workers import router as workers_router
@@ -51,6 +53,8 @@ app.include_router(holidays_router)
 app.include_router(branches_router)
 app.include_router(positions_router)
 app.include_router(long_holiday_periods_router)
+app.include_router(employment_types_router)
+app.include_router(shifts_router)
 
 # --- Response Schemas ---
 

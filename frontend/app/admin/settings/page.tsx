@@ -41,6 +41,12 @@ const SETTINGS_LINKS = [
     description: "役職名とシフト除外フラグ（GW・SW・年末年始等）を管理します。",
     icon: "🎖️",
   },
+  {
+    href: "/admin/settings/employment-types",
+    label: "雇用形態マスタ管理",
+    description: "テナント固有の雇用形態（正職員・非常勤・特別雇用等）を定義します。",
+    icon: "🗂️",
+  },
 ] as const;
 
 export default async function SettingsIndexPage() {

@@ -12,14 +12,17 @@ from typing import cast
 from sqlmodel import Session, select
 
 from app.models.models import (
+    LongHolidayPeriod,
+    LongHolidayTypeEnum,
     Position,
     ShiftRequirement,
     ShiftRequirementAssignment,
+    SlotTypeEnum,
     TenantSkillRank,
     Worker,
 )
 from app.models.rule_schemas import ShiftRulesConfig, ValidationViolationItem
-from app.services.age_utils import is_aged_60_or_over
+from app.services.age_utils import calculate_age_at
 from app.services.long_holiday_period_service import (
     get_period_for_date,
     is_holiday_type_excluded_by_position,
@@ -207,25 +210,33 @@ def _check_age_restriction(
     workers: list[Worker],
     shift_date: date,
 ) -> list[ValidationViolationItem]:
-    """ルール6: 年齢制限チェック（60歳以上同士のペア禁止）.
+    """ルール6: 年齢制限チェック（ペアの年齢合計が120歳以下であること）.
 
     シフト対象日の属する月の初日を基準日として年齢を計算する。
-    一方が60歳以上の場合、相手も60歳以上であればエラーとなる。
+    ペア（2名）の年齢合計が120歳を超える場合はエラーとなる。
     """
     reference_date = shift_date.replace(day=1)
-    aged_workers = [
-        w
-        for w in workers
-        if w.birth_date is not None and is_aged_60_or_over(w.birth_date, reference_date)  # type: ignore[arg-type]
-    ]
-    if len(aged_workers) < 2:
+
+    workers_with_birth_date = [w for w in workers if w.birth_date is not None]
+    if len(workers_with_birth_date) < 2:
         return []
+
+    age_sum = sum(
+        calculate_age_at(cast(date, w.birth_date), reference_date)
+        for w in workers_with_birth_date
+    )
+    if age_sum <= 120:
+        return []
+
     return [
         ValidationViolationItem(
-            code="AGE_RESTRICTION",
+            code="AGE_SUM_EXCEEDED",
             severity="error",
-            message="60歳以上のWorker同士がペアになっています。一方は60歳未満である必要があります",
-            worker_ids=[str(w.id) for w in aged_workers],
+            message=(
+                f"ペアの年齢合計が120歳を超えています（合計: {age_sum}歳）。"
+                "年齢合計が120歳以下のペアを組んでください"
+            ),
+            worker_ids=[str(w.id) for w in workers_with_birth_date],
         )
     ]
 
@@ -269,6 +280,193 @@ def _check_position_exclusion(
     return violations
 
 
+def _check_tenure_restriction(
+    workers: list[Worker],
+    shift_date: date,
+) -> list[ValidationViolationItem]:
+    """ルール8: 着任・異動後の期間制限チェック.
+
+    - 新人（joined_at）: 着任から6ヶ月経過していない場合はアサイン不可。
+    - 事業本部間異動者（is_cross_division_transfer=True）:
+      異動日（transferred_at または joined_at）から3ヶ月経過していない場合はアサイン不可。
+    """
+    violations: list[ValidationViolationItem] = []
+    for worker in workers:
+        # 事業本部間異動者: transferred_at または joined_at から3ヶ月チェック
+        if worker.is_cross_division_transfer:
+            transfer_date: date | None = (
+                worker.transferred_at  # type: ignore[assignment]
+                if worker.transferred_at is not None
+                else worker.joined_at  # type: ignore[assignment]
+            )
+            if transfer_date is not None:
+                months_since_transfer = _months_between(transfer_date, shift_date)
+                if months_since_transfer < 3:
+                    violations.append(
+                        ValidationViolationItem(
+                            code="TRANSFER_TENURE",
+                            severity="error",
+                            message=(
+                                f"{worker.name} は事業本部間異動後3ヶ月経過していません"
+                                f"（異動日: {transfer_date}、あと"
+                                f" {3 - months_since_transfer} ヶ月必要）"
+                            ),
+                            worker_ids=[str(worker.id)],
+                        )
+                    )
+            continue
+
+        # 新人（未経験者）: joined_at から6ヶ月チェック
+        if worker.joined_at is not None:
+            months_since_joined = _months_between(worker.joined_at, shift_date)  # type: ignore[arg-type]
+            if months_since_joined < 6:
+                violations.append(
+                    ValidationViolationItem(
+                        code="NEW_HIRE_TENURE",
+                        severity="error",
+                        message=(
+                            f"{worker.name} は着任後6ヶ月経過していません"
+                            f"（着任日: {worker.joined_at}、あと"
+                            f" {6 - months_since_joined} ヶ月必要）"
+                        ),
+                        worker_ids=[str(worker.id)],
+                    )
+                )
+    return violations
+
+
+def _months_between(start_date: date, end_date: date) -> int:
+    """2つの日付間の完全な月数を計算する（切り捨て）."""
+    total_months = (end_date.year - start_date.year) * 12 + (
+        end_date.month - start_date.month
+    )
+    if end_date.day < start_date.day:
+        total_months -= 1
+    return max(0, total_months)
+
+
+def _check_sun_hol_day_monthly_limit(
+    session: Session,
+    tenant_id: str,
+    requirement: ShiftRequirement,
+    workers: list[Worker],
+) -> list[ValidationViolationItem]:
+    """ルール9: 日曜・祝日昼間シフトの月1回制限チェック.
+
+    sun_hol_day 枠に対して、同月内に既にアサイン済みの場合はエラーとなる。
+    """
+    if str(requirement.slot_type) != SlotTypeEnum.sun_hol_day:
+        return []
+
+    shift_date: date = requirement.shift_date  # type: ignore[assignment]
+    month_start = shift_date.replace(day=1)
+    import calendar
+
+    last_day = calendar.monthrange(shift_date.year, shift_date.month)[1]
+    month_end = shift_date.replace(day=last_day)
+
+    violations: list[ValidationViolationItem] = []
+    for worker in workers:
+        existing = session.exec(
+            select(ShiftRequirementAssignment)
+            .join(
+                ShiftRequirement,
+                ShiftRequirementAssignment.requirement_id == ShiftRequirement.id,  # type: ignore[arg-type]
+            )
+            .where(
+                ShiftRequirementAssignment.worker_id == worker.id,
+                ShiftRequirementAssignment.tenant_id == tenant_id,
+                ShiftRequirement.slot_type == SlotTypeEnum.sun_hol_day,
+                ShiftRequirement.shift_date >= month_start,
+                ShiftRequirement.shift_date <= month_end,
+                ShiftRequirementAssignment.requirement_id != requirement.id,  # type: ignore[arg-type]
+            )
+        ).first()
+        if existing:
+            violations.append(
+                ValidationViolationItem(
+                    code="SUN_HOL_DAY_MONTHLY_LIMIT",
+                    severity="error",
+                    message=(
+                        f"{worker.name} は当月の日曜・祝日昼間シフトに既にアサインされています"
+                        "（月1回まで）"
+                    ),
+                    worker_ids=[str(worker.id)],
+                )
+            )
+    return violations
+
+
+def _check_long_holiday_prev_year_exclusion(
+    session: Session,
+    tenant_id: str,
+    requirement: ShiftRequirement,
+    workers: list[Worker],
+) -> list[ValidationViolationItem]:
+    """ルール10: 前年GW・年末年始参加者の当年同シフト除外チェック.
+
+    対象日が長期連休期間（GWまたは年末年始）に該当する場合、
+    前年の同期間にシフトに入ったスタッフは当年の同シフトから外す。
+    """
+    shift_date: date = requirement.shift_date  # type: ignore[assignment]
+
+    # 対象日が長期連休期間かどうかを確認
+    current_period = get_period_for_date(session, tenant_id, shift_date)
+    if current_period is None:
+        return []
+    if current_period.holiday_type not in (
+        LongHolidayTypeEnum.gw,
+        LongHolidayTypeEnum.year_end,
+    ):
+        return []
+
+    # 前年の同種の長期連休期間を取得
+    prev_year = shift_date.year - 1
+    prev_period = session.exec(
+        select(LongHolidayPeriod).where(
+            LongHolidayPeriod.tenant_id == tenant_id,
+            LongHolidayPeriod.holiday_type == current_period.holiday_type,
+            LongHolidayPeriod.year == prev_year,
+        )
+    ).first()
+    if prev_period is None:
+        return []
+
+    violations: list[ValidationViolationItem] = []
+    for worker in workers:
+        prev_year_assignment = session.exec(
+            select(ShiftRequirementAssignment)
+            .join(
+                ShiftRequirement,
+                ShiftRequirementAssignment.requirement_id == ShiftRequirement.id,  # type: ignore[arg-type]
+            )
+            .where(
+                ShiftRequirementAssignment.worker_id == worker.id,
+                ShiftRequirementAssignment.tenant_id == tenant_id,
+                ShiftRequirement.shift_date >= prev_period.start_date,
+                ShiftRequirement.shift_date <= prev_period.end_date,
+            )
+        ).first()
+        if prev_year_assignment:
+            holiday_name = (
+                "GW"
+                if current_period.holiday_type == LongHolidayTypeEnum.gw
+                else "年末年始"
+            )
+            violations.append(
+                ValidationViolationItem(
+                    code="LONG_HOLIDAY_PREV_YEAR_EXCLUSION",
+                    severity="error",
+                    message=(
+                        f"{worker.name} は前年の{holiday_name}シフトに参加済みのため、"
+                        f"当年の同シフトへのアサインはできません"
+                    ),
+                    worker_ids=[str(worker.id)],
+                )
+            )
+    return violations
+
+
 def validate_shift_assignments(
     session: Session,
     tenant_id: str,
@@ -301,4 +499,9 @@ def validate_shift_assignments(
         *_check_special_employment(requirement, workers, rules),
         *_check_age_restriction(workers, shift_date),
         *_check_position_exclusion(session, tenant_id, requirement, workers),
+        *_check_tenure_restriction(workers, shift_date),
+        *_check_sun_hol_day_monthly_limit(session, tenant_id, requirement, workers),
+        *_check_long_holiday_prev_year_exclusion(
+            session, tenant_id, requirement, workers
+        ),
     ]
