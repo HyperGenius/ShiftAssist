@@ -222,7 +222,7 @@ def _check_age_restriction(
         return []
 
     age_sum = sum(
-        calculate_age_at(w.birth_date, reference_date)  # type: ignore[arg-type]
+        calculate_age_at(cast(date, w.birth_date), reference_date)
         for w in workers_with_birth_date
     )
     if age_sum <= 120:
