@@ -64,7 +64,7 @@ export function OverrideConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
-      <SciFiPanel className="w-full max-w-lg mx-4 p-6" corners>
+      <SciFiPanel className="w-full max-w-lg mx-4 p-6">
         {/* タイトル */}
         <div className="mb-4">
           <h2 className="text-base font-semibold tracking-widest text-yellow-400 uppercase">
