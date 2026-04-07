@@ -6,7 +6,12 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
 
-from app.models.models import LongHolidayTypeEnum, SlotTypeEnum, TransferTypeEnum
+from app.models.models import (
+    LongHolidayTypeEnum,
+    PlanStatusEnum,
+    SlotTypeEnum,
+    TransferTypeEnum,
+)
 
 
 class BranchCreate(BaseModel):
@@ -618,3 +623,20 @@ class ValidationContextResponse(BaseModel):
 
     workers: list[WorkerResponse]
     worker_stats: list[ValidationContextWorkerStats]
+
+
+class ShiftPlanImportResponse(BaseModel):
+    """過去シフトデータ一括インポート結果レスポンススキーマ."""
+
+    plan_id: uuid.UUID
+    """作成されたシフトプランのID."""
+    target_year_month: str
+    """対象年月（YYYY-MM形式）."""
+    status: PlanStatusEnum
+    """作成されたシフトプランのステータス."""
+    slots_created: int
+    """作成されたShiftSlot件数."""
+    assignments_created: int
+    """作成されたShiftAssignment件数."""
+    skipped_worker_ids: list[str]
+    """存在しない社員番号のためスキップされたワーカー識別子のリスト."""
