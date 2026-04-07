@@ -8,6 +8,7 @@ import { SciFiButton } from "@/components/ui/SciFiButton";
 import { SciFiHeading } from "@/components/ui/SciFiHeading";
 import { SciFiPanel } from "@/components/ui/SciFiPanel";
 import { useDepartments } from "@/hooks/useDepartments";
+import { useEmploymentTypes } from "@/hooks/useEmploymentTypes";
 import { useSkillRanks } from "@/hooks/useSkillRanks";
 import { useWorkers } from "@/hooks/useWorkers";
 import { useWorkerStats } from "@/hooks/useWorkerStats";
@@ -86,6 +87,7 @@ function WorkerRow({
   worker,
   departmentName,
   skillRankName,
+  employmentTypeName,
   workerStats,
   allAvg,
   onEdit,
@@ -94,6 +96,7 @@ function WorkerRow({
   worker: Worker;
   departmentName: string;
   skillRankName: string;
+  employmentTypeName: string;
   workerStats: WorkerStatsResponse | undefined;
   allAvg: number;
   onEdit: (w: Worker) => void;
@@ -113,10 +116,9 @@ function WorkerRow({
         </span>
       </td>
       <td className="px-4 py-3">
-        {worker.is_special ? (
-          <span className="inline-flex items-center gap-1 text-xs text-purple-700">
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-500 inline-block" />
-            特別
+        {employmentTypeName ? (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+            {employmentTypeName}
           </span>
         ) : (
           <span className="text-xs text-gray-400">—</span>
@@ -153,6 +155,7 @@ export function WorkerList() {
     useWorkers();
   const { departments } = useDepartments();
   const { skillRankNameById } = useSkillRanks();
+  const { employmentTypeNameById } = useEmploymentTypes();
   const { stats } = useWorkerStats();
 
   const departmentNameById = Object.fromEntries(
@@ -285,7 +288,7 @@ export function WorkerList() {
                   スキルランク
                 </th>
                 <th className="px-4 py-3 text-xs text-gray-500 font-medium">
-                  特別雇用
+                  雇用形態
                 </th>
                 <th className="px-4 py-3 text-xs text-gray-500 font-medium">
                   休日勤務/月
@@ -339,6 +342,7 @@ export function WorkerList() {
                     worker={worker}
                     departmentName={departmentNameById[worker.department_id] ?? worker.department_id}
                     skillRankName={skillRankNameById[worker.skill_rank_id] ?? worker.skill_rank_id}
+                    employmentTypeName={worker.employment_type_id ? (employmentTypeNameById[worker.employment_type_id] ?? "") : ""}
                     workerStats={statsById[worker.id]}
                     allAvg={allAvg}
                     onEdit={handleEdit}
