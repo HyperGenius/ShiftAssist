@@ -1,0 +1,630 @@
+#!/usr/bin/env python3
+"""過去シフトExcel/CSVをShiftAssistインポート用CSVへ変換するスクリプト.
+
+使用方法::
+
+    python scripts/convert_excel_to_csv.py \\
+        --input path/to/input.csv \\
+        --output path/to/output.csv \\
+        --year-month 2026-04
+
+入力ファイルの形式:
+    1行目: カテゴリヘッダー行（宿直、土曜当番、休・祝日直 など）
+    2行目: サブヘッダー行（回数、氏名、交替者名 の繰り返し）
+    以降:  データ行（1列目=日、2列目=曜、以降=各シフト担当者情報）
+
+出力ファイルの形式（ShiftAssistインポート形式）::
+
+    date,slot_type,worker_id_1,worker_id_2,...
+    2026-04-01,weekday_night,1234567,2468013
+    ...
+
+ワーカー識別子には、DBに ``employee_no`` が登録されていればその値を、
+未登録の場合はワーカーUUID文字列を使用する。
+"""
+
+import argparse
+import calendar
+import csv
+import os
+import re
+import sys
+from collections import defaultdict
+from datetime import date, datetime
+from typing import Any
+
+import jpholiday
+import pandas as pd
+
+# backend/ ディレクトリをパスに追加して app モジュールを参照できるようにする
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from app.models.models import SlotTypeEnum, TenantHoliday, Worker  # noqa: E402
+
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    pass
+
+# ---------------------------------------------------------------------------
+# 定数
+# ---------------------------------------------------------------------------
+
+# カテゴリ名の検索用キーワード（入力ファイルのヘッダー文字列に部分一致）
+_CATEGORY_YASOKU = "宿直"  # 宿直（夜間当直）
+_CATEGORY_SAT = "土曜当番"  # 土曜当番（土曜昼間）
+_CATEGORY_HOL = "祝日直"  # 休・祝日直（祝日・日曜昼間）
+
+
+# ---------------------------------------------------------------------------
+# 純関数ユーティリティ（テスト可能）
+# ---------------------------------------------------------------------------
+
+
+def normalize_name(name: str) -> str:
+    """スペース（全角・半角）を除去して名前を正規化する.
+
+    Args:
+        name: 正規化前の名前文字列。
+
+    Returns:
+        全角・半角スペースを除去した文字列。
+    """
+    return re.sub(r"[\s\u3000]", "", name)
+
+
+def to_str(val: Any) -> str:
+    """任意の値を文字列に変換し、NaN / None は空文字を返す.
+
+    Args:
+        val: 変換対象の値。
+
+    Returns:
+        文字列表現（NaN/Noneの場合は空文字）。
+    """
+    if val is None:
+        return ""
+    if isinstance(val, float) and (val != val):  # NaN check without math import
+        return ""
+    s = str(val).strip()
+    return "" if s.lower() == "nan" else s
+
+
+def extract_name_from_cell(cell_value: Any) -> str:
+    """セル値から氏名候補文字列を抽出する.
+
+    セル値「保安１課　山田　太郎」のように部署名＋氏名が含まれる場合も、
+    そのまま正規化せずに返す（マッチングは呼び出し側で行う）。
+    回数記号（①②③等）は除去する。
+
+    Args:
+        cell_value: セルの値。
+
+    Returns:
+        氏名候補文字列（空の場合は空文字）。
+    """
+    cell_str = to_str(cell_value)
+    if not cell_str:
+        return ""
+    # ①②③等の回数記号を除去
+    cell_str = re.sub(r"[①-⑳]", "", cell_str).strip()
+    return cell_str
+
+
+def classify_category(header_val: str) -> str | None:
+    """ヘッダー文字列からシフトカテゴリ種別を判定する.
+
+    全角・半角スペースを除去してから部分一致判定を行うため、
+    「宿　　直」のようにスペースが含まれる表記にも対応する。
+
+    Args:
+        header_val: ヘッダー行のセル文字列。
+
+    Returns:
+        カテゴリ定数（_CATEGORY_*）または None（未判定）。
+    """
+    normalized = normalize_name(header_val)
+    if _CATEGORY_SAT in normalized:
+        return _CATEGORY_SAT
+    if _CATEGORY_HOL in normalized:
+        return _CATEGORY_HOL
+    if _CATEGORY_YASOKU in normalized:
+        return _CATEGORY_YASOKU
+    return None
+
+
+def determine_slot_type(
+    category: str,
+    shift_date: date,
+    is_holiday: bool,
+    is_long_holiday: bool,
+) -> SlotTypeEnum | None:
+    """カテゴリと日付情報から SlotTypeEnum を決定する.
+
+    Args:
+        category: 列カテゴリ（_CATEGORY_* 定数）。
+        shift_date: 対象日付。
+        is_holiday: 祝日フラグ（土曜を除く）。
+        is_long_holiday: 長期連休フラグ（GW・年末年始等）。
+
+    Returns:
+        対応する SlotTypeEnum。対象外の場合は None。
+    """
+    weekday = shift_date.weekday()  # 0=月曜 … 5=土曜, 6=日曜
+    is_saturday = weekday == 5
+    is_sunday = weekday == 6
+
+    if category == _CATEGORY_YASOKU:
+        if is_long_holiday:
+            return SlotTypeEnum.long_hol_night
+        if is_saturday:
+            return SlotTypeEnum.sat_night
+        if is_sunday or is_holiday:
+            return SlotTypeEnum.sun_hol_night
+        return SlotTypeEnum.weekday_night
+
+    if category == _CATEGORY_SAT:
+        if is_saturday:
+            return SlotTypeEnum.sat_day
+        # 土曜以外の 土曜当番 列はスキップ
+        return None
+
+    if category == _CATEGORY_HOL:
+        if is_long_holiday:
+            return SlotTypeEnum.long_hol_day
+        if is_sunday or is_holiday:
+            return SlotTypeEnum.sun_hol_day
+        return None
+
+    return None
+
+
+def parse_header(df: pd.DataFrame) -> dict[int, str]:
+    """データフレームの先頭 2 行からカテゴリ・氏名列マッピングを解析する.
+
+    先頭行（row 0）でカテゴリ名（宿直・土曜当番・休祝日直）の列位置を特定し、
+    2 行目（row 1）で「氏名」サブヘッダーの列位置を特定する。
+    各「氏名」列が属するカテゴリを、左方向に最も近いカテゴリ開始位置から決定する。
+
+    Args:
+        df: ヘッダーなしで読み込んだデータフレーム（先頭 2 行がヘッダー）。
+
+    Returns:
+        氏名列インデックス -> カテゴリ名 のマッピング。
+    """
+    header_row0 = df.iloc[0]
+    header_row1 = df.iloc[1]
+
+    # row 0 からカテゴリ開始位置を特定
+    category_starts: list[tuple[int, str]] = []
+    for col_idx in range(2, len(header_row0)):
+        val_str = to_str(header_row0.iloc[col_idx])
+        cat = classify_category(val_str)
+        if cat:
+            category_starts.append((col_idx, cat))
+
+    def _get_category_for_col(col_idx: int) -> str | None:
+        """列インデックスに対応するカテゴリを返す（左隣のカテゴリ開始位置を検索）."""
+        current_cat: str | None = None
+        for start_col, cat_name in sorted(category_starts):
+            if start_col <= col_idx:
+                current_cat = cat_name
+            else:
+                break
+        return current_cat
+
+    # row 1 から「氏名」サブヘッダーの列を特定
+    name_col_map: dict[int, str] = {}
+    for col_idx in range(2, len(header_row1)):
+        val_str = to_str(header_row1.iloc[col_idx])
+        if val_str == "氏名":
+            cat = _get_category_for_col(col_idx)
+            if cat:
+                name_col_map[col_idx] = cat
+
+    return name_col_map
+
+
+def build_worker_cache(workers: list[Any]) -> dict[str, str]:
+    """Worker オブジェクトのリストから正規化名前 -> 識別子 マッピングを構築する.
+
+    識別子は employee_no を優先し、未登録の場合は UUID 文字列を使用する。
+
+    Args:
+        workers: Worker ORM オブジェクトのリスト。
+
+    Returns:
+        正規化名前 -> 識別子 のマッピング。
+    """
+    cache: dict[str, str] = {}
+    for w in workers:
+        normalized = normalize_name(w.name)
+        identifier = w.employee_no if w.employee_no else str(w.id)
+        cache[normalized] = identifier
+    return cache
+
+
+def lookup_worker_id(
+    name_in_cell: str,
+    worker_cache: dict[str, str],
+) -> str | None:
+    """セル値（氏名候補）からワーカー識別子を検索する.
+
+    マッチング手順:
+    1. 正規化したセル値でキャッシュを完全一致検索。
+    2. 「部署名 + 氏名」形式に備え、セル正規化値がキャッシュ正規化名で
+       終端するかを確認（最長一致優先）。
+    3. スペース分割の末尾トークン（2トークン結合 / 1トークン）で再試行。
+
+    Args:
+        name_in_cell: セルの生の値（部署名＋氏名の可能性あり）。
+        worker_cache: 正規化名前 -> 識別子 のマッピング。
+
+    Returns:
+        ワーカー識別子（見つからない場合は None）。
+    """
+    normalized_cell = normalize_name(name_in_cell)
+    if not normalized_cell:
+        return None
+
+    # 1. 完全一致
+    if normalized_cell in worker_cache:
+        return worker_cache[normalized_cell]
+
+    # 2. 末尾部分一致（部署名プレフィックスを除く）：長い名前を優先
+    candidates: list[tuple[int, str]] = []
+    for norm_name, worker_id in worker_cache.items():
+        if norm_name and normalized_cell.endswith(norm_name):
+            candidates.append((len(norm_name), worker_id))
+    if candidates:
+        # 最長一致を返す
+        return max(candidates, key=lambda x: x[0])[1]
+
+    # 3. スペース分割の末尾トークンで再試行
+    parts = re.split(r"[\s\u3000]+", name_in_cell.strip())
+    if len(parts) >= 2:
+        two_tokens = normalize_name("".join(parts[-2:]))
+        if two_tokens in worker_cache:
+            return worker_cache[two_tokens]
+        one_token = normalize_name(parts[-1])
+        if one_token in worker_cache:
+            return worker_cache[one_token]
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# I/O ヘルパー
+# ---------------------------------------------------------------------------
+
+
+def load_input_file(input_path: str) -> pd.DataFrame:
+    """CSV または Excel ファイルを読み込み、ヘッダーなしのデータフレームを返す.
+
+    文字コードは UTF-8 (BOM 付き含む) / Shift-JIS を自動判別。
+
+    Args:
+        input_path: 読み込むファイルのパス。
+
+    Returns:
+        全セルを文字列として保持するデータフレーム。
+
+    Raises:
+        SystemExit: 読み込みに失敗した場合。
+    """
+    ext = os.path.splitext(input_path)[1].lower()
+    try:
+        if ext in (".xlsx", ".xls"):
+            df = pd.read_excel(input_path, header=None, dtype=str)
+        else:
+            # CSV: UTF-8-BOM → UTF-8 → Shift-JIS の順で試みる
+            df = None
+            for enc in ("utf-8-sig", "utf-8", "shift_jis"):
+                try:
+                    df = pd.read_csv(
+                        input_path,
+                        header=None,
+                        dtype=str,
+                        na_filter=False,
+                        encoding=enc,
+                    )
+                    break
+                except (UnicodeDecodeError, Exception):
+                    continue
+            if df is None:
+                raise ValueError("文字コードを判別できませんでした")
+    except Exception as exc:
+        print(f"❌ 入力ファイルの読み込みに失敗しました: {exc}")
+        sys.exit(1)
+    return df
+
+
+def load_holidays_from_db(
+    session: Any,
+    tenant_id: str,
+    year: int,
+    month: int,
+) -> tuple[set[date], set[date]]:
+    """DB から対象年月の祝日セットを取得する.
+
+    Args:
+        session: SQLAlchemy セッション。
+        tenant_id: テナント ID。
+        year: 対象年。
+        month: 対象月。
+
+    Returns:
+        (holidays: set[date], long_holidays: set[date]) のタプル。
+    """
+    last_day = calendar.monthrange(year, month)[1]
+    start = date(year, month, 1)
+    end = date(year, month, last_day)
+    db_records = (
+        session.query(TenantHoliday)
+        .filter(
+            TenantHoliday.tenant_id == tenant_id,
+            TenantHoliday.date >= start,
+            TenantHoliday.date <= end,
+        )
+        .all()
+    )
+    holidays: set[date] = set()
+    long_holidays: set[date] = set()
+    for h in db_records:
+        holidays.add(h.date)
+        if h.is_long_holiday:
+            long_holidays.add(h.date)
+    return holidays, long_holidays
+
+
+def load_holidays_from_jpholiday(year: int, month: int) -> set[date]:
+    """jpholiday から対象年月の日本標準祝日セットを取得する.
+
+    Args:
+        year: 対象年。
+        month: 対象月。
+
+    Returns:
+        祝日の date セット。
+    """
+    jp = jpholiday.JPHoliday()
+    result: set[date] = set()
+    for h in jp.year_holidays(year):
+        if h.date.month == month:
+            result.add(h.date)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# 変換メイン処理
+# ---------------------------------------------------------------------------
+
+
+def convert(
+    input_path: str,
+    output_path: str,
+    year_month: str,
+    tenant_id: str | None,
+    db_url: str | None,
+) -> int:
+    """変換処理のメイン関数.
+
+    Args:
+        input_path: 入力ファイルパス。
+        output_path: 出力 CSV ファイルパス。
+        year_month: 対象年月（YYYY-MM 形式）。
+        tenant_id: テナント ID（省略可）。
+        db_url: DB 接続 URL（省略可、None の場合は DB アクセスなし）。
+
+    Returns:
+        出力した行数。
+    """
+    # 年月パース
+    try:
+        ym_date = datetime.strptime(year_month, "%Y-%m")
+    except ValueError:
+        print(f"❌ --year-month の形式が不正です（YYYY-MM 形式が必要）: {year_month}")
+        sys.exit(1)
+    year = ym_date.year
+    month = ym_date.month
+
+    # 入力ファイル読み込み
+    print(f"📂 入力ファイルを読み込み中: {input_path}")
+    df = load_input_file(input_path)
+
+    if len(df) < 3:
+        print("❌ データ行がありません（ヘッダー 2 行 + データ 1 行以上が必要）。")
+        sys.exit(1)
+
+    # ヘッダー解析
+    name_col_map = parse_header(df)
+    if not name_col_map:
+        print("⚠️  氏名列が見つかりませんでした。ヘッダー構造を確認してください。")
+        sys.exit(1)
+    print(f"✅ 氏名列を検出: {name_col_map}")
+
+    # DB 接続とワーカーキャッシュの構築
+    session = None
+    worker_cache: dict[str, str] = {}
+    holidays: set[date] = set()
+    long_holidays: set[date] = set()
+
+    if db_url and tenant_id:
+        try:
+            from sqlalchemy import create_engine
+            from sqlalchemy.orm import sessionmaker
+
+            engine = create_engine(db_url)
+            _SessionLocal = sessionmaker(bind=engine)
+            session = _SessionLocal()
+            print(f"🔌 DB 接続: テナント '{tenant_id}' のワーカー情報を取得中...")
+            db_workers = (
+                session.query(Worker).filter(Worker.tenant_id == tenant_id).all()
+            )
+            worker_cache = build_worker_cache(db_workers)
+            print(f"✅ ワーカーキャッシュ構築完了: {len(worker_cache)} 件")
+
+            holidays, long_holidays = load_holidays_from_db(session, tenant_id, year, month)
+            if not holidays:
+                print("   DB に祝日データがありません。jpholiday でフォールバックします。")
+                holidays = load_holidays_from_jpholiday(year, month)
+        except Exception as exc:
+            print(f"⚠️  DB 接続に失敗しました: {exc}")
+            print("   ワーカー名をそのまま出力します（DB なし）。")
+            session = None
+            holidays = load_holidays_from_jpholiday(year, month)
+    else:
+        print("⚠️  --tenant-id または DB URL が未指定のため、ワーカー名をそのまま出力します。")
+        holidays = load_holidays_from_jpholiday(year, month)
+
+    print(f"📅 祝日 ({year}-{month:02d}): {sorted(holidays) if holidays else '（なし）'}")
+
+    # データ変換
+    data_rows = df.iloc[2:].reset_index(drop=True)
+    output_rows: list[dict[str, str]] = []
+    warn_count = 0
+
+    for _, row in data_rows.iterrows():
+        # 1 列目の「日」を取得
+        day_val = to_str(row.iloc[0])
+        if not day_val:
+            continue
+
+        try:
+            day_int = int(float(day_val))
+        except (ValueError, TypeError):
+            print(f"⚠️  日付の解析に失敗しました（値: {day_val!r}）。スキップします。")
+            continue
+
+        try:
+            shift_date = date(year, month, day_int)
+        except ValueError:
+            print(f"⚠️  無効な日付 {year}-{month}-{day_int}。スキップします。")
+            continue
+
+        is_holiday = shift_date in holidays
+        is_long = shift_date in long_holidays
+
+        # カテゴリごとにワーカーを収集
+        slot_workers: dict[SlotTypeEnum, list[str]] = defaultdict(list)
+
+        for col_idx in sorted(name_col_map):
+            category = name_col_map[col_idx]
+            if col_idx >= len(row):
+                continue
+            cell_val = row.iloc[col_idx]
+            name_str = extract_name_from_cell(cell_val)
+            if not name_str:
+                continue
+
+            slot_type = determine_slot_type(category, shift_date, is_holiday, is_long)
+            if slot_type is None:
+                print(
+                    f"⚠️  {shift_date} / カテゴリ '{category}': "
+                    "SlotType を決定できません。スキップします。"
+                )
+                continue
+
+            if worker_cache:
+                worker_id = lookup_worker_id(name_str, worker_cache)
+                if worker_id is None:
+                    print(
+                        f"⚠️  '{name_str}' に一致するワーカーが見つかりません"
+                        f"（{shift_date}）。スキップします。"
+                    )
+                    warn_count += 1
+                    continue
+            else:
+                # DB 未接続の場合は氏名をそのまま使用
+                worker_id = name_str
+
+            if worker_id not in slot_workers[slot_type]:
+                slot_workers[slot_type].append(worker_id)
+
+        # 出力行を生成
+        for slot_type, worker_ids in slot_workers.items():
+            row_dict: dict[str, str] = {
+                "date": shift_date.strftime("%Y-%m-%d"),
+                "slot_type": slot_type.value,
+            }
+            for i, wid in enumerate(worker_ids, start=1):
+                row_dict[f"worker_id_{i}"] = wid
+            output_rows.append(row_dict)
+
+    # 出力列名を動的に構築
+    if not output_rows:
+        print("⚠️  出力データがありません。")
+        if session:
+            session.close()
+        return 0
+
+    max_workers = max(
+        sum(1 for k in r if k.startswith("worker_id_")) for r in output_rows
+    )
+    fieldnames = ["date", "slot_type"] + [
+        f"worker_id_{i}" for i in range(1, max_workers + 1)
+    ]
+
+    # CSV 書き出し
+    print(f"💾 出力ファイルに書き込み中: {output_path}")
+    with open(output_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        for row_dict in output_rows:
+            writer.writerow(row_dict)
+
+    print(
+        f"✅ 変換完了: {len(output_rows)} 行を出力しました"
+        f"（警告: {warn_count} 件）。"
+    )
+
+    if session:
+        session.close()
+
+    return len(output_rows)
+
+
+# ---------------------------------------------------------------------------
+# CLI エントリーポイント
+# ---------------------------------------------------------------------------
+
+
+def main() -> None:
+    """コマンドライン引数をパースして convert() を実行する."""
+    parser = argparse.ArgumentParser(
+        description="過去シフト Excel/CSV を ShiftAssist インポート用 CSV へ変換する。",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument("--input", required=True, help="入力 CSV または Excel ファイルのパス")
+    parser.add_argument("--output", required=True, help="出力 CSV ファイルのパス")
+    parser.add_argument(
+        "--year-month",
+        required=True,
+        help="対象年月（YYYY-MM 形式、例: 2026-04）",
+    )
+    parser.add_argument(
+        "--tenant-id",
+        default=(
+            os.environ.get("TENANT_ID") or os.environ.get("TEST_ORGANIZATION_ID")
+        ),
+        help=(
+            "テナント ID（省略時は環境変数 TENANT_ID / TEST_ORGANIZATION_ID を参照）"
+        ),
+    )
+    args = parser.parse_args()
+
+    db_url = os.environ.get("NEON_DATABASE_URL")
+    convert(
+        input_path=args.input,
+        output_path=args.output,
+        year_month=args.year_month,
+        tenant_id=args.tenant_id,
+        db_url=db_url,
+    )
+
+
+if __name__ == "__main__":
+    main()
