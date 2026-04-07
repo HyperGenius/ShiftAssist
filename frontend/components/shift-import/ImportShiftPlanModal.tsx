@@ -248,13 +248,13 @@ export function ImportShiftPlanModal({ onClose, onSuccess }: Props) {
                 <div>
                   <p className="font-medium text-gray-600">CSV:</p>
                   <pre className="mt-1 rounded bg-gray-100 p-2 overflow-x-auto">
-                    {`date,slot_type,worker_id_1,worker_id_2\n2025-12-01,weekday_night,1234567,1357926`}
+                    {`date,slot_type,worker_id_1,worker_id_2\n2026-01-01,weekday_night,1234567,1357926`}
                   </pre>
                 </div>
                 <div>
                   <p className="font-medium text-gray-600">JSON:</p>
                   <pre className="mt-1 rounded bg-gray-100 p-2 overflow-x-auto">
-                    {`[{"date":"2025-12-01","slot_type":"weekday_night","worker_ids":["1234567","1357926"]}]`}
+                    {`[{"date":"2026-01-01","slot_type":"weekday_night","worker_ids":["1234567","1357926"]}]`}
                   </pre>
                 </div>
               </div>

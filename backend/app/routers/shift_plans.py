@@ -50,13 +50,13 @@ async def import_shift_plan(
     CSVフォーマット例::
 
         date,slot_type,worker_id_1,worker_id_2
-        2025-12-01,weekday_night,1234567,1357926
+        2026-01-01,weekday_night,1234567,1357926
 
     JSONフォーマット例::
 
         [
           {
-            "date": "2025-12-01",
+            "date": "2026-01-01",
             "slot_type": "weekday_night",
             "worker_ids": ["1234567", "1357926"]
           }
@@ -105,6 +105,8 @@ async def import_shift_plan(
 def _detect_content_type(filename: str, mime: str) -> str:
     """ファイル名またはMIMEタイプからコンテンツ種別を判定する.
 
+    ファイル拡張子を優先して判定し、次にMIMEタイプを参照する。
+
     Args:
         filename: アップロードファイル名。
         mime: HTTPコンテンツタイプ。
@@ -112,8 +114,12 @@ def _detect_content_type(filename: str, mime: str) -> str:
     Returns:
         "csv"、"json"、または未判定の場合は空文字列。
     """
-    if filename.endswith(".csv") or mime in ("text/csv", "text/plain", "application/csv"):
+    if filename.endswith(".csv"):
         return "csv"
-    if filename.endswith(".json") or mime in ("application/json",):
+    if filename.endswith(".json"):
+        return "json"
+    if mime in ("text/csv", "application/csv"):
+        return "csv"
+    if mime in ("application/json",):
         return "json"
     return ""
