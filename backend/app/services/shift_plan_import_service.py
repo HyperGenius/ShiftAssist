@@ -410,7 +410,9 @@ def _normalize_csv_rows(
         shift_date = _parse_date_str(row[_COL_DATE], i)
         slot_type = _parse_slot_type(row[_COL_SLOT_TYPE], i)
         worker_nos = _extract_worker_ids_from_csv_row(row)
-        result.append({"date": shift_date, "slot_type": slot_type, "worker_nos": worker_nos})
+        result.append(
+            {"date": shift_date, "slot_type": slot_type, "worker_nos": worker_nos}
+        )
     return result
 
 
@@ -452,5 +454,7 @@ def _normalize_json_rows(
             )
         worker_nos = [str(w).strip() for w in worker_ids_raw if str(w).strip()]
 
-        result.append({"date": shift_date, "slot_type": slot_type, "worker_nos": worker_nos})
+        result.append(
+            {"date": shift_date, "slot_type": slot_type, "worker_nos": worker_nos}
+        )
     return result
