@@ -389,11 +389,10 @@ def load_holidays_from_jpholiday(year: int, month: int) -> set[date]:
     Returns:
         祝日の date セット。
     """
-    jp = jpholiday.JPHoliday()
     result: set[date] = set()
-    for h in jp.year_holidays(year):
-        if h.date.month == month:
-            result.add(h.date)
+    for h_date, _ in jpholiday.year_holidays(year):
+        if h_date.month == month:
+            result.add(h_date)
     return result
 
 
