@@ -19,7 +19,7 @@
     2026-04-01,weekday_night,1234567,2468013
     ...
 
-ワーカー識別子には、DBに ``employee_no`` が登録されていればその値を、
+ワーカー識別子には、DBに ``employee_code`` が登録されていればその値を、
 未登録の場合はワーカーUUID文字列を使用する。
 """
 
@@ -230,7 +230,7 @@ def parse_header(df: pd.DataFrame) -> dict[int, str]:
 def build_worker_cache(workers: list[Any]) -> dict[str, str]:
     """Worker オブジェクトのリストから正規化名前 -> 識別子 マッピングを構築する.
 
-    識別子は employee_no を優先し、未登録の場合は UUID 文字列を使用する。
+    識別子は employee_code を優先し、未登録の場合は UUID 文字列を使用する。
 
     Args:
         workers: Worker ORM オブジェクトのリスト。
@@ -241,7 +241,7 @@ def build_worker_cache(workers: list[Any]) -> dict[str, str]:
     cache: dict[str, str] = {}
     for w in workers:
         normalized = normalize_name(w.name)
-        identifier = w.employee_no if w.employee_no else str(w.id)
+        identifier = w.employee_code if w.employee_code else str(w.id)
         cache[normalized] = identifier
     return cache
 
