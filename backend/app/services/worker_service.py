@@ -230,7 +230,10 @@ def update_worker(
     if "skill_rank_id" in update_data:
         _validate_skill_rank(session, tenant_id, update_data["skill_rank_id"])
 
-    if "employment_type_id" in update_data and update_data["employment_type_id"] is not None:
+    if (
+        "employment_type_id" in update_data
+        and update_data["employment_type_id"] is not None
+    ):
         _validate_employment_type(session, tenant_id, update_data["employment_type_id"])
 
     for field, value in update_data.items():
