@@ -3,7 +3,9 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 
+import { SciFiButton } from "@/components/ui/SciFiButton";
 import { SciFiHeading } from "@/components/ui/SciFiHeading";
+import { ImportShiftPlanModal } from "@/components/shift-import/ImportShiftPlanModal";
 import { ShiftCalendar } from "@/components/shift-calendar/ShiftCalendar";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useShiftRules } from "@/hooks/useShiftRules";
@@ -13,6 +15,7 @@ export default function ShiftRequirementsPage() {
   const { departments, isLoading: deptsLoading } = useDepartments();
   const { rules, isLoading: rulesLoading } = useShiftRules();
   const [activeDeptId, setActiveDeptId] = useState<string | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const isLoading = deptsLoading || rulesLoading;
 
@@ -37,9 +40,16 @@ export default function ShiftRequirementsPage() {
     <div className="min-h-screen bg-gray-50">
       {/* メインコンテンツ */}
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <SciFiHeading level="h1" className="mb-6">
-          シフト枠カレンダー
-        </SciFiHeading>
+        <div className="flex items-center justify-between mb-6">
+          <SciFiHeading level="h1">シフト枠カレンダー</SciFiHeading>
+          <SciFiButton
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowImportModal(true)}
+          >
+            📥 過去シフトのインポート
+          </SciFiButton>
+        </div>
 
         {/* 部門タブナビゲーション */}
         {!isLoading && targetDepts.length > 1 && (
@@ -80,6 +90,14 @@ export default function ShiftRequirementsPage() {
           </div>
         )}
       </main>
+
+      {/* 過去シフトインポートモーダル */}
+      {showImportModal && (
+        <ImportShiftPlanModal
+          onClose={() => setShowImportModal(false)}
+          onSuccess={() => setShowImportModal(false)}
+        />
+      )}
     </div>
   );
 }
