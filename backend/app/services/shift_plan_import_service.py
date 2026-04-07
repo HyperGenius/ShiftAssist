@@ -12,6 +12,7 @@ import io
 import json
 import uuid
 from datetime import date, datetime
+from typing import cast
 
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
@@ -219,7 +220,7 @@ def _lookup_workers_by_employee_no(
     mapping: dict[str, uuid.UUID] = {}
     for w in workers:
         if w.employee_no is not None:
-            mapping[w.employee_no] = w.id  # type: ignore[assignment]
+            mapping[str(w.employee_no)] = w.id  # type: ignore[assignment]
 
     missing = [no for no in unique_nos if no not in mapping]
     return mapping, missing
@@ -306,7 +307,7 @@ def import_shift_plan(
     # --- 全ワーカー社員番号を収集して一括ルックアップ ---
     all_employee_nos: list[str] = []
     for row in rows:
-        all_employee_nos.extend(row["worker_nos"])
+        all_employee_nos.extend(cast(list[str], row["worker_nos"]))
 
     worker_map, missing_nos = _lookup_workers_by_employee_no(
         session, tenant_id, all_employee_nos
@@ -333,9 +334,9 @@ def import_shift_plan(
         skipped: list[str] = list(missing_nos)
 
         for row in rows:
-            slot_date = row["date"]
+            slot_date = cast(date, row["date"])
             slot_type = row["slot_type"]
-            worker_nos = row["worker_nos"]
+            worker_nos = cast(list[str], row["worker_nos"])
 
             # ShiftSlot 作成
             slot = ShiftSlot(
@@ -385,7 +386,7 @@ def import_shift_plan(
         ) from exc
 
     return ShiftPlanImportResponse(
-        plan_id=plan.id,
+        plan_id=cast(uuid.UUID, plan.id),
         target_year_month=target_year_month,
         status=plan_status,
         slots_created=slots_created,
