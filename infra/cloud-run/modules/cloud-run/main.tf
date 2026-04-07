@@ -94,6 +94,14 @@ resource "google_cloud_run_v2_service" "main" {
     max_instance_request_concurrency = var.container_concurrency
   }
 
+  lifecycle {
+    ignore_changes = [
+      template[0].containers[0].image, # GitHub Actions側でタグを更新するため
+      client,                          # gcloud等からの変更を無視
+      client_version
+    ]
+  }
+
   depends_on = [
     google_secret_manager_secret_version.database_url,
     google_secret_manager_secret_version.clerk_secret_key,

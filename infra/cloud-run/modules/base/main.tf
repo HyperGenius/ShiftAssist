@@ -29,17 +29,3 @@ resource "google_project_organization_policy" "allow_public_iam" {
 
   depends_on = [google_project_service.required_apis]
 }
-
-# Artifact Registry リポジトリ
-resource "google_artifact_registry_repository" "main" {
-  depends_on = [google_project_service.required_apis]
-  location      = var.region
-  repository_id = var.repository_id
-  description   = "Docker repository for ${var.environment} environment"
-  format        = "DOCKER"
-
-  labels = {
-    environment = var.environment
-    project     = "shiftassist"
-  }
-}
