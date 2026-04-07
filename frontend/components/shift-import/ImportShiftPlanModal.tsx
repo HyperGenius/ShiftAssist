@@ -24,13 +24,12 @@ type Props = {
  * 過去シフトデータ一括インポートモーダルコンポーネント。
  *
  * CSV/JSONファイルのドラッグ＆ドロップおよびファイル選択に対応する。
- * 対象年月とプランステータスを指定してインポートを実行する。
+ * 対象年月はファイル内の date カラムから自動検出される。
  */
 export function ImportShiftPlanModal({ onClose, onSuccess }: Props) {
   const { importShiftPlan, isLoading, error, reset } = useImportShiftPlan();
 
   const [file, setFile] = useState<File | null>(null);
-  const [targetYearMonth, setTargetYearMonth] = useState("");
   const [planStatus, setPlanStatus] = useState<PlanStatus>("published");
   const [isDragging, setIsDragging] = useState(false);
   const [result, setResult] = useState<ShiftPlanImportResponse | null>(null);
@@ -75,12 +74,11 @@ export function ImportShiftPlanModal({ onClose, onSuccess }: Props) {
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!file || !targetYearMonth) return;
+      if (!file) return;
 
       try {
         const importResult = await importShiftPlan({
           file,
-          targetYearMonth,
           planStatus,
         });
         setResult(importResult);
@@ -93,11 +91,10 @@ export function ImportShiftPlanModal({ onClose, onSuccess }: Props) {
         // エラーは useImportShiftPlan が state で管理
       }
     },
-    [file, targetYearMonth, planStatus, importShiftPlan, onSuccess],
+    [file, planStatus, importShiftPlan, onSuccess],
   );
 
-  const isValidYearMonth = /^\d{4}-\d{2}$/.test(targetYearMonth);
-  const canSubmit = !!file && isValidYearMonth && !isLoading;
+  const canSubmit = !!file && !isLoading;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -187,25 +184,9 @@ export function ImportShiftPlanModal({ onClose, onSuccess }: Props) {
                   </>
                 )}
               </div>
-            </div>
-
-            {/* 対象年月 */}
-            <div>
-              <label
-                htmlFor="targetYearMonth"
-                className="block text-sm font-medium text-gray-700 mb-1.5"
-              >
-                対象年月
-                <span className="text-red-500 ml-0.5">*</span>
-              </label>
-              <input
-                id="targetYearMonth"
-                type="month"
-                value={targetYearMonth}
-                onChange={(e) => setTargetYearMonth(e.target.value)}
-                className="block w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                required
-              />
+              <p className="mt-1.5 text-xs text-gray-400">
+                ※ 対象年月はファイル内の日付から自動的に検出されます。
+              </p>
             </div>
 
             {/* プランステータス */}
@@ -232,10 +213,13 @@ export function ImportShiftPlanModal({ onClose, onSuccess }: Props) {
               </select>
             </div>
 
-            {/* エラー表示 */}
+            {/* バリデーション・エラー表示 */}
             {error && (
               <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3">
-                <p className="text-sm text-red-700">{error}</p>
+                <p className="text-xs font-semibold text-red-800 mb-1">
+                  ⚠ ファイルの検証エラー
+                </p>
+                <p className="text-sm text-red-700 whitespace-pre-wrap">{error}</p>
               </div>
             )}
 

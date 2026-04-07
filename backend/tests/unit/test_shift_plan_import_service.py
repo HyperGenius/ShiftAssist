@@ -264,7 +264,6 @@ class TestImportShiftPlan:
             tenant_id=TENANT_ID,
             file_content=csv_content,
             content_type="csv",
-            target_year_month=TARGET_YM,
         )
 
         assert result.target_year_month == TARGET_YM
@@ -293,7 +292,6 @@ class TestImportShiftPlan:
             tenant_id=TENANT_ID,
             file_content=json_content,
             content_type="json",
-            target_year_month=TARGET_YM,
         )
 
         assert result.slots_created == 1
@@ -316,7 +314,6 @@ class TestImportShiftPlan:
             tenant_id=TENANT_ID,
             file_content=csv_content,
             content_type="csv",
-            target_year_month=TARGET_YM,
         )
 
         assert result.assignments_created == 1
@@ -337,7 +334,6 @@ class TestImportShiftPlan:
             tenant_id=TENANT_ID,
             file_content=csv_content,
             content_type="csv",
-            target_year_month=TARGET_YM,
         )
 
         added_assignments = [
@@ -362,7 +358,6 @@ class TestImportShiftPlan:
             tenant_id=TENANT_ID,
             file_content=csv_content,
             content_type="csv",
-            target_year_month=TARGET_YM,
             plan_status=PlanStatusEnum.draft,
         )
 
@@ -379,7 +374,6 @@ class TestImportShiftPlan:
                 tenant_id=TENANT_ID,
                 file_content=csv_content,
                 content_type="csv",
-                target_year_month=TARGET_YM,
             )
 
         assert exc_info.value.status_code == 422
@@ -399,7 +393,6 @@ class TestImportShiftPlan:
                 tenant_id=TENANT_ID,
                 file_content=csv_content,
                 content_type="csv",
-                target_year_month=TARGET_YM,
             )
 
         assert exc_info.value.status_code == 422
@@ -419,7 +412,6 @@ class TestImportShiftPlan:
                 tenant_id=TENANT_ID,
                 file_content=csv_content,
                 content_type="csv",
-                target_year_month=TARGET_YM,
             )
 
         assert exc_info.value.status_code == 422
@@ -441,7 +433,6 @@ class TestImportShiftPlan:
                 tenant_id=TENANT_ID,
                 file_content=csv_content,
                 content_type="csv",
-                target_year_month=TARGET_YM,
             )
 
         assert exc_info.value.status_code == 500
@@ -464,7 +455,6 @@ class TestImportShiftPlan:
             tenant_id=TENANT_ID,
             file_content=csv_content,
             content_type="csv",
-            target_year_month=TARGET_YM,
         )
 
         assert result.slots_created == 3
@@ -485,7 +475,46 @@ class TestImportShiftPlan:
             tenant_id=TENANT_ID,
             file_content=csv_content,
             content_type="csv",
-            target_year_month=TARGET_YM,
         )
 
         assert result.assignments_created == 1
+
+    def test_mixed_months_raises_422(self) -> None:
+        """異常系: 複数の年月が混在している場合、422例外を送出する."""
+        csv_content = (
+            "date,slot_type,worker_id_1\n"
+            "2025-12-01,weekday_night,1234567\n"
+            "2026-01-05,weekday_night,1234567\n"
+        ).encode("utf-8")
+
+        session = self._make_session_mock([])
+
+        with pytest.raises(HTTPException) as exc_info:
+            shift_plan_import_service.import_shift_plan(
+                session=session,
+                tenant_id=TENANT_ID,
+                file_content=csv_content,
+                content_type="csv",
+            )
+
+        assert exc_info.value.status_code == 422
+        assert "複数の年月" in exc_info.value.detail
+
+    def test_target_year_month_auto_detected(self) -> None:
+        """正常系: 対象年月がファイル内の日付から自動検出される."""
+        csv_content = (
+            "date,slot_type\n"
+            "2026-03-10,weekday_night\n"
+            "2026-03-15,sat_day\n"
+        ).encode("utf-8")
+
+        session = self._make_session_mock([])
+
+        result = shift_plan_import_service.import_shift_plan(
+            session=session,
+            tenant_id=TENANT_ID,
+            file_content=csv_content,
+            content_type="csv",
+        )
+
+        assert result.target_year_month == "2026-03"

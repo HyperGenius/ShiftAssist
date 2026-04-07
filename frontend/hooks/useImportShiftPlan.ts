@@ -10,7 +10,6 @@ const API_BASE_URL =
 
 export type ImportShiftPlanParams = {
   file: File;
-  targetYearMonth: string;
   planStatus?: PlanStatus;
   createdBy?: string;
 };
@@ -27,7 +26,8 @@ export type UseImportShiftPlanResult = {
 /**
  * 過去シフトデータ一括インポートMutationフック。
  *
- * CSV/JSONファイルと対象年月を指定してインポートAPIを呼び出す。
+ * CSV/JSONファイルを指定してインポートAPIを呼び出す。
+ * 対象年月はファイル内の date カラムから自動検出される。
  * 処理中はローディング状態を管理し、エラー時はエラーメッセージを返す。
  */
 export function useImportShiftPlan(): UseImportShiftPlanResult {
@@ -56,7 +56,6 @@ export function useImportShiftPlan(): UseImportShiftPlanResult {
 
         const formData = new FormData();
         formData.append("file", params.file);
-        formData.append("target_year_month", params.targetYearMonth);
         if (params.planStatus) {
           formData.append("plan_status", params.planStatus);
         }

@@ -225,12 +225,43 @@ def _lookup_workers_by_employee_no(
     return mapping, missing
 
 
+def _detect_target_year_month(rows: list[dict[str, object]]) -> str:
+    """パース済み行リストから対象年月を自動検出する.
+
+    全行の date フィールドから YYYY-MM を収集し、単一の年月のみであることを検証する。
+
+    Args:
+        rows: 内部形式に正規化された行辞書のリスト。各 row["date"] は date オブジェクト。
+
+    Returns:
+        検出された対象年月（YYYY-MM形式）。
+
+    Raises:
+        HTTPException: 複数の年月が混在している場合。
+    """
+    year_months: set[str] = set()
+    for row in rows:
+        d = row["date"]
+        if isinstance(d, date):
+            year_months.add(d.strftime("%Y-%m"))
+
+    if len(year_months) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"ファイル内に複数の年月が混在しています: {', '.join(sorted(year_months))}。"
+                "1回のインポートは単一の年月のみ対象にしてください。"
+            ),
+        )
+
+    return next(iter(year_months))
+
+
 def import_shift_plan(
     session: Session,
     tenant_id: str,
     file_content: bytes,
     content_type: str,
-    target_year_month: str,
     plan_status: PlanStatusEnum = PlanStatusEnum.published,
     created_by: str = "import",
 ) -> ShiftPlanImportResponse:
@@ -239,13 +270,13 @@ def import_shift_plan(
     単一トランザクション内で ShiftPlan / ShiftSlot / ShiftAssignment を作成する。
     エラーが発生した場合はロールバックし、中途半端なデータが残らないようにする。
     全アサインに ``is_manual_override = True`` を設定し、ルール検証をスキップする。
+    対象年月はファイル内の date カラムから自動検出する。全行が同一年月である必要がある。
 
     Args:
         session: DBセッション。
         tenant_id: テナントID。
         file_content: アップロードファイルのバイト列。
         content_type: ファイルのコンテンツタイプ（"csv" または "json"）。
-        target_year_month: 対象年月（YYYY-MM形式）。
         plan_status: 作成するシフトプランのステータス（デフォルト: published）。
         created_by: 作成者識別子（デフォルト: "import"）。
 
@@ -253,7 +284,7 @@ def import_shift_plan(
         インポート結果レスポンス。
 
     Raises:
-        HTTPException: パースエラー・フォーマット不正・DB制約エラーの場合。
+        HTTPException: パースエラー・フォーマット不正・複数年月混在・DB制約エラーの場合。
     """
     # --- ファイルパース ---
     if content_type == "json":
@@ -268,6 +299,9 @@ def import_shift_plan(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="ファイルにデータ行がありません。",
         )
+
+    # --- ファイル内の日付から対象年月を自動検出 ---
+    target_year_month = _detect_target_year_month(rows)
 
     # --- 全ワーカー社員番号を収集して一括ルックアップ ---
     all_employee_nos: list[str] = []

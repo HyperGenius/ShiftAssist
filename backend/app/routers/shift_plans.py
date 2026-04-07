@@ -24,11 +24,6 @@ router = APIRouter(prefix="/api/shift-plans", tags=["shift-plans"])
 )
 async def import_shift_plan(
     file: UploadFile,
-    target_year_month: str = Form(
-        ...,
-        description="対象年月（YYYY-MM形式）。例: '2025-12'",
-        pattern=r"^\d{4}-\d{2}$",
-    ),
     plan_status: PlanStatusEnum = Form(
         PlanStatusEnum.published,
         description="作成するシフトプランのステータス（draft / pending_approval / published）",
@@ -46,6 +41,7 @@ async def import_shift_plan(
     ``ShiftSlot`` / ``ShiftAssignment`` を単一トランザクション内で作成する。
     過去データのため、全アサインに ``is_manual_override = True`` を設定し、
     シフトルール検証はスキップする。
+    対象年月はファイル内の ``date`` カラムから自動検出する（全行が同一年月である必要あり）。
 
     CSVフォーマット例::
 
@@ -67,7 +63,6 @@ async def import_shift_plan(
 
     Args:
         file: アップロードするCSVまたはJSONファイル。
-        target_year_month: 対象年月（YYYY-MM形式）。
         plan_status: 作成するシフトプランのステータス。
         created_by: 作成者識別子。
         tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
@@ -78,7 +73,7 @@ async def import_shift_plan(
 
     Raises:
         HTTPException 415: 対応外のファイル形式の場合。
-        HTTPException 422: パースエラーまたはフォーマット不正の場合。
+        HTTPException 422: パースエラー・フォーマット不正・複数年月混在の場合。
     """
     filename = file.filename or ""
     content_type_hint = _detect_content_type(filename, file.content_type or "")
@@ -96,7 +91,6 @@ async def import_shift_plan(
         tenant_id=tenant_id,
         file_content=file_content,
         content_type=content_type_hint,
-        target_year_month=target_year_month,
         plan_status=plan_status,
         created_by=created_by,
     )
