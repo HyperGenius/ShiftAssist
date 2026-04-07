@@ -34,13 +34,13 @@ WORKER_ID_1 = uuid.uuid4()
 WORKER_ID_2 = uuid.uuid4()
 
 
-def _make_worker(employee_no: str, worker_id: uuid.UUID) -> Worker:
+def _make_worker(employee_code: str, worker_id: uuid.UUID) -> Worker:
     """テスト用Workerオブジェクトを生成するヘルパー."""
     w = Worker()
     w.id = worker_id
     w.tenant_id = TENANT_ID
-    w.employee_no = employee_no
-    w.name = f"ワーカー{employee_no}"
+    w.employee_code = employee_code
+    w.name = f"ワーカー{employee_code}"
     w.department_id = uuid.uuid4()
     w.is_special = False
     w.created_at = datetime(2026, 1, 1)
