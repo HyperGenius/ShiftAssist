@@ -73,7 +73,7 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
   const [draggingWorkerId, setDraggingWorkerId] = useState<string | null>(null);
 
   const { shiftRequirements, isLoading, createShiftRequirement, updateShiftRequirement, saveAssignments } =
-    useShiftRequirements();
+    useShiftRequirements({ year, month });
   const { workers } = useWorkers();
   const { skillRanks } = useSkillRanks();
   const { departments } = useDepartments();

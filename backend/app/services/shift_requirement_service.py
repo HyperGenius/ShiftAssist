@@ -4,6 +4,7 @@
 すべての操作において ``tenant_id`` によるデータ分離を保証する。
 """
 
+import calendar
 import uuid
 from collections import defaultdict
 from datetime import date
@@ -96,21 +97,36 @@ def create_shift_req(
     return ShiftReqResponse.model_validate(req)
 
 
-def list_shift_reqs(session: Session, tenant_id: str) -> list[ShiftReqResponse]:
+def list_shift_reqs(
+    session: Session,
+    tenant_id: str,
+    year: int | None = None,
+    month: int | None = None,
+) -> list[ShiftReqResponse]:
     """テナントに属するShiftRequirement一覧を取得する.
 
     アサイン情報も含めて返す。
+    year と month を指定した場合は、対象年月のデータのみを返す。
 
     Args:
         session: SQLModelセッション。
         tenant_id: 対象テナントID。
+        year: フィルタリングする年（month と合わせて指定）。
+        month: フィルタリングする月（year と合わせて指定）。
 
     Returns:
         ShiftRequirement一覧のレスポンスモデルリスト（アサイン情報含む）。
     """
-    reqs = session.exec(
-        select(ShiftRequirement).where(ShiftRequirement.tenant_id == tenant_id)
-    ).all()
+    stmt = select(ShiftRequirement).where(ShiftRequirement.tenant_id == tenant_id)
+    if year is not None and month is not None:
+        month_start = date(year, month, 1)
+        _, last_day = calendar.monthrange(year, month)
+        month_end = date(year, month, last_day)
+        stmt = stmt.where(
+            ShiftRequirement.shift_date >= month_start,  # type: ignore[operator]  # SQLModelのdateカラムの比較演算子はランタイムで正常動作するが型定義が不完全なため抑制
+            ShiftRequirement.shift_date <= month_end,  # type: ignore[operator]  # 同上
+        )
+    reqs = session.exec(stmt).all()
 
     if not reqs:
         return []
