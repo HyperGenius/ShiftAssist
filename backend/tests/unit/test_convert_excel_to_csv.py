@@ -379,7 +379,7 @@ class TestLookupWorkerId:
 class TestConvertOutputFormat:
     """convert 関数の出力 CSV に required_count 列が含まれることを検証する."""
 
-    def test_required_count_in_fieldnames(self, tmp_path: "pytest.TempPathFactory") -> None:  # type: ignore[name-defined]
+    def test_required_count_in_fieldnames(self, tmp_path: "pathlib.Path") -> None:  # type: ignore[name-defined]
         """正常系: 出力 CSV に required_count 列が含まれる."""
         import csv
 
@@ -417,7 +417,7 @@ class TestConvertOutputFormat:
         assert "required_count" in rows[0], "required_count 列が存在すること"
 
     def test_required_count_value_matches_worker_count(
-        self, tmp_path: "pytest.TempPathFactory"  # type: ignore[name-defined]
+        self, tmp_path: "pathlib.Path"  # type: ignore[name-defined]
     ) -> None:
         """正常系: required_count の値がワーカー数と一致する."""
         import csv
