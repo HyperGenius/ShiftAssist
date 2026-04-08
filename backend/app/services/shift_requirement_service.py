@@ -363,7 +363,8 @@ def generate_requirements_for_month(
         )
     ).all()
     existing_keys: set[tuple[date, SlotTypeEnum]] = {
-        (cast(date, r.shift_date), cast(SlotTypeEnum, r.slot_type)) for r in existing_rows
+        (cast(date, r.shift_date), cast(SlotTypeEnum, r.slot_type))
+        for r in existing_rows
     }
 
     created: list[ShiftRequirement] = []
