@@ -449,11 +449,12 @@ class ShiftRequirement(Base):
 
     「いつ」「どの部門で」「何人のスタッフが必要か」というシフトの募集要件を定義する。
     将来的なAIによる自動アサインロジックのベースとなるデータ構造。
+    スナップショットとして永続化することで、要件ルール変更が過去データに影響しないよう設計。
 
     Attributes:
         id: UUIDによるプライマリキー。
         tenant_id: Clerk OrganizationのID。テナント分離に使用。
-        department_id: 対象部門のID（departmentsテーブルへのFK）。
+        department_id: 対象部門のID（departmentsテーブルへのFK）。スナップショット生成時はNULL可。
         shift_date: シフト対象日。
         slot_type: 枠の種別（平日夜間 / 土曜昼夜 / 日祝昼夜 / 長期連休昼夜）。
         required_headcount: 必要人数（1以上）。
@@ -465,13 +466,19 @@ class ShiftRequirement(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(String, index=True, nullable=False)
     department_id = Column(
-        UUID(as_uuid=True), ForeignKey("departments.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("departments.id"), nullable=True
     )
     shift_date = Column(Date, nullable=False)
     slot_type = Column(Enum(SlotTypeEnum), nullable=False)  # type: ignore[var-annotated]
     required_headcount = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "shift_date", "slot_type", name="uq_shift_req_tenant_date_slot"
+        ),
+    )
 
 
 class TenantRulesConfig(Base):

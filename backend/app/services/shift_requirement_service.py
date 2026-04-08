@@ -13,7 +13,13 @@ from typing import cast
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
-from app.models.models import Department, ShiftRequirement, ShiftRequirementAssignment
+from app.models.models import (
+    Department,
+    ShiftRequirement,
+    ShiftRequirementAssignment,
+    SlotTypeEnum,
+    TenantHoliday,
+)
 from app.models.schemas import (
     ShiftReqCreate,
     ShiftReqResponse,
@@ -82,7 +88,8 @@ def create_shift_req(
             または指定日付が過去の場合。
     """
     _validate_date_not_past(data.shift_date)
-    _validate_department(session, tenant_id, data.department_id)
+    if data.department_id is not None:
+        _validate_department(session, tenant_id, data.department_id)
 
     req = ShiftRequirement(
         tenant_id=tenant_id,
@@ -269,3 +276,117 @@ def delete_shift_req(session: Session, tenant_id: str, req_id: uuid.UUID) -> Non
         )
     session.delete(req)
     session.commit()
+
+
+def _determine_slot_types_for_date(
+    target_date: date,
+    holiday_dates: set[date],
+    long_holiday_dates: set[date],
+) -> list[SlotTypeEnum]:
+    """指定日付に対して適用すべき SlotTypeEnum の一覧を返す.
+
+    Args:
+        target_date: 対象日付。
+        holiday_dates: 祝日・日曜を除く休日の日付集合。
+        long_holiday_dates: 長期連休（GW・年末年始等）の日付集合。
+
+    Returns:
+        対象日に発生するシフト枠種別のリスト。
+    """
+    weekday = target_date.weekday()  # 0=月曜 … 5=土曜, 6=日曜
+    is_saturday = weekday == 5
+    is_sunday = weekday == 6
+    is_holiday = target_date in holiday_dates
+    is_long_holiday = target_date in long_holiday_dates
+
+    if is_long_holiday:
+        return [SlotTypeEnum.long_hol_day, SlotTypeEnum.long_hol_night]
+    if is_saturday:
+        return [SlotTypeEnum.sat_day, SlotTypeEnum.sat_night]
+    if is_sunday or is_holiday:
+        return [SlotTypeEnum.sun_hol_day, SlotTypeEnum.sun_hol_night]
+    # 平日は夜間のみ
+    return [SlotTypeEnum.weekday_night]
+
+
+def generate_requirements_for_month(
+    session: Session,
+    tenant_id: str,
+    year: int,
+    month: int,
+    default_headcount: int = 2,
+) -> list[ShiftRequirement]:
+    """指定月のシフト要件レコードを一括生成する（スナップショット保存）.
+
+    テナントの祝日設定を参照して各日の枠種別を決定し、
+    まだ存在しないレコードのみを INSERT する。
+    既存レコードはそのまま保持する（重複登録防止）。
+
+    Args:
+        session: SQLModelセッション。
+        tenant_id: 対象テナントID。
+        year: 対象年。
+        month: 対象月。
+        default_headcount: デフォルト必要人数（デフォルト: 2）。
+
+    Returns:
+        新規に作成された ShiftRequirement レコードのリスト。
+    """
+    # テナントの祝日・長期連休を取得
+    month_start = date(year, month, 1)
+    _, last_day = calendar.monthrange(year, month)
+    month_end = date(year, month, last_day)
+
+    holiday_rows = session.exec(
+        select(TenantHoliday).where(
+            TenantHoliday.tenant_id == tenant_id,
+            TenantHoliday.date >= month_start,  # type: ignore[operator]
+            TenantHoliday.date <= month_end,  # type: ignore[operator]
+        )
+    ).all()
+
+    holiday_dates: set[date] = set()
+    long_holiday_dates: set[date] = set()
+    for h in holiday_rows:
+        d = cast(date, h.date)
+        if h.is_long_holiday:
+            long_holiday_dates.add(d)
+        else:
+            holiday_dates.add(d)
+
+    # 既存レコードの (shift_date, slot_type) 組み合わせを取得
+    existing_rows = session.exec(
+        select(ShiftRequirement).where(
+            ShiftRequirement.tenant_id == tenant_id,
+            ShiftRequirement.shift_date >= month_start,  # type: ignore[operator]
+            ShiftRequirement.shift_date <= month_end,  # type: ignore[operator]
+        )
+    ).all()
+    existing_keys: set[tuple[date, SlotTypeEnum]] = {
+        (cast(date, r.shift_date), cast(SlotTypeEnum, r.slot_type)) for r in existing_rows
+    }
+
+    created: list[ShiftRequirement] = []
+    for day in range(1, last_day + 1):
+        target_date = date(year, month, day)
+        slot_types = _determine_slot_types_for_date(
+            target_date, holiday_dates, long_holiday_dates
+        )
+        for slot_type in slot_types:
+            if (target_date, slot_type) in existing_keys:
+                continue
+            req = ShiftRequirement(
+                tenant_id=tenant_id,
+                shift_date=target_date,
+                slot_type=slot_type,
+                required_headcount=default_headcount,
+            )
+            session.add(req)
+            created.append(req)
+
+    if created:
+        session.commit()
+        for r in created:
+            session.refresh(r)
+
+    return created

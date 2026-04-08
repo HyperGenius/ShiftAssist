@@ -369,3 +369,85 @@ class TestLookupWorkerId:
         """空のセル値は None を返す."""
         cache = {"山田太郎": "1234567"}
         assert script.lookup_worker_id("", cache) is None
+
+
+# ---------------------------------------------------------------------------
+# convert 出力形式（required_count 列の確認）
+# ---------------------------------------------------------------------------
+
+
+class TestConvertOutputFormat:
+    """convert 関数の出力 CSV に required_count 列が含まれることを検証する."""
+
+    def test_required_count_in_fieldnames(self, tmp_path: "pytest.TempPathFactory") -> None:  # type: ignore[name-defined]
+        """正常系: 出力 CSV に required_count 列が含まれる."""
+        import csv
+
+        # 最小限の入力 CSV を作成（宿直カテゴリのみ・1行データ）
+        # 1行目: カテゴリヘッダー
+        # 2行目: サブヘッダー（氏名）
+        # 3行目: データ行（日=1, 曜=月, 宿直担当者名）
+        input_data = [
+            ["", "", "宿直", "", ""],
+            ["日", "曜", "回数", "氏名", "交替者名"],
+            ["1", "月", "1", "山田太郎", ""],
+        ]
+        input_path = tmp_path / "input.csv"
+        output_path = tmp_path / "output.csv"
+
+        with open(input_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerows(input_data)
+
+        # DB 未接続（tenant_id/db_url なし）で変換実行
+        script.convert(
+            input_path=str(input_path),
+            output_path=str(output_path),
+            year_month="2026-04",
+            tenant_id=None,
+            db_url=None,
+        )
+
+        # 出力 CSV を読み込んで required_count 列の存在を確認
+        with open(output_path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert len(rows) > 0, "出力行が存在すること"
+        assert "required_count" in rows[0], "required_count 列が存在すること"
+
+    def test_required_count_value_matches_worker_count(
+        self, tmp_path: "pytest.TempPathFactory"  # type: ignore[name-defined]
+    ) -> None:
+        """正常系: required_count の値がワーカー数と一致する."""
+        import csv
+
+        # 宿直に2名アサイン
+        input_data = [
+            ["", "", "宿直", "", "", ""],
+            ["日", "曜", "回数", "氏名", "交替者名", "氏名"],
+            ["1", "月", "1", "山田太郎", "", "鈴木花子"],
+        ]
+        input_path = tmp_path / "input2.csv"
+        output_path = tmp_path / "output2.csv"
+
+        with open(input_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerows(input_data)
+
+        script.convert(
+            input_path=str(input_path),
+            output_path=str(output_path),
+            year_month="2026-04",
+            tenant_id=None,
+            db_url=None,
+        )
+
+        with open(output_path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        # weekday_night 行を探して required_count を確認
+        wn_rows = [r for r in rows if r["slot_type"] == "weekday_night"]
+        assert wn_rows, "weekday_night 行が存在すること"
+        assert wn_rows[0]["required_count"] == "2"

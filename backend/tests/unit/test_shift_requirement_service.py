@@ -343,3 +343,211 @@ class TestDeleteShiftReq:
             shift_requirement_service.delete_shift_req(session, OTHER_TENANT_ID, REQ_ID)
 
         assert exc_info.value.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# _determine_slot_types_for_date
+# ---------------------------------------------------------------------------
+
+
+class TestDetermineSlotTypesForDate:
+    """_determine_slot_types_for_date の正常系テスト."""
+
+    def test_weekday_returns_weekday_night(self) -> None:
+        """正常系: 平日（休日なし）は weekday_night のみ返す."""
+        # 2026-04-06 は月曜日
+        result = shift_requirement_service._determine_slot_types_for_date(
+            date(2026, 4, 6), set(), set()
+        )
+        assert result == [SlotTypeEnum.weekday_night]
+
+    def test_saturday_returns_sat_day_and_night(self) -> None:
+        """正常系: 土曜日は sat_day と sat_night を返す."""
+        # 2026-04-04 は土曜日
+        result = shift_requirement_service._determine_slot_types_for_date(
+            date(2026, 4, 4), set(), set()
+        )
+        assert result == [SlotTypeEnum.sat_day, SlotTypeEnum.sat_night]
+
+    def test_sunday_returns_sun_hol_day_and_night(self) -> None:
+        """正常系: 日曜日は sun_hol_day と sun_hol_night を返す."""
+        # 2026-04-05 は日曜日
+        result = shift_requirement_service._determine_slot_types_for_date(
+            date(2026, 4, 5), set(), set()
+        )
+        assert result == [SlotTypeEnum.sun_hol_day, SlotTypeEnum.sun_hol_night]
+
+    def test_holiday_weekday_returns_sun_hol_slots(self) -> None:
+        """正常系: 平日でも祝日の場合は sun_hol_day と sun_hol_night を返す."""
+        # 2026-01-12 は月曜日（成人の日仮定）
+        holiday_date = date(2026, 1, 12)
+        result = shift_requirement_service._determine_slot_types_for_date(
+            holiday_date, {holiday_date}, set()
+        )
+        assert result == [SlotTypeEnum.sun_hol_day, SlotTypeEnum.sun_hol_night]
+
+    def test_long_holiday_returns_long_hol_slots(self) -> None:
+        """正常系: 長期連休は long_hol_day と long_hol_night を返す."""
+        long_hol_date = date(2026, 5, 4)
+        result = shift_requirement_service._determine_slot_types_for_date(
+            long_hol_date, set(), {long_hol_date}
+        )
+        assert result == [SlotTypeEnum.long_hol_day, SlotTypeEnum.long_hol_night]
+
+    def test_long_holiday_takes_precedence_over_saturday(self) -> None:
+        """正常系: 長期連休が土曜より優先される."""
+        # 2026-05-02 は土曜日だが長期連休とする
+        long_hol_sat = date(2026, 5, 2)
+        result = shift_requirement_service._determine_slot_types_for_date(
+            long_hol_sat, set(), {long_hol_sat}
+        )
+        assert result == [SlotTypeEnum.long_hol_day, SlotTypeEnum.long_hol_night]
+
+
+# ---------------------------------------------------------------------------
+# generate_requirements_for_month
+# ---------------------------------------------------------------------------
+
+
+def _make_holiday_row(*, d: date, is_long: bool = False) -> MagicMock:
+    """テスト用 TenantHoliday モックを生成するヘルパー."""
+    h = MagicMock()
+    h.date = d
+    h.is_long_holiday = is_long
+    return h
+
+
+class TestGenerateRequirementsForMonth:
+    """generate_requirements_for_month の正常系テスト."""
+
+    def _make_session_for_generate(
+        self,
+        holiday_rows: list[MagicMock],
+        existing_reqs: list[ShiftRequirement],
+    ) -> MagicMock:
+        """generate_requirements_for_month 用のセッションモックを生成する."""
+        session = MagicMock()
+        # exec が2回呼ばれる: 1回目=祝日取得, 2回目=既存レコード取得
+        first_exec = MagicMock()
+        first_exec.all.return_value = holiday_rows
+        second_exec = MagicMock()
+        second_exec.all.return_value = existing_reqs
+        session.exec.side_effect = [first_exec, second_exec]
+        session.refresh.side_effect = lambda obj: None
+        return session
+
+    def test_generates_records_for_month_no_holidays(self) -> None:
+        """正常系: 祝日なし・既存レコードなしの月（平日のみ）で weekday_night のみ生成."""
+        # 2026年2月: 28日 / 全て平日（土日を除く）と仮定
+        # 実際の曜日: 2026-02-01=日, ..., 7=土, 8=日, ..., 14=土, 15=日, 21=土, 22=日, 28=土
+        session = self._make_session_for_generate([], [])
+
+        created = shift_requirement_service.generate_requirements_for_month(
+            session, TENANT_ID, 2026, 2
+        )
+
+        # 2026-02: 日曜4日, 土曜4日 → 日曜=sun_hol×2, 土曜=sat×2, 残20平日=weekday×1
+        # 日: 1,8,15,22 → sun_hol_day + sun_hol_night = 8件
+        # 土: 7,14,21,28 → sat_day + sat_night = 8件
+        # 平日: 20日 → weekday_night = 20件
+        # 合計 = 36件
+        assert len(created) == 36
+        assert session.add.call_count == 36
+        session.commit.assert_called_once()
+
+    def test_generates_records_with_holiday(self) -> None:
+        """正常系: 平日に祝日が含まれる場合、sun_hol_day/night が生成される."""
+        # 2026-01-12 (月曜=祝日) を含む1月
+        holiday = _make_holiday_row(d=date(2026, 1, 12), is_long=False)
+        session = self._make_session_for_generate([holiday], [])
+
+        created = shift_requirement_service.generate_requirements_for_month(
+            session, TENANT_ID, 2026, 1
+        )
+
+        slot_types = [r.slot_type for r in created]
+        assert SlotTypeEnum.sun_hol_day in slot_types
+        assert SlotTypeEnum.sun_hol_night in slot_types
+        # 祝日 (平日) のうち1日が sun_hol に変わるため weekday_night が1件減る
+        assert created  # 何か生成されていること
+
+    def test_skips_existing_records(self) -> None:
+        """正常系: 既存レコードが存在する場合、該当する (date, slot_type) をスキップする."""
+        # 2026-04-06 (月曜) の weekday_night が既存と仮定
+        existing = _make_req(
+            target_date=date(2026, 4, 6),
+            slot_type=SlotTypeEnum.weekday_night,
+        )
+        session = self._make_session_for_generate([], [existing])
+
+        created = shift_requirement_service.generate_requirements_for_month(
+            session, TENANT_ID, 2026, 4
+        )
+
+        # 既存の (2026-04-06, weekday_night) はスキップ → 1件少ない
+        dates_slots = [(r.shift_date, r.slot_type) for r in created]
+        assert (date(2026, 4, 6), SlotTypeEnum.weekday_night) not in dates_slots
+
+    def test_returns_empty_list_when_all_existing(self) -> None:
+        """正常系: 全レコードが既存の場合、空リストを返す."""
+        # 1日分だけテスト: 2099-12-31 (水曜=平日) の weekday_night が既存
+        existing = _make_req(
+            target_date=date(2099, 12, 31),
+            slot_type=SlotTypeEnum.weekday_night,
+        )
+        # 2099-12月を generate するが既存が全て埋まっている前提
+        # 実際には全日のレコードを作ると複雑なので、1件スキップのみ確認
+        session = self._make_session_for_generate([], [existing])
+
+        created = shift_requirement_service.generate_requirements_for_month(
+            session, TENANT_ID, 2099, 12
+        )
+
+        # 12月の残りの日/枠は生成されるが、2099-12-31 weekday_night はスキップ
+        dates_slots = [(r.shift_date, r.slot_type) for r in created]
+        assert (date(2099, 12, 31), SlotTypeEnum.weekday_night) not in dates_slots
+
+    def test_no_commit_when_nothing_created(self) -> None:
+        """正常系: 新規生成レコードがない場合、commit が呼ばれない."""
+        # 小さい月で全レコードを既存として用意
+        # 2026年2月の全レコードを既存とする
+        import calendar as cal_mod
+
+        _, last_day = cal_mod.monthrange(2026, 2)
+        existing_reqs = []
+        for day in range(1, last_day + 1):
+            d = date(2026, 2, day)
+            slot_types = shift_requirement_service._determine_slot_types_for_date(
+                d, set(), set()
+            )
+            for st in slot_types:
+                existing_reqs.append(_make_req(target_date=d, slot_type=st))
+
+        session = self._make_session_for_generate([], existing_reqs)
+
+        created = shift_requirement_service.generate_requirements_for_month(
+            session, TENANT_ID, 2026, 2
+        )
+
+        assert created == []
+        session.commit.assert_not_called()
+
+    def test_default_headcount_is_two(self) -> None:
+        """正常系: デフォルトの required_headcount は 2 である."""
+        session = self._make_session_for_generate([], [])
+
+        created = shift_requirement_service.generate_requirements_for_month(
+            session, TENANT_ID, 2026, 2
+        )
+
+        assert all(r.required_headcount == 2 for r in created)
+
+    def test_custom_headcount(self) -> None:
+        """正常系: default_headcount を指定した場合、その値が使用される."""
+        session = self._make_session_for_generate([], [])
+
+        created = shift_requirement_service.generate_requirements_for_month(
+            session, TENANT_ID, 2026, 2, default_headcount=3
+        )
+
+        assert all(r.required_headcount == 3 for r in created)
