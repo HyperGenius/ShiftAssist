@@ -58,8 +58,8 @@ async def import_shift_plan(
           }
         ]
 
-    ワーカーは社員番号（``employee_no``）で特定する。
-    存在しない社員番号はスキップされ、レスポンスの ``skipped_worker_ids`` に含まれる。
+    ワーカーは職員番号（``employee_code``）で特定する。
+    存在しない職員番号はスキップされ、レスポンスの ``skipped_worker_ids`` に含まれる。
 
     Args:
         file: アップロードするCSVまたはJSONファイル。

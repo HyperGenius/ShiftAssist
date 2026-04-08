@@ -292,22 +292,22 @@ class TestParseHeader:
 class TestBuildWorkerCache:
     """build_worker_cache のテスト."""
 
-    def _make_worker(self, name: str, employee_no: str | None, uuid_str: str) -> MagicMock:
+    def _make_worker(self, name: str, employee_code: str | None, uuid_str: str) -> MagicMock:
         """テスト用 Worker モックを生成する."""
         w = MagicMock()
         w.name = name
-        w.employee_no = employee_no
+        w.employee_code = employee_code
         w.id = uuid_str
         return w
 
-    def test_employee_no_used_when_available(self) -> None:
-        """employee_no がある場合はそれを識別子に使う."""
+    def test_employee_code_used_when_available(self) -> None:
+        """employee_code がある場合はそれを識別子に使う."""
         workers = [self._make_worker("山田 太郎", "1234567", "some-uuid")]
         cache = script.build_worker_cache(workers)
         assert cache.get("山田太郎") == "1234567"
 
-    def test_uuid_used_when_no_employee_no(self) -> None:
-        """employee_no が None の場合は UUID 文字列を使う."""
+    def test_uuid_used_when_no_employee_code(self) -> None:
+        """employee_code が None の場合は UUID 文字列を使う."""
         workers = [self._make_worker("鈴木 一郎", None, "uuid-abc")]
         cache = script.build_worker_cache(workers)
         assert cache.get("鈴木一郎") == "uuid-abc"
