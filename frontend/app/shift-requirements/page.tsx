@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 
 import { SciFiButton } from "@/components/ui/SciFiButton";
@@ -9,13 +9,37 @@ import { ImportShiftPlanModal } from "@/components/shift-import/ImportShiftPlanM
 import { ShiftCalendar } from "@/components/shift-calendar/ShiftCalendar";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useShiftRules } from "@/hooks/useShiftRules";
+import { useShiftPlan } from "@/hooks/useShiftPlan";
 import type { Department } from "@/types/department";
 
+type ViewMode = "past" | "edit";
+
 export default function ShiftRequirementsPage() {
+  const today = new Date();
   const { departments, isLoading: deptsLoading } = useDepartments();
   const { rules, isLoading: rulesLoading } = useShiftRules();
   const [activeDeptId, setActiveDeptId] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
+
+  // カレンダーが表示中の年月（ShiftCalendar の月ナビと同期）
+  const [calYear, setCalYear] = useState(today.getFullYear());
+  const [calMonth, setCalMonth] = useState(today.getMonth() + 1);
+
+  const handleYearMonthChange = useCallback((y: number, m: number) => {
+    setCalYear(y);
+    setCalMonth(m);
+    // 月が変わったら表示モードをリセット（pastPlan の存在で自動判定させる）
+    setViewMode(null);
+  }, []);
+
+  // 現在表示中の年月の過去プランを取得
+  const { shiftPlan, isLoading: planLoading } = useShiftPlan({ year: calYear, month: calMonth });
+
+  // null = 未選択（pastPlan の有無で自動決定）、それ以外はユーザーが手動選択済み
+  const [viewMode, setViewMode] = useState<ViewMode | null>(null);
+
+  // 実際に使うモード: ユーザーが選択していれば従う、未選択なら pastPlan があれば "past"、なければ "edit"
+  const effectiveMode: ViewMode = viewMode ?? (shiftPlan ? "past" : "edit");
 
   const isLoading = deptsLoading || rulesLoading;
 
@@ -71,13 +95,46 @@ export default function ShiftRequirementsPage() {
           </div>
         )}
 
+        {/* 表示モード切り替えタブ（過去データが存在するときのみ表示） */}
+        {!isLoading && !planLoading && shiftPlan && (
+          <div className="flex gap-1 mb-4 border-b border-gray-200">
+            <button
+              onClick={() => setViewMode("past")}
+              className={[
+                "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                effectiveMode === "past"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700",
+              ].join(" ")}
+            >
+              📋 過去シフト（{shiftPlan.target_year_month}）
+            </button>
+            <button
+              onClick={() => setViewMode("edit")}
+              className={[
+                "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                effectiveMode === "edit"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700",
+              ].join(" ")}
+            >
+              ✏️ シフト枠編集
+            </button>
+          </div>
+        )}
+
         {/* カレンダー */}
-        {isLoading ? (
+        {isLoading || planLoading ? (
           <div className="flex items-center justify-center py-20 text-gray-400 text-sm">
             読み込み中...
           </div>
         ) : activeDept ? (
-          <ShiftCalendar department={activeDept} />
+          <ShiftCalendar
+            department={activeDept}
+            pastPlan={effectiveMode === "past" ? shiftPlan : null}
+            readOnly={effectiveMode === "past"}
+            onYearMonthChange={handleYearMonthChange}
+          />
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400 text-sm gap-3">
             <p>シフト対象部門が設定されていません。</p>

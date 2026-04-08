@@ -32,6 +32,7 @@ import type {
   ShiftRequirementCreate,
 } from "@/types/shiftRequirement";
 import type { Department } from "@/types/department";
+import type { ShiftPlanDetail } from "@/types/shiftPlan";
 import { useShiftValidation, buildSlotKey } from "@/hooks/useShiftValidation";
 import type { ValidationViolation } from "@/utils/shiftValidators";
 import {
@@ -49,10 +50,16 @@ const DEFAULT_HEADCOUNT = 2;
 
 interface ShiftCalendarProps {
   department: Department;
+  /** 過去インポートデータ。指定時はそのデータでカレンダーを初期化する */
+  pastPlan?: ShiftPlanDetail | null;
+  /** true の場合、編集・保存操作を無卒化する */
+  readOnly?: boolean;
+  /** 年月切り替え時のコールバック */
+  onYearMonthChange?: (year: number, month: number) => void;
 }
 
 /** 月間シフト枠カレンダーコンポーネント */
-export function ShiftCalendar({ department }: ShiftCalendarProps) {
+export function ShiftCalendar({ department, pastPlan, readOnly = false, onYearMonthChange }: ShiftCalendarProps) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
@@ -133,36 +140,53 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
       }
     }
 
-    // バックエンドから取得したシフト枠データで上書き
-    const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
-    for (const req of shiftRequirements) {
-      if (
-        !req.shift_date.startsWith(monthPrefix) ||
-        req.department_id !== department.id
-      )
-        continue;
-      const dateStr = req.shift_date;
-      if (!newState[dateStr]) continue;
-      const headcount = req.required_headcount;
-
-      // 保存済みのワーカー選択を復元する
-      const savedWorkerIds = req.assignments.map((a) => a.worker_id);
-      const workerSelections: (string | null)[] = Array(headcount).fill(null) as null[];
-      for (let i = 0; i < Math.min(savedWorkerIds.length, headcount); i++) {
-        workerSelections[i] = savedWorkerIds[i];
+    if (pastPlan) {
+      // 過去プランデータでカレンダーを上書きする
+      const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
+      for (const slot of pastPlan.slots) {
+        const dateStr = slot.date.slice(0, 10); // ISO datetime から YYYY-MM-DD を抽出
+        if (!dateStr.startsWith(monthPrefix)) continue;
+        if (!newState[dateStr]) continue;
+        const workerIds = slot.assignments.map((a) => a.worker_id);
+        newState[dateStr][slot.slot_type as SlotType] = {
+          slot_type: slot.slot_type as SlotType,
+          required_headcount: workerIds.length || DEFAULT_HEADCOUNT,
+          workerSelections: workerIds.length > 0 ? workerIds : Array(DEFAULT_HEADCOUNT).fill(null) as null[],
+          isDirty: false,
+        };
       }
+    } else {
+      // バックエンドから取得したシフト枠データで上書き
+      const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
+      for (const req of shiftRequirements) {
+        if (
+          !req.shift_date.startsWith(monthPrefix) ||
+          req.department_id !== department.id
+        )
+          continue;
+        const dateStr = req.shift_date;
+        if (!newState[dateStr]) continue;
+        const headcount = req.required_headcount;
 
-      newState[dateStr][req.slot_type] = {
-        requirementId: req.id,
-        slot_type: req.slot_type,
-        required_headcount: headcount,
-        workerSelections,
-        isDirty: false,
-      };
+        // 保存済みのワーカー選択を復元する
+        const savedWorkerIds = req.assignments.map((a) => a.worker_id);
+        const workerSelections: (string | null)[] = Array(headcount).fill(null) as null[];
+        for (let i = 0; i < Math.min(savedWorkerIds.length, headcount); i++) {
+          workerSelections[i] = savedWorkerIds[i];
+        }
+
+        newState[dateStr][req.slot_type] = {
+          requirementId: req.id,
+          slot_type: req.slot_type,
+          required_headcount: headcount,
+          workerSelections,
+          isDirty: false,
+        };
+      }
     }
 
     setCalendarState(newState);
-  }, [shiftRequirements, calendarGrid, holidaySet, year, month, department.id]);
+  }, [shiftRequirements, pastPlan, calendarGrid, holidaySet, year, month, department.id]);
 
   /** ワーカー選択変更ハンドラ */
   const handleWorkerChange = useCallback(
@@ -317,21 +341,21 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
 
   const prevMonth = useCallback(() => {
     if (month === 1) {
-      setYear((y) => y - 1);
+      setYear((y) => { onYearMonthChange?.(y - 1, 12); return y - 1; });
       setMonth(12);
     } else {
-      setMonth((m) => m - 1);
+      setMonth((m) => { onYearMonthChange?.(year, m - 1); return m - 1; });
     }
-  }, [month]);
+  }, [month, year, onYearMonthChange]);
 
   const nextMonth = useCallback(() => {
     if (month === 12) {
-      setYear((y) => y + 1);
+      setYear((y) => { onYearMonthChange?.(y + 1, 1); return y + 1; });
       setMonth(1);
     } else {
-      setMonth((m) => m + 1);
+      setMonth((m) => { onYearMonthChange?.(year, m + 1); return m + 1; });
     }
-  }, [month]);
+  }, [month, year, onYearMonthChange]);
 
   const hasDirtySlots = useMemo(() => {
     for (const dayState of Object.values(calendarState)) {
@@ -373,15 +397,17 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
                 <SciFiButton variant="secondary" size="sm" onClick={nextMonth}>
                   翌月 &gt;&gt;
                 </SciFiButton>
-                <SciFiButton
-                  variant="primary"
-                  size="sm"
-                  onClick={handleSave}
-                  loading={isSaving}
-                  disabled={!hasDirtySlots}
-                >
-                  保存
-                </SciFiButton>
+                {!readOnly && (
+                  <SciFiButton
+                    variant="primary"
+                    size="sm"
+                    onClick={handleSave}
+                    loading={isSaving}
+                    disabled={!hasDirtySlots}
+                  >
+                    保存
+                  </SciFiButton>
+                )}
               </div>
             </div>
 
@@ -454,6 +480,7 @@ export function ShiftCalendar({ department }: ShiftCalendarProps) {
                           handleWorkerChange(dateStr, slotType, idx2, wid)
                         }
                         onSlotFocus={handleSlotFocus}
+                        readOnly={readOnly}
                       />
                     );
                   })}

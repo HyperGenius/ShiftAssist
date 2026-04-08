@@ -42,6 +42,7 @@ interface CalendarCellProps {
     workerId: string | null,
   ) => void;
   onSlotFocus: (dateStr: string, slotType: SlotType) => void;
+  readOnly?: boolean;
 }
 
 /** 1日分のカレンダーセルコンポーネント */
@@ -59,6 +60,7 @@ export function CalendarCell({
   isWorkerAvailable,
   onWorkerChange,
   onSlotFocus,
+  readOnly = false,
 }: CalendarCellProps) {
   const dayOfWeek = date.getDay();
   const dayNum = date.getDate();
@@ -117,6 +119,7 @@ export function CalendarCell({
               isWorkerAvailable={isWorkerAvailable}
               onWorkerChange={(idx, wid) => onWorkerChange(slotType, idx, wid)}
               onSlotFocus={onSlotFocus}
+              readOnly={readOnly}
             />
           ))}
         </div>
@@ -143,6 +146,7 @@ export function CalendarCell({
               isWorkerAvailable={isWorkerAvailable}
               onWorkerChange={(idx, wid) => onWorkerChange(slotType, idx, wid)}
               onSlotFocus={onSlotFocus}
+              readOnly={readOnly}
             />
           ))}
         </div>

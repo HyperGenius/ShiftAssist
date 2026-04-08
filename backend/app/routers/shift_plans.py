@@ -5,13 +5,13 @@
 過去シフトデータの一括インポートエンドポイントを提供する。
 """
 
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile, status
 from sqlmodel import Session
 
 from app.db import get_session
 from app.dependencies import get_tenant_id
 from app.models.models import PlanStatusEnum
-from app.models.schemas import ShiftPlanImportResponse
+from app.models.schemas import ShiftPlanDetailResponse, ShiftPlanImportResponse
 from app.services import shift_plan_import_service
 
 router = APIRouter(prefix="/api/shift-plans", tags=["shift-plans"])
@@ -93,6 +93,33 @@ async def import_shift_plan(
         content_type=content_type_hint,
         plan_status=plan_status,
         created_by=created_by,
+    )
+
+
+@router.get("/", response_model=ShiftPlanDetailResponse | None)
+def get_shift_plan(
+    year_month: str = Query(
+        ...,
+        description="対象年月（YYYY-MM形式）。例: '2025-06'",
+        pattern=r"^\d{4}-\d{2}$",
+    ),
+    tenant_id: str = Depends(get_tenant_id),
+    session: Session = Depends(get_session),
+) -> ShiftPlanDetailResponse | None:
+    """対象年月のシフトプランをスロット・アサイン情報込みで返す.
+
+    該当するプランが存在しない場合は null を返す。
+
+    Args:
+        year_month: 対象年月（YYYY-MM形式）。
+        tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
+        session: DBセッション。
+
+    Returns:
+        ShiftPlanDetailResponse、該当なければ null。
+    """
+    return shift_plan_import_service.get_shift_plan_by_year_month(
+        session, tenant_id, year_month
     )
 
 

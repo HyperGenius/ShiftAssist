@@ -26,7 +26,12 @@ from app.models.models import (
     SlotTypeEnum,
     Worker,
 )
-from app.models.schemas import ShiftPlanImportResponse
+from app.models.schemas import (
+    ShiftAssignmentDetail,
+    ShiftPlanDetailResponse,
+    ShiftPlanImportResponse,
+    ShiftSlotDetail,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -471,3 +476,78 @@ def _normalize_json_rows(
             {"date": shift_date, "slot_type": slot_type, "worker_nos": worker_nos}
         )
     return result
+
+
+def get_shift_plan_by_year_month(
+    session: Session,
+    tenant_id: str,
+    year_month: str,
+) -> ShiftPlanDetailResponse | None:
+    """対象年月のシフトプランをスロット・アサイン情報込みで返す.
+
+    同一年月に複数プランが存在する場合は最新（作成日時降順）の1件を返す。
+
+    Args:
+        session: SQLModelセッション。
+        tenant_id: テナントID。
+        year_month: 対象年月（YYYY-MM形式）。
+
+    Returns:
+        ShiftPlanDetailResponse、該当なければ None。
+    """
+    plan = session.exec(
+        select(ShiftPlan)
+        .where(
+            ShiftPlan.tenant_id == tenant_id,  # type: ignore[arg-type]
+            ShiftPlan.target_year_month == year_month,  # type: ignore[arg-type]
+        )
+        .order_by(ShiftPlan.created_at.desc())  # type: ignore[attr-defined]
+        .limit(1)
+    ).first()
+
+    if plan is None:
+        return None
+
+    slots = session.exec(
+        select(ShiftSlot).where(
+            ShiftSlot.plan_id == plan.id,  # type: ignore[arg-type]
+            ShiftSlot.tenant_id == tenant_id,
+        )
+    ).all()
+
+    slot_ids = [s.id for s in slots]
+    all_assignments = (
+        session.exec(
+            select(ShiftAssignment).where(
+                ShiftAssignment.slot_id.in_(slot_ids),  # type: ignore[attr-defined]
+                ShiftAssignment.tenant_id == tenant_id,
+            )
+        ).all()
+        if slot_ids
+        else []
+    )
+
+    assignments_by_slot: dict[uuid.UUID, list[ShiftAssignmentDetail]] = {}
+    for a in all_assignments:
+        sid = cast(uuid.UUID, a.slot_id)
+        assignments_by_slot.setdefault(sid, []).append(
+            ShiftAssignmentDetail.model_validate(a)
+        )
+
+    slot_details = [
+        ShiftSlotDetail(
+            id=cast(uuid.UUID, s.id),
+            date=s.date,  # type: ignore[arg-type]
+            slot_type=cast(SlotTypeEnum, s.slot_type),
+            assignments=assignments_by_slot.get(cast(uuid.UUID, s.id), []),
+        )
+        for s in slots
+    ]
+
+    return ShiftPlanDetailResponse(
+        id=cast(uuid.UUID, plan.id),
+        title=cast(str, plan.title),
+        target_year_month=cast(str, plan.target_year_month),
+        status=cast(PlanStatusEnum, plan.status),
+        slots=slot_details,
+    )
