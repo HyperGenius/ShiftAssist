@@ -18,15 +18,30 @@ const SHIFT_REQUIREMENTS_PATH = "/api/shift-requirements/";
 /** data が undefined のときに返す安定した参照（毎レンダーで新しい [] を作らないようにする） */
 const EMPTY_REQUIREMENTS: ShiftRequirement[] = [];
 
+type UseShiftRequirementsOptions = {
+  year?: number;
+  month?: number;
+};
+
 /** ShiftRequirements 一覧取得・CRUD 操作を提供するカスタムフック */
-export function useShiftRequirements() {
+export function useShiftRequirements({ year, month }: UseShiftRequirementsOptions = {}) {
   const { getToken } = useAuth();
   const { organization } = useOrganization();
   const tenantId = organization?.id ?? null;
 
+  const path = useMemo(() => {
+    if (year !== undefined && month !== undefined) {
+      const params = new URLSearchParams();
+      params.set("year", String(year));
+      params.set("month", String(month));
+      return `${SHIFT_REQUIREMENTS_PATH}?${params.toString()}`;
+    }
+    return SHIFT_REQUIREMENTS_PATH;
+  }, [year, month]);
+
   const swrKey = useMemo<[string, null, string | null] | null>(
-    () => (tenantId ? [SHIFT_REQUIREMENTS_PATH, null, tenantId] : null),
-    [tenantId],
+    () => (tenantId ? [path, null, tenantId] : null),
+    [tenantId, path],
   );
 
   const { data, error, isLoading } = useSWR<ShiftRequirement[]>(

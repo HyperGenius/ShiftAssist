@@ -45,19 +45,25 @@ def create_shift_req(
 
 @router.get("/", response_model=list[ShiftReqResponse])
 def list_shift_reqs(
+    year: int | None = None,
+    month: int | None = None,
     tenant_id: str = Depends(get_tenant_id),
     session: Session = Depends(get_session),
 ) -> list[ShiftReqResponse]:
     """テナントに属するShiftRequirement一覧を取得する.
 
+    year と month クエリパラメータを指定した場合は対象年月のみ返す。
+
     Args:
+        year: フィルタリングする年（month と合わせて指定）。
+        month: フィルタリングする月（year と合わせて指定）。
         tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
         session: DBセッション。
 
     Returns:
         ShiftRequirement一覧。
     """
-    return shift_requirement_service.list_shift_reqs(session, tenant_id)
+    return shift_requirement_service.list_shift_reqs(session, tenant_id, year, month)
 
 
 @router.get("/{req_id}", response_model=ShiftReqResponse)

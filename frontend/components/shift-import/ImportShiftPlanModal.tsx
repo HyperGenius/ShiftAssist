@@ -82,9 +82,15 @@ export function ImportShiftPlanModal({ onClose, onSuccess }: Props) {
           planStatus,
         });
         setResult(importResult);
-        // シフトプラン一覧を再フェッチ
+        // シフトプラン一覧・シフト枠一覧を再フェッチ
         await globalMutate(
           (key) => typeof key === "string" && key.startsWith("/api/shift-plans"),
+        );
+        await globalMutate(
+          (key) =>
+            Array.isArray(key) &&
+            typeof key[0] === "string" &&
+            key[0].startsWith("/api/shift-requirements"),
         );
         onSuccess?.(importResult);
       } catch {
