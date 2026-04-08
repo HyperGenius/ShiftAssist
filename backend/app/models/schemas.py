@@ -454,7 +454,7 @@ class WorkerUploadUpsertResponse(BaseModel):
 class ShiftReqCreate(BaseModel):
     """ShiftRequirement作成リクエストスキーマ."""
 
-    department_id: uuid.UUID
+    department_id: uuid.UUID | None = None
     shift_date: date
     slot_type: SlotTypeEnum
     required_headcount: int
@@ -519,7 +519,7 @@ class ShiftReqResponse(BaseModel):
 
     id: uuid.UUID
     tenant_id: str
-    department_id: uuid.UUID
+    department_id: uuid.UUID | None
     shift_date: date
     slot_type: SlotTypeEnum
     required_headcount: int

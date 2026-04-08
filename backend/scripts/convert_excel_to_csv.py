@@ -15,9 +15,12 @@
 
 出力ファイルの形式（ShiftAssistインポート形式）::
 
-    date,slot_type,worker_id_1,worker_id_2,...
-    2026-04-01,weekday_night,1234567,2468013
+    date,slot_type,required_count,worker_id_1,worker_id_2,...
+    2026-04-01,weekday_night,2,1234567,2468013
     ...
+
+``required_count`` 列にはその枠にアサインされた人数が記録される。
+これは過去データの ``shift_requirements.required_headcount`` としてそのまま利用可能。
 
 ワーカー識別子には、DBに ``employee_code`` が登録されていればその値を、
 未登録の場合はワーカーUUID文字列を使用する。
@@ -547,6 +550,7 @@ def convert(
             row_dict: dict[str, str] = {
                 "date": shift_date.strftime("%Y-%m-%d"),
                 "slot_type": slot_type.value,
+                "required_count": str(len(worker_ids)),
             }
             for i, wid in enumerate(worker_ids, start=1):
                 row_dict[f"worker_id_{i}"] = wid
@@ -562,7 +566,7 @@ def convert(
     max_workers = max(
         sum(1 for k in r if k.startswith("worker_id_")) for r in output_rows
     )
-    fieldnames = ["date", "slot_type"] + [
+    fieldnames = ["date", "slot_type", "required_count"] + [
         f"worker_id_{i}" for i in range(1, max_workers + 1)
     ]
 

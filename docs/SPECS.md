@@ -126,3 +126,50 @@ MVPフェーズの検証完了後、設定UIの拡充などに伴い、このJSO
 - ローディング中は「内閣府ウェブサイトより祝日データ取得中」を表示する（`HolidayLoadingSkeleton` コンポーネント）。
 - `HolidayLoadingSkeleton` は Storybook でプレビュー可能（`Holidays/HolidayLoadingSkeleton` ストーリー）。
 
+## 7. シフト要件スナップショット保存仕様
+
+### 7.1. 目的
+
+フロントエンドのカレンダー表示で参照する「各枠の必要人数」を、将来的なルール変更が過去データに影響しないよう DB にスナップショットとして永続化する。
+
+### 7.2. 読み出し仕様（過去データ表示時）
+
+- `GET /api/shift-requirements?year={year}&month={month}` を呼び出すと、指定年月の `shift_requirements` テーブルのレコード一覧を JSON 配列で返す。
+- DB 上にデータが存在する場合は **登録済みデータをそのまま返す**（ルール変更の影響を受けない）。
+
+### 7.3. スナップショット保存仕様（新規作成時）
+
+- バックエンドの `generate_requirements_for_month(session, tenant_id, year, month)` 関数を呼び出すことで、指定月の要件レコードを一括生成する。
+- 生成ロジック:
+  1. `tenant_holidays` テーブルから対象月の祝日・長期連休を取得する。
+  2. 対象月の各日について、曜日・祝日フラグ・長期連休フラグを元に `SlotTypeEnum` を決定する。
+  3. 既存レコードが存在しない `(date, slot_type)` の組み合わせのみ `required_headcount=2` (デフォルト) で INSERT する。
+- 重複防止: `(tenant_id, shift_date, slot_type)` の一意制約 `uq_shift_req_tenant_date_slot` によりDB レベルでも二重登録を防止する。
+
+### 7.4. 枠種別の決定ルール
+
+| 日付の種別 | 生成される枠種別 |
+|---|---|
+| 長期連休（GW・年末年始等） | `long_hol_day` + `long_hol_night` |
+| 土曜日 | `sat_day` + `sat_night` |
+| 日曜日 or 祝日 | `sun_hol_day` + `sun_hol_night` |
+| 平日（上記以外） | `weekday_night` のみ |
+
+### 7.5. 過去データからのインポート（変換スクリプト）
+
+- `scripts/convert_excel_to_csv.py` を実行して過去シフト Excel を変換する際、出力 CSV に `required_count` 列が付与される。
+- `required_count` はその枠にアサインされたワーカー数（実績値）であり、過去データの `shift_requirements.required_headcount` としてそのまま利用できる。
+
+### 7.6. REST API エンドポイント
+
+| メソッド | パス | 説明 |
+|---|---|---|
+| `GET` | `/api/shift-requirements/?year={year}&month={month}` | 指定年月の要件一覧を取得 |
+| `POST` | `/api/shift-requirements/` | 要件を1件作成 |
+| `GET` | `/api/shift-requirements/{id}` | 指定した要件を取得 |
+| `PUT` | `/api/shift-requirements/{id}` | 指定した要件を更新 |
+| `DELETE` | `/api/shift-requirements/{id}` | 指定した要件を削除 |
+| `PUT` | `/api/shift-requirements/{id}/assignments` | 指定した要件のアサイン情報を上書き保存 |
+
+すべてのエンドポイントは `X-Tenant-Id` ヘッダーによるテナントアイソレーションが必須。
+
