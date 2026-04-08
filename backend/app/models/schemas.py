@@ -640,3 +640,36 @@ class ShiftPlanImportResponse(BaseModel):
     """作成されたShiftAssignment件数."""
     skipped_worker_ids: list[str]
     """存在しない社員番号のためスキップされたワーカー識別子のリスト."""
+
+
+class ShiftAssignmentDetail(BaseModel):
+    """ShiftAssignment詳細スキーマ（ShiftPlanDetail内で使用）."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    worker_id: uuid.UUID
+    is_manual_override: bool
+
+
+class ShiftSlotDetail(BaseModel):
+    """ShiftSlot詳細スキーマ（ShiftPlanDetail内で使用）."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    date: datetime
+    slot_type: SlotTypeEnum
+    assignments: list[ShiftAssignmentDetail] = []
+
+
+class ShiftPlanDetailResponse(BaseModel):
+    """ShiftPlan詳細レスポンススキーマ（スロット・アサイン情報を含む）."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    title: str
+    target_year_month: str
+    status: PlanStatusEnum
+    slots: list[ShiftSlotDetail] = []

@@ -22,6 +22,8 @@ interface ShiftSlotProps {
   /** フォーカス時（スロット選択）コールバック */
   onSlotFocus: (dateStr: string, slotType: SlotType) => void;
   onWorkerChange: (index: number, workerId: string | null) => void;
+  /** 読み取り専用モード（過去データ表示時）。true の場合、ドロップゾーンを非活性化する */
+  readOnly?: boolean;
 }
 
 /** 1スロット分のコンポーネント（DnDドロップゾーン） */
@@ -36,6 +38,7 @@ export function ShiftSlot({
   isWorkerAvailable,
   onSlotFocus,
   onWorkerChange,
+  readOnly = false,
 }: ShiftSlotProps) {
   const label = SLOT_TYPE_LABELS[slotType];
   const hasError = violations.some((v) => v.severity === "error");
@@ -55,21 +58,33 @@ export function ShiftSlot({
         </span>
         <ValidationBadge violations={violations} />
       </div>
-      {workerSelections.map((workerId, idx) => (
-        <ShiftSlotDropZone
-          key={idx}
-          dateStr={dateStr}
-          slotType={slotType}
-          index={idx}
-          workerId={workerId}
-          workers={workers}
-          departments={departments}
-          skillRanks={skillRanks}
-          isDropAllowed={isWorkerAvailable}
-          onClear={() => onWorkerChange(idx, null)}
-          onFocus={() => onSlotFocus(dateStr, slotType)}
-        />
-      ))}
+      {readOnly
+        ? workerSelections.map((workerId, idx) => {
+            const worker = workerId ? workers.find((w) => w.id === workerId) : null;
+            return (
+              <div
+                key={idx}
+                className="text-[10px] text-center rounded px-1 py-0.5 bg-gray-50 text-gray-600 border border-gray-200 truncate"
+              >
+                {worker ? worker.name : <span className="text-gray-300">—</span>}
+              </div>
+            );
+          })
+        : workerSelections.map((workerId, idx) => (
+            <ShiftSlotDropZone
+              key={idx}
+              dateStr={dateStr}
+              slotType={slotType}
+              index={idx}
+              workerId={workerId}
+              workers={workers}
+              departments={departments}
+              skillRanks={skillRanks}
+              isDropAllowed={isWorkerAvailable}
+              onClear={() => onWorkerChange(idx, null)}
+              onFocus={() => onSlotFocus(dateStr, slotType)}
+            />
+          ))}
     </div>
   );
 }
