@@ -9,9 +9,14 @@
         --year-month 2026-04
 
 入力ファイルの形式:
-    1行目: カテゴリヘッダー行（宿直、土曜当番、休・祝日直 など）
-    2行目: サブヘッダー行（回数、氏名、交替者名 の繰り返し）
+    1行目: スキップ（旧カテゴリヘッダー行など）
+    2行目: スキップ
+    3行目: 固定ヘッダー行（日, 曜日, 回数, 氏名, ... の繰り返し）
     以降:  データ行（1列目=日、2列目=曜、以降=各シフト担当者情報）
+
+    「氏名」列の左からの出現順によりシフト種別を判定する:
+    - 1回目・2回目: 平日=宿直, 土曜=昼間, 日祝=昼間
+    - 3回目・4回目: 平日=対象外, 土曜=夜間, 日祝=夜間
 
 出力ファイルの形式（ShiftAssistインポート形式）::
 
@@ -50,16 +55,6 @@ try:
     load_dotenv()
 except ImportError:
     pass
-
-# ---------------------------------------------------------------------------
-# 定数
-# ---------------------------------------------------------------------------
-
-# カテゴリ名の検索用キーワード（入力ファイルのヘッダー文字列に部分一致）
-_CATEGORY_YASOKU = "宿直"  # 宿直（夜間当直）
-_CATEGORY_SAT = "土曜当番"  # 土曜当番（土曜昼間）
-_CATEGORY_HOL = "祝日直"  # 休・祝日直（祝日・日曜昼間）
-
 
 # ---------------------------------------------------------------------------
 # 純関数ユーティリティ（テスト可能）
@@ -116,38 +111,29 @@ def extract_name_from_cell(cell_value: Any) -> str:
     return cell_str
 
 
-def classify_category(header_val: str) -> str | None:
-    """ヘッダー文字列からシフトカテゴリ種別を判定する.
-
-    全角・半角スペースを除去してから部分一致判定を行うため、
-    「宿　　直」のようにスペースが含まれる表記にも対応する。
-
-    Args:
-        header_val: ヘッダー行のセル文字列。
-
-    Returns:
-        カテゴリ定数（_CATEGORY_*）または None（未判定）。
-    """
-    normalized = normalize_name(header_val)
-    if _CATEGORY_SAT in normalized:
-        return _CATEGORY_SAT
-    if _CATEGORY_HOL in normalized:
-        return _CATEGORY_HOL
-    if _CATEGORY_YASOKU in normalized:
-        return _CATEGORY_YASOKU
-    return None
-
-
 def determine_slot_type(
-    category: str,
+    occurrence_idx: int,
     shift_date: date,
     is_holiday: bool,
     is_long_holiday: bool,
 ) -> SlotTypeEnum | None:
-    """カテゴリと日付情報から SlotTypeEnum を決定する.
+    """出現順と日付情報から SlotTypeEnum を決定する.
+
+    氏名列の左からの出現順（0-indexed）によってシフト種別を判定する。
+
+    - 0回目・1回目（1回目・2回目）の氏名列:
+        - 長期連休 -> long_hol_day
+        - 土曜 -> sat_day
+        - 日曜または祝日 -> sun_hol_day
+        - 平日 -> weekday_night
+    - 2回目・3回目（3回目・4回目）の氏名列:
+        - 長期連休 -> long_hol_night
+        - 土曜 -> sat_night
+        - 日曜または祝日 -> sun_hol_night
+        - 平日 -> None（対象外）
 
     Args:
-        category: 列カテゴリ（_CATEGORY_* 定数）。
+        occurrence_idx: 氏名列の出現順（0-indexed）。
         shift_date: 対象日付。
         is_holiday: 祝日フラグ（土曜を除く）。
         is_long_holiday: 長期連休フラグ（GW・年末年始等）。
@@ -159,75 +145,49 @@ def determine_slot_type(
     is_saturday = weekday == 5
     is_sunday = weekday == 6
 
-    if category == _CATEGORY_YASOKU:
-        if is_long_holiday:
-            return SlotTypeEnum.long_hol_night
-        if is_saturday:
-            return SlotTypeEnum.sat_night
-        if is_sunday or is_holiday:
-            return SlotTypeEnum.sun_hol_night
-        return SlotTypeEnum.weekday_night
-
-    if category == _CATEGORY_SAT:
-        if is_saturday:
-            return SlotTypeEnum.sat_day
-        # 土曜以外の 土曜当番 列はスキップ
-        return None
-
-    if category == _CATEGORY_HOL:
+    if occurrence_idx <= 1:
+        # 1回目・2回目: 昼間枠または宿直
         if is_long_holiday:
             return SlotTypeEnum.long_hol_day
+        if is_saturday:
+            return SlotTypeEnum.sat_day
         if is_sunday or is_holiday:
             return SlotTypeEnum.sun_hol_day
-        return None
+        return SlotTypeEnum.weekday_night
 
+    # 3回目・4回目: 夜間枠
+    if is_long_holiday:
+        return SlotTypeEnum.long_hol_night
+    if is_saturday:
+        return SlotTypeEnum.sat_night
+    if is_sunday or is_holiday:
+        return SlotTypeEnum.sun_hol_night
+    # 平日の3回目・4回目は対象外
     return None
 
 
-def parse_header(df: pd.DataFrame) -> dict[int, str]:
-    """データフレームの先頭 2 行からカテゴリ・氏名列マッピングを解析する.
+def parse_header(df: pd.DataFrame) -> list[int]:
+    """データフレームの3行目（インデックス2）から氏名列インデックスのリストを返す.
 
-    先頭行（row 0）でカテゴリ名（宿直・土曜当番・休祝日直）の列位置を特定し、
-    2 行目（row 1）で「氏名」サブヘッダーの列位置を特定する。
-    各「氏名」列が属するカテゴリを、左方向に最も近いカテゴリ開始位置から決定する。
+    最初の2行をスキップし、3行目（インデックス2）を固定ヘッダー行として扱う。
+    「氏名」という文字列が含まれる列のインデックスを左から順に収集する。
+    各インデックスのリスト内位置（0-indexed）が出現順として
+    ``determine_slot_type`` の ``occurrence_idx`` に対応する。
 
     Args:
-        df: ヘッダーなしで読み込んだデータフレーム（先頭 2 行がヘッダー）。
+        df: ヘッダーなしで読み込んだデータフレーム。
 
     Returns:
-        氏名列インデックス -> カテゴリ名 のマッピング。
+        「氏名」列インデックスのリスト（出現順）。
     """
-    header_row0 = df.iloc[0]
-    header_row1 = df.iloc[1]
-
-    # row 0 からカテゴリ開始位置を特定
-    category_starts: list[tuple[int, str]] = []
-    for col_idx in range(2, len(header_row0)):
-        val_str = to_str(header_row0.iloc[col_idx])
-        cat = classify_category(val_str)
-        if cat:
-            category_starts.append((col_idx, cat))
-
-    def _get_category_for_col(col_idx: int) -> str | None:
-        """列インデックスに対応するカテゴリを返す（左隣のカテゴリ開始位置を検索）."""
-        current_cat: str | None = None
-        for start_col, cat_name in sorted(category_starts):
-            if start_col <= col_idx:
-                current_cat = cat_name
-            else:
-                break
-        return current_cat
-
-    # row 1 から「氏名」サブヘッダーの列を特定
-    name_col_map: dict[int, str] = {}
-    for col_idx in range(2, len(header_row1)):
-        val_str = to_str(header_row1.iloc[col_idx])
-        if val_str == "氏名":
-            cat = _get_category_for_col(col_idx)
-            if cat:
-                name_col_map[col_idx] = cat
-
-    return name_col_map
+    if len(df) < 3:
+        return []
+    header_row = df.iloc[2]
+    return [
+        col_idx
+        for col_idx in range(len(header_row))
+        if to_str(header_row.iloc[col_idx]) == "氏名"
+    ]
 
 
 def build_worker_cache(workers: list[Any]) -> dict[str, str]:
@@ -436,16 +396,16 @@ def convert(
     print(f"📂 入力ファイルを読み込み中: {input_path}")
     df = load_input_file(input_path)
 
-    if len(df) < 3:
-        print("❌ データ行がありません（ヘッダー 2 行 + データ 1 行以上が必要）。")
+    if len(df) < 4:
+        print("❌ データ行がありません（スキップ 2 行 + ヘッダー 1 行 + データ 1 行以上が必要）。")
         sys.exit(1)
 
-    # ヘッダー解析
-    name_col_map = parse_header(df)
-    if not name_col_map:
+    # ヘッダー解析（3行目の氏名列インデックスを収集）
+    name_col_list = parse_header(df)
+    if not name_col_list:
         print("⚠️  氏名列が見つかりませんでした。ヘッダー構造を確認してください。")
         sys.exit(1)
-    print(f"✅ 氏名列を検出: {name_col_map}")
+    print(f"✅ 氏名列を検出: {name_col_list}")
 
     # DB 接続とワーカーキャッシュの構築
     session = None
@@ -484,7 +444,7 @@ def convert(
     print(f"📅 祝日 ({year}-{month:02d}): {sorted(holidays) if holidays else '（なし）'}")
 
     # データ変換
-    data_rows = df.iloc[2:].reset_index(drop=True)
+    data_rows = df.iloc[3:].reset_index(drop=True)
     output_rows: list[dict[str, str]] = []
     warn_count = 0
 
@@ -512,8 +472,7 @@ def convert(
         # カテゴリごとにワーカーを収集
         slot_workers: dict[SlotTypeEnum, list[str]] = defaultdict(list)
 
-        for col_idx in sorted(name_col_map):
-            category = name_col_map[col_idx]
+        for occurrence_idx, col_idx in enumerate(name_col_list):
             if col_idx >= len(row):
                 continue
             cell_val = row.iloc[col_idx]
@@ -521,12 +480,8 @@ def convert(
             if not name_str:
                 continue
 
-            slot_type = determine_slot_type(category, shift_date, is_holiday, is_long)
+            slot_type = determine_slot_type(occurrence_idx, shift_date, is_holiday, is_long)
             if slot_type is None:
-                print(
-                    f"⚠️  {shift_date} / カテゴリ '{category}': "
-                    "SlotType を決定できません。スキップします。"
-                )
                 continue
 
             if worker_cache:
