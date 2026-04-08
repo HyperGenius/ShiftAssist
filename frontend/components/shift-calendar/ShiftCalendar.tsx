@@ -341,19 +341,27 @@ export function ShiftCalendar({ department, pastPlan, readOnly = false, onYearMo
 
   const prevMonth = useCallback(() => {
     if (month === 1) {
-      setYear((y) => { onYearMonthChange?.(y - 1, 12); return y - 1; });
+      const newYear = year - 1;
+      setYear(newYear);
       setMonth(12);
+      onYearMonthChange?.(newYear, 12);
     } else {
-      setMonth((m) => { onYearMonthChange?.(year, m - 1); return m - 1; });
+      const newMonth = month - 1;
+      setMonth(newMonth);
+      onYearMonthChange?.(year, newMonth);
     }
   }, [month, year, onYearMonthChange]);
 
   const nextMonth = useCallback(() => {
     if (month === 12) {
-      setYear((y) => { onYearMonthChange?.(y + 1, 1); return y + 1; });
+      const newYear = year + 1;
+      setYear(newYear);
       setMonth(1);
+      onYearMonthChange?.(newYear, 1);
     } else {
-      setMonth((m) => { onYearMonthChange?.(year, m + 1); return m + 1; });
+      const newMonth = month + 1;
+      setMonth(newMonth);
+      onYearMonthChange?.(year, newMonth);
     }
   }, [month, year, onYearMonthChange]);
 
