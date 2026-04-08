@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { Suspense, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 
 import { SciFiButton } from "@/components/ui/SciFiButton";
 import { SciFiHeading } from "@/components/ui/SciFiHeading";
@@ -14,29 +15,42 @@ import type { Department } from "@/types/department";
 
 type ViewMode = "past" | "edit";
 
-export default function ShiftRequirementsPage() {
+/** URL クエリパラメータから年月を読み取り、カレンダーを表示する内部コンポーネント */
+function ShiftRequirementsContent() {
   const today = new Date();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // URL から year/month を取得。未指定なら当月をデフォルトとする
+  const calYear = (() => {
+    const v = Number(searchParams.get("year"));
+    return v > 0 ? v : today.getFullYear();
+  })();
+  const calMonth = (() => {
+    const v = Number(searchParams.get("month"));
+    return v >= 1 && v <= 12 ? v : today.getMonth() + 1;
+  })();
+
   const { departments, isLoading: deptsLoading } = useDepartments();
   const { rules, isLoading: rulesLoading } = useShiftRules();
   const [activeDeptId, setActiveDeptId] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
 
-  // カレンダーが表示中の年月（ShiftCalendar の月ナビと同期）
-  const [calYear, setCalYear] = useState(today.getFullYear());
-  const [calMonth, setCalMonth] = useState(today.getMonth() + 1);
+  // 表示モード: null = 未選択（pastPlan の有無で自動決定）、それ以外はユーザーが手動選択済み
+  const [viewMode, setViewMode] = useState<ViewMode | null>(null);
 
+  /** 年月変更：URL クエリパラメータを更新して状態を永続化する */
   const handleYearMonthChange = useCallback((y: number, m: number) => {
-    setCalYear(y);
-    setCalMonth(m);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("year", String(y));
+    params.set("month", String(m));
+    router.replace(`?${params.toString()}`);
     // 月が変わったら表示モードをリセット（pastPlan の存在で自動判定させる）
     setViewMode(null);
-  }, []);
+  }, [router, searchParams]);
 
   // 現在表示中の年月の過去プランを取得
   const { shiftPlan, isLoading: planLoading } = useShiftPlan({ year: calYear, month: calMonth });
-
-  // null = 未選択（pastPlan の有無で自動決定）、それ以外はユーザーが手動選択済み
-  const [viewMode, setViewMode] = useState<ViewMode | null>(null);
 
   // 実際に使うモード: ユーザーが選択していれば従う、未選択なら pastPlan があれば "past"、なければ "edit"
   const effectiveMode: ViewMode = viewMode ?? (shiftPlan ? "past" : "edit");
@@ -131,6 +145,8 @@ export default function ShiftRequirementsPage() {
         ) : activeDept ? (
           <ShiftCalendar
             department={activeDept}
+            year={calYear}
+            month={calMonth}
             pastPlan={effectiveMode === "past" ? shiftPlan : null}
             readOnly={effectiveMode === "past"}
             onYearMonthChange={handleYearMonthChange}
@@ -156,5 +172,20 @@ export default function ShiftRequirementsPage() {
         />
       )}
     </div>
+  );
+}
+
+/** useSearchParams を使用するためのフォールバック付きラッパー */
+export default function ShiftRequirementsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center py-20 text-gray-400 text-sm">
+          読み込み中...
+        </div>
+      }
+    >
+      <ShiftRequirementsContent />
+    </Suspense>
   );
 }

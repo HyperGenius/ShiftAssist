@@ -20,6 +20,7 @@ import { OverrideConfirmDialog } from "./OverrideConfirmDialog";
 import { WorkerCard } from "./WorkerCard";
 import { WorkerListPanel } from "./WorkerListPanel";
 import { parseDropZoneId } from "./ShiftSlotDropZone";
+import { YearMonthPicker } from "./YearMonthPicker";
 import { useShiftRequirements } from "@/hooks/useShiftRequirements";
 import { useSkillRanks } from "@/hooks/useSkillRanks";
 import { useWorkers } from "@/hooks/useWorkers";
@@ -50,19 +51,20 @@ const DEFAULT_HEADCOUNT = 2;
 
 interface ShiftCalendarProps {
   department: Department;
+  /** 表示する年（URLから渡される制御値） */
+  year: number;
+  /** 表示する月（URLから渡される制御値） */
+  month: number;
   /** 過去インポートデータ。指定時はそのデータでカレンダーを初期化する */
   pastPlan?: ShiftPlanDetail | null;
-  /** true の場合、編集・保存操作を無卒化する */
+  /** true の場合、編集・保存操作を無効化する */
   readOnly?: boolean;
-  /** 年月切り替え時のコールバック */
-  onYearMonthChange?: (year: number, month: number) => void;
+  /** 年月切り替え時のコールバック（URL更新など上位で処理） */
+  onYearMonthChange: (year: number, month: number) => void;
 }
 
 /** 月間シフト枠カレンダーコンポーネント */
-export function ShiftCalendar({ department, pastPlan, readOnly = false, onYearMonthChange }: ShiftCalendarProps) {
-  const today = new Date();
-  const [year, setYear] = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth() + 1);
+export function ShiftCalendar({ department, year, month, pastPlan, readOnly = false, onYearMonthChange }: ShiftCalendarProps) {
   const [calendarState, setCalendarState] = useState<CalendarState>({});
   const [isSaving, setIsSaving] = useState(false);
   const [showOverrideDialog, setShowOverrideDialog] = useState(false);
@@ -341,27 +343,17 @@ export function ShiftCalendar({ department, pastPlan, readOnly = false, onYearMo
 
   const prevMonth = useCallback(() => {
     if (month === 1) {
-      const newYear = year - 1;
-      setYear(newYear);
-      setMonth(12);
-      onYearMonthChange?.(newYear, 12);
+      onYearMonthChange(year - 1, 12);
     } else {
-      const newMonth = month - 1;
-      setMonth(newMonth);
-      onYearMonthChange?.(year, newMonth);
+      onYearMonthChange(year, month - 1);
     }
   }, [month, year, onYearMonthChange]);
 
   const nextMonth = useCallback(() => {
     if (month === 12) {
-      const newYear = year + 1;
-      setYear(newYear);
-      setMonth(1);
-      onYearMonthChange?.(newYear, 1);
+      onYearMonthChange(year + 1, 1);
     } else {
-      const newMonth = month + 1;
-      setMonth(newMonth);
-      onYearMonthChange?.(year, newMonth);
+      onYearMonthChange(year, month + 1);
     }
   }, [month, year, onYearMonthChange]);
 
@@ -395,12 +387,10 @@ export function ShiftCalendar({ department, pastPlan, readOnly = false, onYearMo
               <SciFiButton variant="secondary" size="sm" onClick={prevMonth}>
                 &lt;&lt; 前月
               </SciFiButton>
-              <h2 className="text-base font-semibold text-gray-800">
-                {year}年 {month}月
-                <span className="ml-2 text-xs text-gray-400 normal-case">
-                  {department.name}
-                </span>
-              </h2>
+              <div className="flex items-center gap-2">
+                <YearMonthPicker year={year} month={month} onChange={onYearMonthChange} />
+                <span className="text-xs text-gray-400">{department.name}</span>
+              </div>
               <div className="flex items-center gap-2">
                 <SciFiButton variant="secondary" size="sm" onClick={nextMonth}>
                   翌月 &gt;&gt;
