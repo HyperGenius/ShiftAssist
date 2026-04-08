@@ -432,7 +432,8 @@ class TestConvertOutputFormat:
             reader = csv.DictReader(f)
             rows = list(reader)
 
-        assert any(r["slot_type"] == "weekday_night" for r in rows),             "weekday_night 行が出力 CSV に存在すること"
+        assert any(r["slot_type"] == "weekday_night" for r in rows), \
+            "weekday_night 行が出力 CSV に存在すること"
 
     def test_saturday_third_occurrence_is_sat_night(
         self, tmp_path: "pathlib.Path"  # type: ignore[name-defined]
