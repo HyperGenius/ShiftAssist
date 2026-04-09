@@ -323,7 +323,10 @@ def _check_tenure_restriction(
             continue
 
         # 事業本部間転入: transferred_at または joined_at から transfer_months ヶ月チェック
-        if worker_transfer_type == TransferTypeEnum.transfer_in and worker.is_cross_division_transfer:
+        if (
+            worker_transfer_type == TransferTypeEnum.transfer_in
+            and worker.is_cross_division_transfer
+        ):
             if transfer_months > 0:
                 transfer_date: date | None = (
                     worker.transferred_at  # type: ignore[assignment]
