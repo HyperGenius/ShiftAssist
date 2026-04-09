@@ -2,6 +2,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 
+import { LongHolidaySettingsSection } from "@/components/settings/LongHolidaySettingsSection";
 import { TenantSettingsForm } from "@/components/settings/TenantSettingsForm";
 
 export default async function SettingsPage() {
@@ -25,6 +26,17 @@ export default async function SettingsPage() {
         </div>
 
         <TenantSettingsForm />
+
+        <div>
+          <h1 className="text-xl font-bold text-gray-900 tracking-wide">
+            長期休暇期間設定
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            GW・シルバーウィーク・年末年始の開始日と終了日をテナント単位で管理します。
+          </p>
+        </div>
+
+        <LongHolidaySettingsSection />
       </main>
     </div>
   );
