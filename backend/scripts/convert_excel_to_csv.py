@@ -292,7 +292,10 @@ def load_input_file(input_path: str) -> pd.DataFrame:
                         encoding=enc,
                     )
                     break
-                except (UnicodeDecodeError, Exception):
+                except pd.errors.ParserError as pe:
+                    print (f"⚠️  文字コード '{enc}' でのパースに失敗: {pe}")
+                    raise # パーサーエラーは致命的なので再スロー
+                except (UnicodeDecodeError, Exception) as e:
                     continue
             if df is None:
                 raise ValueError("文字コードを判別できませんでした")
