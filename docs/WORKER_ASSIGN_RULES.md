@@ -28,6 +28,8 @@ ShiftAssistでは、ユーザー体験とデータ整合性を両立させるた
 | 3 | `SKILL_RANK_A` | `require_skill_ranks: list[str]` | 枠の全員がアサイン済みの際、`is_leader_eligible=true` のワーカーがいない | 可 |
 | 4 | `WORK_INTERVAL` | `min_interval_days: int`（デフォルト: 10） | 同一ワーカーの別アサインとの間隔が `min_interval_days` 日未満 | 可 |
 | 5 | `SPECIAL_EMPLOYMENT` | `special_employment_shifts: list[str]`（デフォルト: `["weekday_night"]`） | `is_special=true` のワーカーが許可外の枠にアサインされている | 可 |
+| 8a | `NEW_HIRE_TENURE` | `hired_tenure_months: int`（デフォルト: 6） | `transfer_type=hired` のワーカーが `joined_at` から `hired_tenure_months` ヶ月未満 | 可 |
+| 8b | `TRANSFER_TENURE` | `cross_division_transfer_tenure_months: int`（デフォルト: 3） | `transfer_type=transfer_in` かつ `is_cross_division_transfer=true` のワーカーが異動日から `cross_division_transfer_tenure_months` ヶ月未満 | 可 |
 
 ### 警告ルール（`severity: "warning"`）
 
@@ -51,12 +53,15 @@ ShiftRulesConfig:
   workers_per_slot: int = 2
   target_departments: list[str] = []
   target_all_departments: bool = True
+  hired_tenure_months: int = 6
+  cross_division_transfer_tenure_months: int = 3
 
 ShiftWarningsConfig:
   avoid_consecutive_holidays: bool = True
 ```
 
 > `target_departments` / `target_all_departments` はアサイン可能部門の絞り込みに使用。バックエンドの `_validate_worker_departments` で検証される（ビジネスルールとは独立した前提チェック）。
+> `hired_tenure_months` / `cross_division_transfer_tenure_months` は `0` を指定すると制限なしとして扱う。
 
 ---
 

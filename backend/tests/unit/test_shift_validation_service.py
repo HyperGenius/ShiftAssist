@@ -72,6 +72,7 @@ def _make_worker(
     joined_at: object = None,
     transferred_at: object = None,
     is_cross_division_transfer: bool | None = None,
+    transfer_type: object = None,
 ) -> Worker:
     """テスト用Workerオブジェクトを生成するヘルパー."""
     w = Worker()
@@ -86,6 +87,7 @@ def _make_worker(
     w.joined_at = joined_at  # type: ignore[assignment]
     w.transferred_at = transferred_at  # type: ignore[assignment]
     w.is_cross_division_transfer = is_cross_division_transfer
+    w.transfer_type = transfer_type  # type: ignore[assignment]
     w.created_at = datetime(2026, 1, 1)
     w.updated_at = datetime(2026, 1, 1)
     return w
@@ -656,8 +658,10 @@ class TestValidateShiftAssignments:
     # --- ルール8: 着任・異動後の期間制限 ---
 
     def test_new_hire_tenure_violation(self) -> None:
-        """異常系（ルール8）: 着任から6ヶ月未満のワーカーがアサインされた場合、NEW_HIRE_TENURE を返す."""
+        """異常系（ルール8）: 採用後6ヶ月未満のワーカーがアサインされた場合、NEW_HIRE_TENURE を返す."""
         from datetime import date
+
+        from app.models.models import TransferTypeEnum
 
         session = MagicMock()
         session.exec.return_value = MagicMock(
@@ -669,6 +673,7 @@ class TestValidateShiftAssignments:
             worker_id=WORKER_ID_1,
             department_id=DEPT_A_ID,
             joined_at=date(2026, 2, 1),
+            transfer_type=TransferTypeEnum.hired,
         )
 
         result = shift_validation_service.validate_shift_assignments(
@@ -679,8 +684,10 @@ class TestValidateShiftAssignments:
         assert "NEW_HIRE_TENURE" in codes
 
     def test_new_hire_tenure_no_violation_after_6_months(self) -> None:
-        """正常系（ルール8）: 着任から6ヶ月以上経過している場合、NEW_HIRE_TENURE なし."""
+        """正常系（ルール8）: 採用後6ヶ月以上経過している場合、NEW_HIRE_TENURE なし."""
         from datetime import date
+
+        from app.models.models import TransferTypeEnum
 
         session = MagicMock()
         session.exec.return_value = MagicMock(
@@ -692,6 +699,7 @@ class TestValidateShiftAssignments:
             worker_id=WORKER_ID_1,
             department_id=DEPT_A_ID,
             joined_at=date(2025, 8, 1),
+            transfer_type=TransferTypeEnum.hired,
         )
 
         result = shift_validation_service.validate_shift_assignments(
@@ -705,6 +713,8 @@ class TestValidateShiftAssignments:
         """異常系（ルール8）: 事業本部間異動後3ヶ月未満のワーカーがアサインされた場合、TRANSFER_TENURE を返す."""
         from datetime import date
 
+        from app.models.models import TransferTypeEnum
+
         session = MagicMock()
         session.exec.return_value = MagicMock(
             **{"first.return_value": None, "all.return_value": []}
@@ -716,6 +726,7 @@ class TestValidateShiftAssignments:
             department_id=DEPT_A_ID,
             is_cross_division_transfer=True,
             transferred_at=date(2026, 3, 1),
+            transfer_type=TransferTypeEnum.transfer_in,
         )
 
         result = shift_validation_service.validate_shift_assignments(
@@ -729,6 +740,8 @@ class TestValidateShiftAssignments:
         """正常系（ルール8）: 事業本部間異動後3ヶ月以上経過している場合、TRANSFER_TENURE なし."""
         from datetime import date
 
+        from app.models.models import TransferTypeEnum
+
         session = MagicMock()
         session.exec.return_value = MagicMock(
             **{"first.return_value": None, "all.return_value": []}
@@ -740,6 +753,152 @@ class TestValidateShiftAssignments:
             department_id=DEPT_A_ID,
             is_cross_division_transfer=True,
             transferred_at=date(2025, 12, 1),
+            transfer_type=TransferTypeEnum.transfer_in,
+        )
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [w], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "TRANSFER_TENURE" not in codes
+
+    def test_new_hire_tenure_no_violation_without_hired_type(self) -> None:
+        """正常系（ルール8）: transfer_type が hired 以外の場合、joined_at があっても NEW_HIRE_TENURE なし."""
+        from datetime import date
+
+        from app.models.models import TransferTypeEnum
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement(shift_date_str="2026-04-01")
+        # joined_at は2ヶ月前だが transfer_type は no_transfer → 対象外
+        w = _make_worker(
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            joined_at=date(2026, 2, 1),
+            transfer_type=TransferTypeEnum.no_transfer,
+        )
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [w], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "NEW_HIRE_TENURE" not in codes
+
+    def test_new_hire_tenure_no_violation_when_transfer_type_none(self) -> None:
+        """正常系（ルール8）: transfer_type が None の場合、joined_at があっても NEW_HIRE_TENURE なし."""
+        from datetime import date
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement(shift_date_str="2026-04-01")
+        # transfer_type=None → 制限なし
+        w = _make_worker(
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            joined_at=date(2026, 2, 1),
+            transfer_type=None,
+        )
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [w], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "NEW_HIRE_TENURE" not in codes
+
+    def test_new_hire_tenure_configurable_threshold(self) -> None:
+        """正常系（ルール8）: hired_tenure_months=3 の設定では3ヶ月以上経過で制限なし."""
+        from datetime import date
+
+        from app.models.models import TransferTypeEnum
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement(shift_date_str="2026-04-01")
+        # 着任4ヶ月前、閾値3ヶ月 → 違反なし
+        w = _make_worker(
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            joined_at=date(2025, 12, 1),
+            transfer_type=TransferTypeEnum.hired,
+        )
+        custom_rules = ShiftRulesConfig(
+            min_interval_days=10,
+            require_skill_ranks=["rank_a"],
+            allow_same_department=False,
+            special_employment_shifts=["weekday_night"],
+            workers_per_slot=2,
+            hired_tenure_months=3,
+        )
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [w], custom_rules
+        )
+
+        codes = [v.code for v in result]
+        assert "NEW_HIRE_TENURE" not in codes
+
+    def test_hired_tenure_zero_means_no_restriction(self) -> None:
+        """正常系（ルール8）: hired_tenure_months=0 の場合は制限なし."""
+        from datetime import date
+
+        from app.models.models import TransferTypeEnum
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement(shift_date_str="2026-04-01")
+        # 着任1ヶ月前、閾値0 → 違反なし
+        w = _make_worker(
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            joined_at=date(2026, 3, 1),
+            transfer_type=TransferTypeEnum.hired,
+        )
+        custom_rules = ShiftRulesConfig(
+            min_interval_days=10,
+            require_skill_ranks=["rank_a"],
+            allow_same_department=False,
+            special_employment_shifts=["weekday_night"],
+            workers_per_slot=2,
+            hired_tenure_months=0,
+        )
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [w], custom_rules
+        )
+
+        codes = [v.code for v in result]
+        assert "NEW_HIRE_TENURE" not in codes
+
+    def test_transfer_tenure_no_violation_when_not_cross_division(self) -> None:
+        """正常系（ルール8）: transfer_in でも is_cross_division_transfer=False なら TRANSFER_TENURE なし."""
+        from datetime import date
+
+        from app.models.models import TransferTypeEnum
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement(shift_date_str="2026-04-01")
+        # transfer_in だが is_cross_division_transfer=False → 制限なし
+        w = _make_worker(
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            is_cross_division_transfer=False,
+            transferred_at=date(2026, 3, 1),
+            transfer_type=TransferTypeEnum.transfer_in,
         )
 
         result = shift_validation_service.validate_shift_assignments(

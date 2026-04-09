@@ -1,7 +1,7 @@
 // frontend/types/worker.ts
 // Worker エンティティの TypeScript 型定義
 
-export type TransferType = "no_transfer" | "transfer_in" | "transfer_out";
+export type TransferType = "no_transfer" | "transfer_in" | "transfer_out" | "hired";
 
 export interface Worker {
   id: string;

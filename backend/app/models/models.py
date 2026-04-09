@@ -84,11 +84,13 @@ class TransferTypeEnum(enum.StrEnum):
         no_transfer: 異動なし。
         transfer_in: 転入（他所属からの異動）。
         transfer_out: 転出（他所属への異動）。
+        hired: 採用（新規雇用）。
     """
 
     no_transfer = "no_transfer"
     transfer_in = "transfer_in"
     transfer_out = "transfer_out"
+    hired = "hired"
 
 
 # --- Models ---

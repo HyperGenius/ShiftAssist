@@ -103,6 +103,18 @@ class TestParseTransferTypeUtil:
 
         assert _parse_transfer_type("転入") == TransferTypeEnum.transfer_in
 
+    def test_japanese_hired(self) -> None:
+        """「採用」をhiredに変換する."""
+        from app.models.models import TransferTypeEnum
+
+        assert _parse_transfer_type("採用") == TransferTypeEnum.hired
+
+    def test_english_hired(self) -> None:
+        """「hired」をhiredに変換する."""
+        from app.models.models import TransferTypeEnum
+
+        assert _parse_transfer_type("hired") == TransferTypeEnum.hired
+
     def test_empty_returns_none(self) -> None:
         """空文字列はNoneを返す."""
         assert _parse_transfer_type("") is None

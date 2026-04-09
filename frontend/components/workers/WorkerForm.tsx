@@ -19,6 +19,7 @@ const TRANSFER_TYPE_OPTIONS = [
   { value: "no_transfer", label: "異動なし" },
   { value: "transfer_in", label: "転入" },
   { value: "transfer_out", label: "転出" },
+  { value: "hired", label: "採用" },
 ] as const;
 
 const workerSchema = z.object({
@@ -38,7 +39,7 @@ const workerSchema = z.object({
   birth_date: z.string().optional().nullable(),
   skill_acquired_at: z.string().optional().nullable(),
   transfer_type: z
-    .enum(["no_transfer", "transfer_in", "transfer_out"])
+    .enum(["no_transfer", "transfer_in", "transfer_out", "hired"])
     .optional()
     .nullable(),
   transfer_scheduled_month: z.string().optional().nullable(),

@@ -283,55 +283,68 @@ def _check_position_exclusion(
 def _check_tenure_restriction(
     workers: list[Worker],
     shift_date: date,
+    rules: ShiftRulesConfig | None = None,
 ) -> list[ValidationViolationItem]:
     """ルール8: 着任・異動後の期間制限チェック.
 
-    - 新人（joined_at）: 着任から6ヶ月経過していない場合はアサイン不可。
-    - 事業本部間異動者（is_cross_division_transfer=True）:
-      異動日（transferred_at または joined_at）から3ヶ月経過していない場合はアサイン不可。
+    - 採用（transfer_type=hired）: joined_at から hired_tenure_months ヶ月経過していない場合はアサイン不可。
+    - 事業本部間転入（transfer_type=transfer_in かつ is_cross_division_transfer=True）:
+      異動日（transferred_at または joined_at）から cross_division_transfer_tenure_months ヶ月経過していない場合はアサイン不可。
+    閾値が 0 の場合は制限なし。
     """
+    from app.models.models import TransferTypeEnum
+
+    hired_months = rules.hired_tenure_months if rules is not None else 6
+    transfer_months = (
+        rules.cross_division_transfer_tenure_months if rules is not None else 3
+    )
+
     violations: list[ValidationViolationItem] = []
     for worker in workers:
-        # 事業本部間異動者: transferred_at または joined_at から3ヶ月チェック
-        if worker.is_cross_division_transfer:
-            transfer_date: date | None = (
-                worker.transferred_at  # type: ignore[assignment]
-                if worker.transferred_at is not None
-                else worker.joined_at  # type: ignore[assignment]
-            )
-            if transfer_date is not None:
-                months_since_transfer = _months_between(transfer_date, shift_date)
-                if months_since_transfer < 3:
+        transfer_type = str(worker.transfer_type) if worker.transfer_type is not None else None
+
+        # 採用（hired）: joined_at から hired_tenure_months ヶ月チェック
+        if transfer_type == TransferTypeEnum.hired:
+            if hired_months > 0 and worker.joined_at is not None:
+                months_since_joined = _months_between(worker.joined_at, shift_date)  # type: ignore[arg-type]
+                if months_since_joined < hired_months:
                     violations.append(
                         ValidationViolationItem(
-                            code="TRANSFER_TENURE",
+                            code="NEW_HIRE_TENURE",
                             severity="error",
                             message=(
-                                f"{worker.name} は事業本部間異動後3ヶ月経過していません"
-                                f"（異動日: {transfer_date}、あと"
-                                f" {3 - months_since_transfer} ヶ月必要）"
+                                f"{worker.name} は採用後{hired_months}ヶ月経過していません"
+                                f"（着任日: {worker.joined_at}、あと"
+                                f" {hired_months - months_since_joined} ヶ月必要）"
                             ),
                             worker_ids=[str(worker.id)],
                         )
                     )
             continue
 
-        # 新人（未経験者）: joined_at から6ヶ月チェック
-        if worker.joined_at is not None:
-            months_since_joined = _months_between(worker.joined_at, shift_date)  # type: ignore[arg-type]
-            if months_since_joined < 6:
-                violations.append(
-                    ValidationViolationItem(
-                        code="NEW_HIRE_TENURE",
-                        severity="error",
-                        message=(
-                            f"{worker.name} は着任後6ヶ月経過していません"
-                            f"（着任日: {worker.joined_at}、あと"
-                            f" {6 - months_since_joined} ヶ月必要）"
-                        ),
-                        worker_ids=[str(worker.id)],
-                    )
+        # 事業本部間転入: transferred_at または joined_at から transfer_months ヶ月チェック
+        if transfer_type == TransferTypeEnum.transfer_in and worker.is_cross_division_transfer:
+            if transfer_months > 0:
+                transfer_date: date | None = (
+                    worker.transferred_at  # type: ignore[assignment]
+                    if worker.transferred_at is not None
+                    else worker.joined_at  # type: ignore[assignment]
                 )
+                if transfer_date is not None:
+                    months_since_transfer = _months_between(transfer_date, shift_date)
+                    if months_since_transfer < transfer_months:
+                        violations.append(
+                            ValidationViolationItem(
+                                code="TRANSFER_TENURE",
+                                severity="error",
+                                message=(
+                                    f"{worker.name} は事業本部間異動後{transfer_months}ヶ月経過していません"
+                                    f"（異動日: {transfer_date}、あと"
+                                    f" {transfer_months - months_since_transfer} ヶ月必要）"
+                                ),
+                                worker_ids=[str(worker.id)],
+                            )
+                        )
     return violations
 
 
@@ -499,7 +512,7 @@ def validate_shift_assignments(
         *_check_special_employment(requirement, workers, rules),
         *_check_age_restriction(workers, shift_date),
         *_check_position_exclusion(session, tenant_id, requirement, workers),
-        *_check_tenure_restriction(workers, shift_date),
+        *_check_tenure_restriction(workers, shift_date, rules),
         *_check_sun_hol_day_monthly_limit(session, tenant_id, requirement, workers),
         *_check_long_holiday_prev_year_exclusion(
             session, tenant_id, requirement, workers
