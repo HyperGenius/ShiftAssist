@@ -9,9 +9,7 @@
         --year-month 2026-04
 
 入力ファイルの形式:
-    1行目: スキップ（旧カテゴリヘッダー行など）
-    2行目: スキップ
-    3行目: 固定ヘッダー行（日, 曜日, 回数, 氏名, ... の繰り返し）
+    1行目: 固定ヘッダー行（日, 曜日, 回数, 氏名, ... の繰り返し）
     以降:  データ行（1列目=日、2列目=曜、以降=各シフト担当者情報）
 
     「氏名」列の左からの出現順によりシフト種別を判定する:
@@ -167,9 +165,9 @@ def determine_slot_type(
 
 
 def parse_header(df: pd.DataFrame) -> list[int]:
-    """データフレームの3行目（インデックス2）から氏名列インデックスのリストを返す.
+    """データフレームの1行目（インデックス0）から氏名列インデックスのリストを返す.
 
-    最初の2行をスキップし、3行目（インデックス2）を固定ヘッダー行として扱う。
+    1行目を固定ヘッダー行として扱う。
     「氏名」という文字列が含まれる列のインデックスを左から順に収集する。
     各インデックスのリスト内位置（0-indexed）が出現順として
     ``determine_slot_type`` の ``occurrence_idx`` に対応する。
@@ -180,9 +178,9 @@ def parse_header(df: pd.DataFrame) -> list[int]:
     Returns:
         「氏名」列インデックスのリスト（出現順）。
     """
-    if len(df) < 3:
+    if len(df) < 1:
         return []
-    header_row = df.iloc[2]
+    header_row = df.iloc[0]
     return [
         col_idx
         for col_idx in range(len(header_row))
@@ -396,11 +394,11 @@ def convert(
     print(f"📂 入力ファイルを読み込み中: {input_path}")
     df = load_input_file(input_path)
 
-    if len(df) < 4:
-        print("❌ データ行がありません（最初の2行スキップ + ヘッダー1行 + データ1行以上が必要）。")
+    if len(df) < 2:
+        print("❌ データ行がありません（ヘッダー1行 + データ1行以上が必要）。")
         sys.exit(1)
 
-    # ヘッダー解析（3行目の氏名列インデックスを収集）
+    # ヘッダー解析（1行目の氏名列インデックスを収集）
     name_col_list = parse_header(df)
     if not name_col_list:
         print("⚠️  氏名列が見つかりませんでした。ヘッダー構造を確認してください。")
@@ -444,7 +442,7 @@ def convert(
     print(f"📅 祝日 ({year}-{month:02d}): {sorted(holidays) if holidays else '（なし）'}")
 
     # データ変換
-    data_rows = df.iloc[3:].reset_index(drop=True)
+    data_rows = df.iloc[1:].reset_index(drop=True)
     output_rows: list[dict[str, str]] = []
     warn_count = 0
 

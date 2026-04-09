@@ -203,36 +203,30 @@ class TestParseHeader:
         return pd.DataFrame(rows)
 
     def test_basic_header_detected(self) -> None:
-        """3行目の氏名列インデックスをリストで検出する."""
-        row0 = ["skip1", "skip2", "skip3"]
-        row1 = ["skip1", "skip2", "skip3"]
-        row2 = ["日", "曜日", "回数", "氏名", "交替者名", "回数", "氏名", "交替者名", "回数", "氏名"]
-        df = self._make_df([row0, row1, row2])
+        """1行目の氏名列インデックスをリストで検出する."""
+        row0 = ["日", "曜日", "回数", "氏名", "交替者名", "回数", "氏名", "交替者名", "回数", "氏名"]
+        df = self._make_df([row0])
         result = script.parse_header(df)
         assert result == [3, 6, 9]
 
     def test_no_meishi_columns_returns_empty(self) -> None:
         """氏名列がない場合は空リストを返す."""
-        row0 = ["日", "曜", "宿直"]
-        row1 = ["", "", ""]
-        row2 = ["日", "曜", "回数"]  # 氏名なし
-        df = self._make_df([row0, row1, row2])
+        row0 = ["日", "曜", "回数"]  # 氏名なし
+        df = self._make_df([row0])
         result = script.parse_header(df)
         assert result == []
 
-    def test_less_than_3_rows_returns_empty(self) -> None:
-        """3行未満の場合は空リストを返す."""
-        row0 = ["日", "曜", "氏名"]
-        df = self._make_df([row0])
+    def test_empty_df_returns_empty(self) -> None:
+        """行がない場合は空リストを返す."""
+        import pandas as pd
+        df = pd.DataFrame()
         result = script.parse_header(df)
         assert result == []
 
     def test_occurrence_order_preserved(self) -> None:
         """氏名列が左から順に収集されることを確認する."""
-        row0 = ["x"] * 6
-        row1 = ["x"] * 6
-        row2 = ["日", "氏名", "回数", "氏名", "回数", "氏名"]
-        df = self._make_df([row0, row1, row2])
+        row0 = ["日", "氏名", "回数", "氏名", "回数", "氏名"]
+        df = self._make_df([row0])
         result = script.parse_header(df)
         assert result == [1, 3, 5]
 
@@ -324,7 +318,7 @@ class TestLookupWorkerId:
 
 
 # ---------------------------------------------------------------------------
-# convert 出力形式（新フォーマット：最初の2行をスキップ、3行目がヘッダー）
+# convert 出力形式（新フォーマット：1行目がヘッダー、以降データ）
 # ---------------------------------------------------------------------------
 
 
@@ -334,33 +328,25 @@ class TestConvertOutputFormat:
     def _make_input_csv(self, tmp_path, filename: str, data_rows: list) -> str:
         """新フォーマットの入力 CSV を作成するヘルパー.
 
-        row0, row1 はスキップ行（3行目のヘッダー行と同じ列数にパディング）。
-        row2 が固定ヘッダー行、row3 以降がデータ行。
+        row0 が固定ヘッダー行（1行目）、row1 以降がデータ行。
         """
         import csv
 
-        # 全行の列数を揃えるために最大列数でパディング
-        num_cols = max(len(r) for r in data_rows)
-        skip_row = [""] * num_cols
-        all_rows = [
-            skip_row,  # row 0
-            skip_row,  # row 1
-        ] + data_rows
         path = tmp_path / filename
         with open(path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            writer.writerows(all_rows)
+            writer.writerows(data_rows)
         return str(path)
 
     def test_required_count_in_fieldnames(self, tmp_path: "pathlib.Path") -> None:  # type: ignore[name-defined]
         """正常系: 出力 CSV に required_count 列が含まれる."""
         import csv
 
-        # 新フォーマット: 3行目がヘッダー（日, 曜, 回数, 氏名, 交替者名）
-        # 4行目以降がデータ（2026-04-01 は水曜 = 平日）
+        # 新フォーマット: 1行目がヘッダー（日, 曜, 回数, 氏名, 交替者名）、2行目以降がデータ
+        # 2026-04-01 は水曜 = 平日
         input_path = self._make_input_csv(tmp_path, "input.csv", [
-            ["日", "曜", "回数", "氏名", "交替者名"],  # row2 (header)
-            ["1", "月", "1", "山田太郎", ""],           # row3 (data)
+            ["日", "曜", "回数", "氏名", "交替者名"],  # row0 (header)
+            ["1", "月", "1", "山田太郎", ""],           # row1 (data)
         ])
         output_path = str(tmp_path / "output.csv")
 
@@ -387,8 +373,8 @@ class TestConvertOutputFormat:
 
         # 1回目・2回目の氏名列（平日 -> weekday_night）に2名アサイン
         input_path = self._make_input_csv(tmp_path, "input2.csv", [
-            ["日", "曜", "回数", "氏名", "交替者名", "回数", "氏名"],  # row2 (header)
-            ["1", "月", "1", "山田太郎", "", "1", "鈴木花子"],           # row3 (data, 2026-04-01=水曜)
+            ["日", "曜", "回数", "氏名", "交替者名", "回数", "氏名"],  # row0 (header)
+            ["1", "月", "1", "山田太郎", "", "1", "鈴木花子"],           # row1 (data, 2026-04-01=水曜)
         ])
         output_path = str(tmp_path / "output2.csv")
 
@@ -415,8 +401,8 @@ class TestConvertOutputFormat:
         import csv
 
         input_path = self._make_input_csv(tmp_path, "input3.csv", [
-            ["日", "曜", "回数", "氏名"],  # row2 (header)
-            ["1", "月", "1", "山田太郎"],  # row3 (data, 2026-04-01=水曜=平日)
+            ["日", "曜", "回数", "氏名"],  # row0 (header)
+            ["1", "月", "1", "山田太郎"],  # row1 (data, 2026-04-01=水曜=平日)
         ])
         output_path = str(tmp_path / "output3.csv")
 
