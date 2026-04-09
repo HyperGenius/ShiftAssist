@@ -108,37 +108,6 @@ class TestExtractNameFromCell:
 
 
 # ---------------------------------------------------------------------------
-# classify_category
-# ---------------------------------------------------------------------------
-
-
-class TestClassifyCategory:
-    """classify_category のテスト."""
-
-    def test_yasoku_detected(self) -> None:
-        """'宿直' を含む文字列は _CATEGORY_YASOKU を返す（全角スペース混入も許容）."""
-        assert script.classify_category("宿\u3000直") == script._CATEGORY_YASOKU  # 全角スペースありも検出
-        assert script.classify_category("宿直") == script._CATEGORY_YASOKU
-        assert script.classify_category("宿\u3000\u3000直") == script._CATEGORY_YASOKU  # 二重スペースも検出
-
-    def test_sat_detected(self) -> None:
-        """'土曜当番' を含む文字列は _CATEGORY_SAT を返す."""
-        assert script.classify_category("土曜当番") == script._CATEGORY_SAT
-
-    def test_hol_detected(self) -> None:
-        """'祝日直' を含む文字列は _CATEGORY_HOL を返す."""
-        assert script.classify_category("休・祝日直") == script._CATEGORY_HOL
-
-    def test_unknown_returns_none(self) -> None:
-        """不明な文字列は None を返す."""
-        assert script.classify_category("その他") is None
-
-    def test_empty_returns_none(self) -> None:
-        """空文字は None を返す."""
-        assert script.classify_category("") is None
-
-
-# ---------------------------------------------------------------------------
 # determine_slot_type
 # ---------------------------------------------------------------------------
 
@@ -146,81 +115,79 @@ class TestClassifyCategory:
 class TestDetermineSlotType:
     """determine_slot_type のテスト."""
 
-    # 宿直
-    def test_yasoku_weekday_returns_weekday_night(self) -> None:
-        """宿直 + 平日 -> weekday_night."""
+    # 1回目・2回目 (occurrence_idx=0,1)
+    def test_first_occurrence_weekday_returns_weekday_night(self) -> None:
+        """1回目 + 平日 -> weekday_night."""
         d = date(2026, 4, 1)  # 水曜
-        result = script.determine_slot_type(script._CATEGORY_YASOKU, d, False, False)
+        result = script.determine_slot_type(0, d, False, False)
         assert result == SlotTypeEnum.weekday_night
 
-    def test_yasoku_saturday_returns_sat_night(self) -> None:
-        """宿直 + 土曜 -> sat_night."""
+    def test_second_occurrence_weekday_returns_weekday_night(self) -> None:
+        """2回目 + 平日 -> weekday_night."""
+        d = date(2026, 4, 1)  # 水曜
+        result = script.determine_slot_type(1, d, False, False)
+        assert result == SlotTypeEnum.weekday_night
+
+    def test_first_occurrence_saturday_returns_sat_day(self) -> None:
+        """1回目 + 土曜 -> sat_day."""
         d = date(2026, 4, 4)  # 土曜
-        result = script.determine_slot_type(script._CATEGORY_YASOKU, d, False, False)
-        assert result == SlotTypeEnum.sat_night
-
-    def test_yasoku_sunday_returns_sun_hol_night(self) -> None:
-        """宿直 + 日曜 -> sun_hol_night."""
-        d = date(2026, 4, 5)  # 日曜
-        result = script.determine_slot_type(script._CATEGORY_YASOKU, d, False, False)
-        assert result == SlotTypeEnum.sun_hol_night
-
-    def test_yasoku_holiday_weekday_returns_sun_hol_night(self) -> None:
-        """宿直 + 祝日（平日）-> sun_hol_night."""
-        d = date(2026, 4, 1)  # 水曜だが祝日扱いと仮定
-        result = script.determine_slot_type(script._CATEGORY_YASOKU, d, True, False)
-        assert result == SlotTypeEnum.sun_hol_night
-
-    def test_yasoku_long_holiday_returns_long_hol_night(self) -> None:
-        """宿直 + 長期連休 -> long_hol_night."""
-        d = date(2026, 5, 3)  # GW
-        result = script.determine_slot_type(script._CATEGORY_YASOKU, d, True, True)
-        assert result == SlotTypeEnum.long_hol_night
-
-    # 土曜当番
-    def test_sat_saturday_returns_sat_day(self) -> None:
-        """土曜当番 + 土曜 -> sat_day."""
-        d = date(2026, 4, 4)  # 土曜
-        result = script.determine_slot_type(script._CATEGORY_SAT, d, False, False)
+        result = script.determine_slot_type(0, d, False, False)
         assert result == SlotTypeEnum.sat_day
 
-    def test_sat_non_saturday_returns_none(self) -> None:
-        """土曜当番 + 平日 -> None（対象外）."""
-        d = date(2026, 4, 1)  # 水曜
-        result = script.determine_slot_type(script._CATEGORY_SAT, d, False, False)
-        assert result is None
-
-    # 休・祝日直
-    def test_hol_sunday_returns_sun_hol_day(self) -> None:
-        """休・祝日直 + 日曜 -> sun_hol_day."""
+    def test_first_occurrence_sunday_returns_sun_hol_day(self) -> None:
+        """1回目 + 日曜 -> sun_hol_day."""
         d = date(2026, 4, 5)  # 日曜
-        result = script.determine_slot_type(script._CATEGORY_HOL, d, False, False)
+        result = script.determine_slot_type(0, d, False, False)
         assert result == SlotTypeEnum.sun_hol_day
 
-    def test_hol_holiday_returns_sun_hol_day(self) -> None:
-        """休・祝日直 + 祝日 -> sun_hol_day."""
-        d = date(2026, 4, 1)  # 水曜だが祝日扱い
-        result = script.determine_slot_type(script._CATEGORY_HOL, d, True, False)
+    def test_first_occurrence_holiday_weekday_returns_sun_hol_day(self) -> None:
+        """1回目 + 祝日（平日）-> sun_hol_day."""
+        d = date(2026, 4, 1)  # 水曜だが祝日扱いと仮定
+        result = script.determine_slot_type(0, d, True, False)
         assert result == SlotTypeEnum.sun_hol_day
 
-    def test_hol_long_holiday_returns_long_hol_day(self) -> None:
-        """休・祝日直 + 長期連休 -> long_hol_day."""
+    def test_first_occurrence_long_holiday_returns_long_hol_day(self) -> None:
+        """1回目 + 長期連休 -> long_hol_day."""
         d = date(2026, 5, 3)  # GW
-        result = script.determine_slot_type(script._CATEGORY_HOL, d, True, True)
+        result = script.determine_slot_type(0, d, True, True)
         assert result == SlotTypeEnum.long_hol_day
 
-    def test_hol_weekday_not_holiday_returns_none(self) -> None:
-        """休・祝日直 + 平日（非祝日）-> None（対象外）."""
-        d = date(2026, 4, 1)  # 水曜・非祝日
-        result = script.determine_slot_type(script._CATEGORY_HOL, d, False, False)
-        assert result is None
+    # 3回目・4回目 (occurrence_idx=2,3)
+    def test_third_occurrence_saturday_returns_sat_night(self) -> None:
+        """3回目 + 土曜 -> sat_night."""
+        d = date(2026, 4, 4)  # 土曜
+        result = script.determine_slot_type(2, d, False, False)
+        assert result == SlotTypeEnum.sat_night
 
-    def test_unknown_category_returns_none(self) -> None:
-        """未知のカテゴリ -> None."""
-        d = date(2026, 4, 1)
-        result = script.determine_slot_type("unknown", d, False, False)
-        assert result is None
+    def test_fourth_occurrence_saturday_returns_sat_night(self) -> None:
+        """4回目 + 土曜 -> sat_night."""
+        d = date(2026, 4, 4)  # 土曜
+        result = script.determine_slot_type(3, d, False, False)
+        assert result == SlotTypeEnum.sat_night
 
+    def test_third_occurrence_sunday_returns_sun_hol_night(self) -> None:
+        """3回目 + 日曜 -> sun_hol_night."""
+        d = date(2026, 4, 5)  # 日曜
+        result = script.determine_slot_type(2, d, False, False)
+        assert result == SlotTypeEnum.sun_hol_night
+
+    def test_third_occurrence_holiday_returns_sun_hol_night(self) -> None:
+        """3回目 + 祝日（平日）-> sun_hol_night."""
+        d = date(2026, 4, 1)  # 水曜だが祝日扱い
+        result = script.determine_slot_type(2, d, True, False)
+        assert result == SlotTypeEnum.sun_hol_night
+
+    def test_third_occurrence_long_holiday_returns_long_hol_night(self) -> None:
+        """3回目 + 長期連休 -> long_hol_night."""
+        d = date(2026, 5, 3)  # GW
+        result = script.determine_slot_type(2, d, True, True)
+        assert result == SlotTypeEnum.long_hol_night
+
+    def test_third_occurrence_weekday_returns_none(self) -> None:
+        """3回目 + 平日 -> None（対象外）."""
+        d = date(2026, 4, 1)  # 水曜
+        result = script.determine_slot_type(2, d, False, False)
+        assert result is None
 
 # ---------------------------------------------------------------------------
 # parse_header
@@ -230,59 +197,38 @@ class TestDetermineSlotType:
 class TestParseHeader:
     """parse_header のテスト."""
 
-    def _make_df(self, row0: list, row1: list) -> pd.DataFrame:
+    def _make_df(self, rows: list) -> "pd.DataFrame":
         """テスト用データフレームを生成する."""
         import pandas as pd
-
-        return pd.DataFrame([row0, row1])
+        return pd.DataFrame(rows)
 
     def test_basic_header_detected(self) -> None:
-        """宿直・土曜当番・休祝日直の氏名列を正しく検出する."""
-        row0 = [
-            "日", "曜",
-            "宿直", "", "", "", "", "", "", "", "",  # cols 2-10
-            "土曜当番", "",  "",                     # cols 11-13
-            "休・祝日直", "", "",                    # cols 14-16
-        ]
-        row1 = [
-            "", "",
-            "回数", "氏名", "交替者名",             # cols 2-4  (宿直 shift1)
-            "回数", "氏名", "交替者名",             # cols 5-7  (宿直 shift2)
-            "回数", "氏名", "交替者名",             # cols 8-10 (宿直 shift3)
-            "回数", "氏名", "交替者名",             # cols 11-13 (土曜当番)
-            "回数", "氏名", "交替者名",             # cols 14-16 (休祝日直)
-        ]
-        df = self._make_df(row0, row1)
+        """1行目の氏名列インデックスをリストで検出する."""
+        row0 = ["日", "曜日", "回数", "氏名", "交替者名", "回数", "氏名", "交替者名", "回数", "氏名"]
+        df = self._make_df([row0])
         result = script.parse_header(df)
-
-        # 宿直の氏名列
-        assert result.get(3) == script._CATEGORY_YASOKU
-        assert result.get(6) == script._CATEGORY_YASOKU
-        assert result.get(9) == script._CATEGORY_YASOKU
-        # 土曜当番の氏名列
-        assert result.get(12) == script._CATEGORY_SAT
-        # 休祝日直の氏名列
-        assert result.get(15) == script._CATEGORY_HOL
+        assert result == [3, 6, 9]
 
     def test_no_meishi_columns_returns_empty(self) -> None:
-        """氏名列がない場合は空辞書を返す."""
-        row0 = ["日", "曜", "宿直"]
-        row1 = ["", "", "回数"]  # 氏名なし
-        df = self._make_df(row0, row1)
+        """氏名列がない場合は空リストを返す."""
+        row0 = ["日", "曜", "回数"]  # 氏名なし
+        df = self._make_df([row0])
         result = script.parse_header(df)
-        assert result == {}
+        assert result == []
 
-    def test_skips_first_two_columns(self) -> None:
-        """最初の 2 列（日・曜）はスキップする."""
-        row0 = ["氏名", "氏名", "宿直"]  # 最初の 2 列に「氏名」があってもスキップ
-        row1 = ["氏名", "氏名", "氏名"]
-        df = self._make_df(row0, row1)
+    def test_empty_df_returns_empty(self) -> None:
+        """行がない場合は空リストを返す."""
+        import pandas as pd
+        df = pd.DataFrame()
         result = script.parse_header(df)
-        # col 2 は宿直カテゴリ内の氏名
-        assert 0 not in result
-        assert 1 not in result
-        assert result.get(2) == script._CATEGORY_YASOKU
+        assert result == []
 
+    def test_occurrence_order_preserved(self) -> None:
+        """氏名列が左から順に収集されることを確認する."""
+        row0 = ["日", "氏名", "回数", "氏名", "回数", "氏名"]
+        df = self._make_df([row0])
+        result = script.parse_header(df)
+        assert result == [1, 3, 5]
 
 # ---------------------------------------------------------------------------
 # build_worker_cache
@@ -372,43 +318,46 @@ class TestLookupWorkerId:
 
 
 # ---------------------------------------------------------------------------
-# convert 出力形式（required_count 列の確認）
+# convert 出力形式（新フォーマット：1行目がヘッダー、以降データ）
 # ---------------------------------------------------------------------------
 
 
 class TestConvertOutputFormat:
-    """convert 関数の出力 CSV に required_count 列が含まれることを検証する."""
+    """convert 関数の出力 CSV フォーマットと SlotType 判定を検証する."""
+
+    def _make_input_csv(self, tmp_path, filename: str, data_rows: list) -> str:
+        """新フォーマットの入力 CSV を作成するヘルパー.
+
+        row0 が固定ヘッダー行（1行目）、row1 以降がデータ行。
+        """
+        import csv
+
+        path = tmp_path / filename
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerows(data_rows)
+        return str(path)
 
     def test_required_count_in_fieldnames(self, tmp_path: "pathlib.Path") -> None:  # type: ignore[name-defined]
         """正常系: 出力 CSV に required_count 列が含まれる."""
         import csv
 
-        # 最小限の入力 CSV を作成（宿直カテゴリのみ・1行データ）
-        # 1行目: カテゴリヘッダー
-        # 2行目: サブヘッダー（氏名）
-        # 3行目: データ行（日=1, 曜=月, 宿直担当者名）
-        input_data = [
-            ["", "", "宿直", "", ""],
-            ["日", "曜", "回数", "氏名", "交替者名"],
-            ["1", "月", "1", "山田太郎", ""],
-        ]
-        input_path = tmp_path / "input.csv"
-        output_path = tmp_path / "output.csv"
+        # 新フォーマット: 1行目がヘッダー（日, 曜, 回数, 氏名, 交替者名）、2行目以降がデータ
+        # 2026-04-01 は水曜 = 平日
+        input_path = self._make_input_csv(tmp_path, "input.csv", [
+            ["日", "曜", "回数", "氏名", "交替者名"],  # row0 (header)
+            ["1", "月", "1", "山田太郎", ""],           # row1 (data)
+        ])
+        output_path = str(tmp_path / "output.csv")
 
-        with open(input_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerows(input_data)
-
-        # DB 未接続（tenant_id/db_url なし）で変換実行
         script.convert(
-            input_path=str(input_path),
-            output_path=str(output_path),
+            input_path=input_path,
+            output_path=output_path,
             year_month="2026-04",
             tenant_id=None,
             db_url=None,
         )
 
-        # 出力 CSV を読み込んで required_count 列の存在を確認
         with open(output_path, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             rows = list(reader)
@@ -422,22 +371,16 @@ class TestConvertOutputFormat:
         """正常系: required_count の値がワーカー数と一致する."""
         import csv
 
-        # 宿直に2名アサイン
-        input_data = [
-            ["", "", "宿直", "", "", ""],
-            ["日", "曜", "回数", "氏名", "交替者名", "氏名"],
-            ["1", "月", "1", "山田太郎", "", "鈴木花子"],
-        ]
-        input_path = tmp_path / "input2.csv"
-        output_path = tmp_path / "output2.csv"
-
-        with open(input_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerows(input_data)
+        # 1回目・2回目の氏名列（平日 -> weekday_night）に2名アサイン
+        input_path = self._make_input_csv(tmp_path, "input2.csv", [
+            ["日", "曜", "回数", "氏名", "交替者名", "回数", "氏名"],  # row0 (header)
+            ["1", "月", "1", "山田太郎", "", "1", "鈴木花子"],           # row1 (data, 2026-04-01=水曜)
+        ])
+        output_path = str(tmp_path / "output2.csv")
 
         script.convert(
-            input_path=str(input_path),
-            output_path=str(output_path),
+            input_path=input_path,
+            output_path=output_path,
             year_month="2026-04",
             tenant_id=None,
             db_url=None,
@@ -447,7 +390,93 @@ class TestConvertOutputFormat:
             reader = csv.DictReader(f)
             rows = list(reader)
 
-        # weekday_night 行を探して required_count を確認
         wn_rows = [r for r in rows if r["slot_type"] == "weekday_night"]
         assert wn_rows, "weekday_night 行が存在すること"
         assert wn_rows[0]["required_count"] == "2"
+
+    def test_weekday_first_occurrence_is_weekday_night(
+        self, tmp_path: "pathlib.Path"  # type: ignore[name-defined]
+    ) -> None:
+        """平日の1回目・2回目の氏名が weekday_night として出力される."""
+        import csv
+
+        input_path = self._make_input_csv(tmp_path, "input3.csv", [
+            ["日", "曜", "回数", "氏名"],  # row0 (header)
+            ["1", "月", "1", "山田太郎"],  # row1 (data, 2026-04-01=水曜=平日)
+        ])
+        output_path = str(tmp_path / "output3.csv")
+
+        script.convert(
+            input_path=input_path,
+            output_path=output_path,
+            year_month="2026-04",
+            tenant_id=None,
+            db_url=None,
+        )
+
+        with open(output_path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert any(r["slot_type"] == "weekday_night" for r in rows), \
+            "weekday_night 行が出力 CSV に存在すること"
+
+    def test_saturday_third_occurrence_is_sat_night(
+        self, tmp_path: "pathlib.Path"  # type: ignore[name-defined]
+    ) -> None:
+        """土曜日の3回目・4回目の氏名が sat_night として出力される."""
+        import csv
+
+        # 2026-04-04 は土曜
+        # 3回目の氏名列（occurrence_idx=2）-> sat_night
+        input_path = self._make_input_csv(tmp_path, "input4.csv", [
+            ["日", "曜", "回数", "氏名", "交替者名", "回数", "氏名", "交替者名", "回数", "氏名"],
+            ["4", "土", "1", "山田太郎", "", "1", "鈴木花子", "", "1", "田中三郎"],
+        ])
+        output_path = str(tmp_path / "output4.csv")
+
+        script.convert(
+            input_path=input_path,
+            output_path=output_path,
+            year_month="2026-04",
+            tenant_id=None,
+            db_url=None,
+        )
+
+        with open(output_path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        sat_night_rows = [r for r in rows if r["slot_type"] == "sat_night"]
+        assert sat_night_rows, "sat_night 行が出力 CSV に存在すること"
+        assert sat_night_rows[0]["worker_id_1"] == "田中三郎"
+
+    def test_sunday_third_occurrence_is_sun_hol_night(
+        self, tmp_path: "pathlib.Path"  # type: ignore[name-defined]
+    ) -> None:
+        """日曜日の3回目・4回目の氏名が sun_hol_night として出力される."""
+        import csv
+
+        # 2026-04-05 は日曜
+        # 3回目の氏名列（occurrence_idx=2）-> sun_hol_night
+        input_path = self._make_input_csv(tmp_path, "input5.csv", [
+            ["日", "曜", "回数", "氏名", "交替者名", "回数", "氏名", "交替者名", "回数", "氏名"],
+            ["5", "日", "1", "山田太郎", "", "1", "鈴木花子", "", "1", "田中三郎"],
+        ])
+        output_path = str(tmp_path / "output5.csv")
+
+        script.convert(
+            input_path=input_path,
+            output_path=output_path,
+            year_month="2026-04",
+            tenant_id=None,
+            db_url=None,
+        )
+
+        with open(output_path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        night_rows = [r for r in rows if r["slot_type"] == "sun_hol_night"]
+        assert night_rows, "sun_hol_night 行が出力 CSV に存在すること"
+        assert night_rows[0]["worker_id_1"] == "田中三郎"
