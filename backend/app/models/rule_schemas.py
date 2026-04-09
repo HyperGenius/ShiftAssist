@@ -32,6 +32,21 @@ class ShiftRulesConfig(BaseModel):
     target_all_departments: bool = True
     """テナント全体（全課）を対象とするか。True の場合は target_departments の設定は無視される。"""
 
+    hired_tenure_months: int = 6
+    """採用（transfer_type=hired）のアサイン可能開始までの月数。0 を指定すると制限なし。"""
+
+    cross_division_transfer_tenure_months: int = 3
+    """事業部間転入（transfer_type=transfer_in かつ is_cross_division_transfer=True）の
+    アサイン可能開始までの月数。0 を指定すると制限なし。"""
+
+    @field_validator("hired_tenure_months", "cross_division_transfer_tenure_months")
+    @classmethod
+    def tenure_months_non_negative(cls, v: int) -> int:
+        """在籍期間制限月数は0以上でなければならない."""
+        if v < 0:
+            raise ValueError("tenure_months は0以上の値を指定してください")
+        return v
+
     @field_validator("min_interval_days")
     @classmethod
     def min_interval_days_non_negative(cls, v: int) -> int:

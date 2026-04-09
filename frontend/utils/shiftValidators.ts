@@ -13,6 +13,8 @@ export type ValidationCode =
   | "SKILL_RANK_A" // スキルランクAがペアに含まれない
   | "WORK_INTERVAL" // 中9日未満の勤務間隔
   | "SPECIAL_EMPLOYMENT" // 特別雇用者の枠制限違反
+  | "NEW_HIRE_TENURE" // 採用後の期間制限
+  | "TRANSFER_TENURE" // 事業本部間転入後の期間制限
   | "CONSECUTIVE_HOLIDAYS"; // 休日の連続アサイン (Warning)
 
 export type ValidationSeverity = "error" | "warning";
@@ -271,6 +273,85 @@ export function validateSpecialEmployment(
 }
 
 /**
+ * ルール8: 着任・異動後の期間制限
+ * - 採用（transfer_type=hired）: joined_at から hired_tenure_months ヶ月未満はアサイン不可。
+ * - 事業本部間転入（transfer_type=transfer_in かつ is_cross_division_transfer=true）:
+ *   transferred_at（なければ joined_at）から cross_division_transfer_tenure_months ヶ月未満はアサイン不可。
+ * 閾値が 0 の場合は制限なし。
+ */
+export function validateTenureRestriction(
+  dateStr: string,
+  workers: readonly (string | null)[],
+  workerMap: Map<string, Worker>,
+  rules?: Pick<
+    ShiftRulesConfig,
+    "hired_tenure_months" | "cross_division_transfer_tenure_months"
+  >,
+): ValidationViolation[] {
+  const hiredMonths = rules?.hired_tenure_months ?? 6;
+  const transferMonths = rules?.cross_division_transfer_tenure_months ?? 3;
+  const shiftDate = parseDateStr(dateStr);
+
+  const violations: ValidationViolation[] = [];
+  const assignedWorkers = workers
+    .filter((id): id is string => id !== null)
+    .map((id) => workerMap.get(id))
+    .filter((w): w is Worker => w !== undefined);
+
+  for (const worker of assignedWorkers) {
+    // 採用（hired）: joined_at から hiredMonths ヶ月チェック
+    if (worker.transfer_type === "hired") {
+      if (hiredMonths > 0 && worker.joined_at) {
+        const months = monthsBetween(parseDateStr(worker.joined_at), shiftDate);
+        if (months < hiredMonths) {
+          violations.push({
+            code: "NEW_HIRE_TENURE",
+            severity: "error",
+            message: `${worker.name} は採用後${hiredMonths}ヶ月経過していません（着任日: ${worker.joined_at}、あと ${hiredMonths - months} ヶ月必要）`,
+            workerIds: [worker.id],
+          });
+        }
+      }
+      continue;
+    }
+
+    // 事業本部間転入（transfer_in + is_cross_division_transfer）
+    if (
+      worker.transfer_type === "transfer_in" &&
+      worker.is_cross_division_transfer
+    ) {
+      if (transferMonths > 0) {
+        const baseDate = worker.transferred_at ?? worker.joined_at;
+        if (baseDate) {
+          const months = monthsBetween(parseDateStr(baseDate), shiftDate);
+          if (months < transferMonths) {
+            violations.push({
+              code: "TRANSFER_TENURE",
+              severity: "error",
+              message: `${worker.name} は事業本部間異動後${transferMonths}ヶ月経過していません（異動日: ${baseDate}、あと ${transferMonths - months} ヶ月必要）`,
+              workerIds: [worker.id],
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return violations;
+}
+
+/** 2つの Date 間の完全な月数を計算する（切り捨て） */
+function monthsBetween(start: Date, end: Date): number {
+  let months =
+    (end.getFullYear() - start.getFullYear()) * 12 +
+    (end.getMonth() - start.getMonth());
+  if (end.getDate() < start.getDate()) {
+    months -= 1;
+  }
+  return Math.max(0, months);
+}
+
+/**
  * 任意ルール: 休日の連続回避 (Warning)
  * 同一ワーカーが直前・直後の連続する日にも休日系スロットへアサインされている場合に警告。
  */
@@ -346,6 +427,7 @@ export function validateSlot(
     ...validateSkillRankA(workers, requiredHeadcount, workerMap, rules, skillRankMap),
     ...validateWorkInterval(dateStr, slotType, workers, calendarState, workerMap, rules),
     ...validateSpecialEmployment(slotType, workers, workerMap, rules),
+    ...validateTenureRestriction(dateStr, workers, workerMap, rules),
     ...validateConsecutiveHolidays(dateStr, slotType, workers, calendarState, workerMap),
   ];
 }

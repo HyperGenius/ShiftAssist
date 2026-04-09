@@ -53,9 +53,11 @@ _TRANSFER_TYPE_MAP: dict[str, TransferTypeEnum] = {
     "異動なし": TransferTypeEnum.no_transfer,
     "転入": TransferTypeEnum.transfer_in,
     "転出": TransferTypeEnum.transfer_out,
+    "採用": TransferTypeEnum.hired,
     "no_transfer": TransferTypeEnum.no_transfer,
     "transfer_in": TransferTypeEnum.transfer_in,
     "transfer_out": TransferTypeEnum.transfer_out,
+    "hired": TransferTypeEnum.hired,
 }
 
 # 真偽値の日本語→bool変換マップ

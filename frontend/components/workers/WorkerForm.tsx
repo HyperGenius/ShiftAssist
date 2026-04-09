@@ -19,6 +19,7 @@ const TRANSFER_TYPE_OPTIONS = [
   { value: "no_transfer", label: "異動なし" },
   { value: "transfer_in", label: "転入" },
   { value: "transfer_out", label: "転出" },
+  { value: "hired", label: "採用" },
 ] as const;
 
 const workerSchema = z.object({
@@ -38,7 +39,7 @@ const workerSchema = z.object({
   birth_date: z.string().optional().nullable(),
   skill_acquired_at: z.string().optional().nullable(),
   transfer_type: z
-    .enum(["no_transfer", "transfer_in", "transfer_out"])
+    .enum(["no_transfer", "transfer_in", "transfer_out", "hired"])
     .optional()
     .nullable(),
   transfer_scheduled_month: z.string().optional().nullable(),
@@ -102,8 +103,10 @@ export function WorkerForm({
     if (transferType !== "transfer_out") {
       setValue("transfer_scheduled_month", null);
     }
-    if (transferType !== "transfer_in") {
+    if (transferType !== "transfer_in" && transferType !== "hired") {
       setValue("joined_at", null);
+    }
+    if (transferType !== "transfer_in") {
       setValue("is_cross_division_transfer", false);
     }
   }, [transferType, setValue]);
@@ -285,33 +288,33 @@ export function WorkerForm({
         />
       )}
 
-      {transferType === "transfer_in" && (
-        <>
-          <SciFiInput
-            id="worker-joined-at"
-            label="着任日（統計集計の基準日）"
-            type="date"
-            {...register("joined_at")}
-            error={errors.joined_at?.message}
-            disabled={isSubmitting}
-          />
+      {(transferType === "transfer_in" || transferType === "hired") && (
+        <SciFiInput
+          id="worker-joined-at"
+          label="着任日（統計集計の基準日）"
+          type="date"
+          {...register("joined_at")}
+          error={errors.joined_at?.message}
+          disabled={isSubmitting}
+        />
+      )}
 
-          <div className="flex items-center gap-3">
-            <input
-              id="worker-is-cross-division-transfer"
-              type="checkbox"
-              {...register("is_cross_division_transfer")}
-              disabled={isSubmitting}
-              className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500/30"
-            />
-            <label
-              htmlFor="worker-is-cross-division-transfer"
-              className="text-sm text-gray-700 cursor-pointer"
-            >
-              事業本部間異動
-            </label>
-          </div>
-        </>
+      {transferType === "transfer_in" && (
+        <div className="flex items-center gap-3">
+          <input
+            id="worker-is-cross-division-transfer"
+            type="checkbox"
+            {...register("is_cross_division_transfer")}
+            disabled={isSubmitting}
+            className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500/30"
+          />
+          <label
+            htmlFor="worker-is-cross-division-transfer"
+            className="text-sm text-gray-700 cursor-pointer"
+          >
+            事業本部間異動
+          </label>
+        </div>
       )}
 
       <div className="flex justify-end gap-3 mt-2">

@@ -31,6 +31,14 @@ const rulesSchema = z.object({
     .int("整数を入力してください")
     .min(1, "1スロットあたりの人数は1以上の値を指定してください"),
   avoid_consecutive_holidays: z.boolean(),
+  hired_tenure_months: z
+    .number()
+    .int("整数を入力してください")
+    .min(0, "採用アサイン可能期間は0以上の値を指定してください"),
+  cross_division_transfer_tenure_months: z
+    .number()
+    .int("整数を入力してください")
+    .min(0, "事業部間転入アサイン可能期間は0以上の値を指定してください"),
 });
 
 type RulesFormValues = z.infer<typeof rulesSchema>;
@@ -47,6 +55,9 @@ function toFormValues(rules: ShiftRules): RulesFormValues {
       rules.shift_rules.special_employment_shifts.join(", "),
     workers_per_slot: rules.shift_rules.workers_per_slot,
     avoid_consecutive_holidays: rules.warnings.avoid_consecutive_holidays,
+    hired_tenure_months: rules.shift_rules.hired_tenure_months,
+    cross_division_transfer_tenure_months:
+      rules.shift_rules.cross_division_transfer_tenure_months,
   };
 }
 
@@ -67,6 +78,9 @@ function toShiftRules(values: RulesFormValues, currentRules: ShiftRules): ShiftR
       // テナント設定（/settings で管理）はそのまま引き継ぐ
       target_departments: currentRules.shift_rules.target_departments,
       target_all_departments: currentRules.shift_rules.target_all_departments,
+      hired_tenure_months: values.hired_tenure_months,
+      cross_division_transfer_tenure_months:
+        values.cross_division_transfer_tenure_months,
     },
     warnings: {
       avoid_consecutive_holidays: values.avoid_consecutive_holidays,
@@ -245,6 +259,28 @@ export function RulesSettingsForm() {
             min={1}
             {...register("workers_per_slot", { valueAsNumber: true })}
             error={errors.workers_per_slot?.message}
+            disabled={isSubmitting}
+          />
+
+          <SciFiInput
+            id="hired_tenure_months"
+            label="採用アサイン可能期間（月）"
+            type="number"
+            min={0}
+            {...register("hired_tenure_months", { valueAsNumber: true })}
+            error={errors.hired_tenure_months?.message}
+            disabled={isSubmitting}
+          />
+
+          <SciFiInput
+            id="cross_division_transfer_tenure_months"
+            label="事業部間転入アサイン可能期間（月）"
+            type="number"
+            min={0}
+            {...register("cross_division_transfer_tenure_months", {
+              valueAsNumber: true,
+            })}
+            error={errors.cross_division_transfer_tenure_months?.message}
             disabled={isSubmitting}
           />
         </SciFiPanel>

@@ -17,6 +17,10 @@ export interface ShiftRulesConfig {
   target_departments: string[];
   /** テナント全体（全課）を対象とするか。true の場合は target_departments は無視される。 */
   target_all_departments: boolean;
+  /** 採用（transfer_type=hired）のアサイン可能開始までの月数。0 で制限なし。 */
+  hired_tenure_months: number;
+  /** 事業部間転入（transfer_type=transfer_in かつ is_cross_division_transfer=true）のアサイン可能開始までの月数。0 で制限なし。 */
+  cross_division_transfer_tenure_months: number;
 }
 
 /** シフト警告設定 */
@@ -41,6 +45,8 @@ export const DEFAULT_SHIFT_RULES: ShiftRules = {
     workers_per_slot: 2,
     target_departments: [],
     target_all_departments: true,
+    hired_tenure_months: 6,
+    cross_division_transfer_tenure_months: 3,
   },
   warnings: {
     avoid_consecutive_holidays: true,
