@@ -72,9 +72,7 @@ def get_validation_context(
     )
 
     # 直近シフト日付を取得（published ShiftPlan のデータも含む）
-    last_shift_dates = _get_last_shift_dates(
-        session, tenant_id, worker_ids, start_date
-    )
+    last_shift_dates = _get_last_shift_dates(session, tenant_id, worker_ids, start_date)
 
     # ワーカー実績サマリーを構築
     worker_stats = []

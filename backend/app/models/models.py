@@ -374,9 +374,7 @@ class ShiftSlot(Base):
     date = Column(DateTime, nullable=False)  # Date型でも可
     slot_type = Column(Enum(SlotTypeEnum), nullable=False)  # type: ignore[var-annotated]
 
-    __table_args__ = (
-        Index("ix_shift_slots_tenant_date", "tenant_id", "date"),
-    )
+    __table_args__ = (Index("ix_shift_slots_tenant_date", "tenant_id", "date"),)
 
 
 class ShiftAssignment(Base):
