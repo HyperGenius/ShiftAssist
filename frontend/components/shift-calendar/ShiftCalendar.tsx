@@ -93,11 +93,12 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
   // 月跨ぎの min_interval_days チェック用に前月バッファを start_date として渡す
   const targetYearMonth = `${year}-${String(month).padStart(2, "0")}`;
   const validationStartDate = useMemo(() => {
+    const minIntervalDays = rules.shift_rules?.min_interval_days ?? 10;
     const monthStart = new Date(year, month - 1, 1);
     const bufferStart = new Date(monthStart);
-    bufferStart.setDate(bufferStart.getDate() - (rules.shift_rules.min_interval_days - 1));
+    bufferStart.setDate(bufferStart.getDate() - (minIntervalDays - 1));
     return bufferStart.toISOString().slice(0, 10); // YYYY-MM-DD
-  }, [year, month, rules.shift_rules.min_interval_days]);
+  }, [year, month, rules.shift_rules?.min_interval_days]);
 
   const { validationContext } = useValidationContext(targetYearMonth, validationStartDate);
 
