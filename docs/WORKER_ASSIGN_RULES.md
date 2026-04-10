@@ -36,10 +36,20 @@ ShiftAssistでは、ユーザー体験とデータ整合性を両立させるた
 | # | コード | 設定パラメータ | 内容 | オーバーライド |
 |---|--------|----------------|------|---------------|
 | W1 | `CONSECUTIVE_HOLIDAYS` | `avoid_consecutive_holidays: bool` | 同一ワーカーが連続する日に休日系スロットへアサインされている | ― |
+| W2 | `ANNUAL_TOTAL_SHIFTS` | `annual_shift_limits.annual_total: int`（デフォルト: 22） | 年間総シフト回数が上限を超える | ― |
+| W3 | `ANNUAL_WEEKDAY_NIGHT` | `annual_shift_limits.weekday_night: int`（デフォルト: 10） | 年間 `weekday_night` 回数が上限を超える | ― |
+| W4 | `ANNUAL_SAT_PRE_HOL_NIGHT` | `annual_shift_limits.sat_pre_hol_night: int`（デフォルト: 4） | 年間 `sat_pre_hol_night` 回数が上限を超える | ― |
+| W5 | `ANNUAL_SAT_DAY` | `annual_shift_limits.sat_day: int`（デフォルト: 3） | 年間 `sat_day` 回数が上限を超える | ― |
+| W6 | `ANNUAL_SAT_NIGHT` | `annual_shift_limits.sat_night: int`（デフォルト: 3） | 年間 `sat_night` 回数が上限を超える | ― |
+| W7 | `ANNUAL_SUN_HOL_DAY` | `annual_shift_limits.sun_hol_day: int`（デフォルト: 4） | 年間 `sun_hol_day`（`long_hol_day` を合算）回数が上限を超える | ― |
+| W8 | `ANNUAL_SUN_HOL_NIGHT` | `annual_shift_limits.sun_hol_night: int`（デフォルト: 5） | 年間 `sun_hol_night`（`long_hol_night` を合算）回数が上限を超える | ― |
 
-> **注意**: `CONSECUTIVE_HOLIDAYS` はフロントエンドのみ実装。バックエンド保存時の検証対象外。
+> **注意**: `CONSECUTIVE_HOLIDAYS` および `ANNUAL_*` はフロントエンドのみ実装。バックエンド保存時の検証対象外。
+> ただし `ANNUAL_*` はバックエンドでも `warnings` として `validate_shift_assignments` から返される（保存はブロックしない）。
+> 年間集計の基準期間: シフト日が属する月を含む直近12ヶ月（例: 2026年4月作成中 → 2025年5月〜2026年4月）。
+> `0` を設定すると制限なし（無制限）として扱う。
 
-### 設定スキーマ（`ShiftRulesConfig`）
+### 設定スキーマ（`ShiftRulesConfig` / `ShiftWarningsConfig`）
 
 ```
 # backend: app/models/rule_schemas.py
@@ -58,6 +68,16 @@ ShiftRulesConfig:
 
 ShiftWarningsConfig:
   avoid_consecutive_holidays: bool = True
+  annual_shift_limits: AnnualShiftLimitsConfig = AnnualShiftLimitsConfig()
+
+AnnualShiftLimitsConfig:
+  annual_total: int = 22
+  weekday_night: int = 10
+  sat_day: int = 3
+  sat_night: int = 3
+  sun_hol_day: int = 4   # long_hol_day の実績を合算
+  sun_hol_night: int = 5  # long_hol_night の実績を合算
+  sat_pre_hol_night: int = 4
 ```
 
 > `target_departments` / `target_all_departments` はアサイン可能部門の絞り込みに使用。バックエンドの `_validate_worker_departments` で検証される（ビジネスルールとは独立した前提チェック）。
@@ -65,7 +85,31 @@ ShiftWarningsConfig:
 
 ---
 
-## 3. 実装ファイルマップ
+## 3. シフト枠種別（SlotTypeEnum）
+
+| 値 | 意味 | 備考 |
+|---|---|---|
+| `weekday_night` | 平日夜間 | 特別雇用者も参加可（デフォルト） |
+| `sat_day` | 土曜昼間 | |
+| `sat_night` | 土曜夜間 | |
+| `sun_hol_day` | 日曜・祝日昼間 | 月1回制限あり |
+| `sun_hol_night` | 日曜・祝日夜間 | |
+| `long_hol_day` | 長期連休昼間 | 集計時は `sun_hol_day` に合算 |
+| `long_hol_night` | 長期連休夜間 | 集計時は `sun_hol_night` に合算 |
+| `sat_pre_hol_night` | 土曜・祝前日夜間 | 金曜日または翌日が祝日となる平日の夜間 |
+
+### `sat_pre_hol_night` の判定ロジック
+
+「土曜・祝前日」とは以下の条件をすべて満たす日を指す。
+
+1. 対象日の翌日が**土曜日または祝日**である
+2. 対象日自身が**土曜日・日曜日・祝日でない**（平日だけが対象）
+
+バックエンドでは `tenant_holidays` テーブルの祝日データを使用して判定する。フロントエンドでは `isSatPreHolidayDate` ユーティリティ（`frontend/utils/calendarUtils.ts`）を使用する。
+
+---
+
+## 4. 実装ファイルマップ
 
 | 役割 | ファイル |
 |------|---------|
@@ -76,17 +120,22 @@ ShiftWarningsConfig:
 | バックエンド: バリデーションコンテキストサービス | `backend/app/services/validation_context_service.py` |
 | バックエンド: Rules API エンドポイント | `backend/app/routers/rules.py` |
 | バックエンド: Shifts API エンドポイント | `backend/app/routers/shifts.py` |
+| バックエンド: シフト要件生成サービス | `backend/app/services/shift_requirement_service.py` |
 | フロントエンド: ルール型定義・デフォルト値 | `frontend/types/shiftRules.ts` |
 | フロントエンド: バリデーション純粋関数群 | `frontend/utils/shiftValidators.ts` |
+| フロントエンド: カレンダーユーティリティ（sat_pre_hol判定含む） | `frontend/utils/calendarUtils.ts` |
 | フロントエンド: バリデーション結果フック | `frontend/hooks/useShiftValidation.ts` |
 | フロントエンド: ルール取得・更新フック | `frontend/hooks/useShiftRules.ts` |
 | フロントエンド: バリデーションコンテキスト取得フック | `frontend/hooks/useValidationContext.ts` |
+| フロントエンド: スマートサジェストフック | `frontend/hooks/useAvailableWorkers.ts` |
+| フロントエンド: ルール設定フォーム | `frontend/components/rules/RulesSettingsForm.tsx` |
 | バックエンド: バリデーションテスト | `backend/tests/unit/test_shift_validation_service.py` |
 | バックエンド: ルールサービステスト | `backend/tests/unit/test_shift_rules_service.py` |
+| バックエンド: シフト要件テスト | `backend/tests/unit/test_shift_requirement_service.py` |
 
 ---
 
-## 4. 月跨ぎ `min_interval_days` バリデーション
+## 5. 月跨ぎ `min_interval_days` バリデーション
 
 ### 概要
 
@@ -124,7 +173,7 @@ GET /api/shifts/validation-context?target_year_month=2026-04&start_date=2026-03-
 
 ---
 
-## 5. 新しいルールを追加するステップ
+## 6. 新しいルールを追加するステップ
 
 ### Step 1: ルールスキーマ（JSON定義）の拡張
 

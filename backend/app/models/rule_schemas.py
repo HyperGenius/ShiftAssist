@@ -64,6 +64,35 @@ class ShiftRulesConfig(BaseModel):
         return v
 
 
+class AnnualShiftLimitsConfig(BaseModel):
+    """年間シフト回数上限設定スキーマ.
+
+    1ワーカーあたりの年間合計に対する上限。
+    0 を指定すると制限なしとして扱う。
+    """
+
+    annual_total: int = 22
+    """全スロット合計の年間上限。"""
+
+    weekday_night: int = 10
+    """weekday_night の年間上限。"""
+
+    sat_day: int = 3
+    """sat_day の年間上限。"""
+
+    sat_night: int = 3
+    """sat_night の年間上限。"""
+
+    sun_hol_day: int = 4
+    """sun_hol_day の年間上限（long_hol_day の実績を合算）。"""
+
+    sun_hol_night: int = 5
+    """sun_hol_night の年間上限（long_hol_night の実績を合算）。"""
+
+    sat_pre_hol_night: int = 4
+    """sat_pre_hol_night の年間上限。"""
+
+
 class ShiftWarningsConfig(BaseModel):
     """シフト警告設定スキーマ.
 
@@ -72,6 +101,14 @@ class ShiftWarningsConfig(BaseModel):
 
     avoid_consecutive_holidays: bool = True
     """休日の連続アサインを警告するか。"""
+
+    annual_shift_limits: AnnualShiftLimitsConfig = None  # type: ignore[assignment]
+    """年間シフト回数上限設定。"""
+
+    def model_post_init(self, __context: object) -> None:
+        """annual_shift_limits のデフォルト値を設定する."""
+        if self.annual_shift_limits is None:
+            self.annual_shift_limits = AnnualShiftLimitsConfig()
 
 
 class ShiftRulesResponse(BaseModel):

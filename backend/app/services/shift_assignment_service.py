@@ -169,9 +169,11 @@ def _validate_business_rules(
         ).all()
     )
 
-    rules = shift_rules_service.get_shift_rules(session, tenant_id).shift_rules
+    rules_config = shift_rules_service.get_shift_rules(session, tenant_id)
+    rules = rules_config.shift_rules
+    annual_limits = rules_config.warnings.annual_shift_limits
     violations = shift_validation_service.validate_shift_assignments(
-        session, tenant_id, requirement, workers, rules
+        session, tenant_id, requirement, workers, rules, annual_limits
     )
     errors = [v for v in violations if v.severity == "error"]
     if errors:

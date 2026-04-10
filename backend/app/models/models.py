@@ -52,6 +52,7 @@ class SlotTypeEnum(enum.StrEnum):
         sun_hol_night: 日曜・祝日夜間。
         long_hol_day: 長期連休（GW・シルバーウィーク・年末年始等）昼間。
         long_hol_night: 長期連休（GW・シルバーウィーク・年末年始等）夜間。
+        sat_pre_hol_night: 土曜・祝前日夜間。金曜日または翌日が祝日となる平日の夜間。
     """
 
     weekday_night = "weekday_night"
@@ -61,6 +62,7 @@ class SlotTypeEnum(enum.StrEnum):
     sun_hol_night = "sun_hol_night"
     long_hol_day = "long_hol_day"
     long_hol_night = "long_hol_night"
+    sat_pre_hol_night = "sat_pre_hol_night"
 
 
 class LongHolidayTypeEnum(enum.StrEnum):

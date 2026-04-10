@@ -8,7 +8,8 @@ export type SlotType =
   | "sun_hol_day"
   | "sun_hol_night"
   | "long_hol_day"
-  | "long_hol_night";
+  | "long_hol_night"
+  | "sat_pre_hol_night";
 
 /** 枠種別ごとの勤務実績 */
 export interface WorkerSlotStats {

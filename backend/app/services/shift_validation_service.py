@@ -25,7 +25,11 @@ from app.models.models import (
     TenantSkillRank,
     Worker,
 )
-from app.models.rule_schemas import ShiftRulesConfig, ValidationViolationItem
+from app.models.rule_schemas import (
+    AnnualShiftLimitsConfig,
+    ShiftRulesConfig,
+    ValidationViolationItem,
+)
 from app.services.age_utils import calculate_age_at
 from app.services.long_holiday_period_service import (
     get_period_for_date,
@@ -543,12 +547,142 @@ def _check_long_holiday_prev_year_exclusion(
     return violations
 
 
+_SLOT_ANNUAL_LABEL: dict[str, str] = {
+    "weekday_night": "平日夜間",
+    "sat_day": "土曜昼間",
+    "sat_night": "土曜夜間",
+    "sun_hol_day": "日祝昼間",
+    "sun_hol_night": "日祝夜間",
+    "sat_pre_hol_night": "土曜・祝前日夜間",
+}
+
+
+def _count_annual_slots(slot_types: list[str]) -> tuple[int, dict[str, int]]:
+    """スロット種別リストから年間集計（合計, 種別別カウント）を算出する.
+
+    long_hol_day / long_hol_night はそれぞれ sun_hol_day / sun_hol_night に合算する。
+    """
+    counts: dict[str, int] = {k: 0 for k in _SLOT_ANNUAL_LABEL}
+    total = 0
+    for st in slot_types:
+        total += 1
+        if st == "long_hol_day":
+            counts["sun_hol_day"] += 1
+        elif st == "long_hol_night":
+            counts["sun_hol_night"] += 1
+        elif st in counts:
+            counts[st] += 1
+    return total, counts
+
+
+def _annual_slot_violations(
+    worker: Worker,
+    total: int,
+    counts: dict[str, int],
+    limits: AnnualShiftLimitsConfig,
+) -> list[ValidationViolationItem]:
+    """年間上限と実績カウントを比較して違反リストを返す."""
+    violations: list[ValidationViolationItem] = []
+
+    if limits.annual_total > 0 and total > limits.annual_total:
+        violations.append(
+            ValidationViolationItem(
+                code="ANNUAL_TOTAL_SHIFTS",
+                severity="warning",
+                message=(
+                    f"{worker.name} の年間シフト回数が上限（{limits.annual_total}回）を超えています"
+                    f"（現在: {total}回）"
+                ),
+                worker_ids=[str(worker.id)],
+            )
+        )
+
+    slot_limit_map: list[tuple[str, str, int]] = [
+        ("weekday_night", "ANNUAL_WEEKDAY_NIGHT", limits.weekday_night),
+        ("sat_day", "ANNUAL_SAT_DAY", limits.sat_day),
+        ("sat_night", "ANNUAL_SAT_NIGHT", limits.sat_night),
+        ("sun_hol_day", "ANNUAL_SUN_HOL_DAY", limits.sun_hol_day),
+        ("sun_hol_night", "ANNUAL_SUN_HOL_NIGHT", limits.sun_hol_night),
+        ("sat_pre_hol_night", "ANNUAL_SAT_PRE_HOL_NIGHT", limits.sat_pre_hol_night),
+    ]
+    for st_key, code, limit in slot_limit_map:
+        if limit > 0 and counts.get(st_key, 0) > limit:
+            violations.append(
+                ValidationViolationItem(
+                    code=code,
+                    severity="warning",
+                    message=(
+                        f"{worker.name} の{_SLOT_ANNUAL_LABEL[st_key]}年間シフト回数が"
+                        f"上限（{limit}回）を超えています（現在: {counts[st_key]}回）"
+                    ),
+                    worker_ids=[str(worker.id)],
+                )
+            )
+
+    return violations
+
+
+def _check_annual_shift_limits(
+    session: Session,
+    tenant_id: str,
+    requirement: ShiftRequirement,
+    workers: list[Worker],
+    limits: AnnualShiftLimitsConfig,
+) -> list[ValidationViolationItem]:
+    """年間シフト回数上限超過チェック.
+
+    シフト日から遡って12ヶ月分（作成中の月を含む）のアサイン実績を集計し、
+    各種別の上限を超えているワーカーを検出する。
+    severity: "warning" として返す（保存はブロックしない）。
+
+    long_hol_day / long_hol_night はそれぞれ sun_hol_day / sun_hol_night に合算して集計する。
+    """
+    import calendar as _calendar
+
+    shift_date: date = requirement.shift_date  # type: ignore[assignment]
+    slot_type: SlotTypeEnum = SlotTypeEnum(str(requirement.slot_type))
+
+    # 集計期間: シフト日が属する月を含む直近12ヶ月
+    period_start_month = shift_date.month + 1
+    period_start_year = shift_date.year - 1
+    if period_start_month > 12:
+        period_start_month -= 12
+        period_start_year += 1
+    period_start = date(period_start_year, period_start_month, 1)
+    last_day = _calendar.monthrange(shift_date.year, shift_date.month)[1]
+    period_end_inclusive = date(shift_date.year, shift_date.month, last_day)
+
+    violations: list[ValidationViolationItem] = []
+
+    for worker in workers:
+        rows = session.exec(
+            select(ShiftRequirement.slot_type)
+            .join(
+                ShiftRequirementAssignment,
+                ShiftRequirementAssignment.requirement_id == ShiftRequirement.id,  # type: ignore[arg-type]
+            )
+            .where(
+                ShiftRequirementAssignment.worker_id == worker.id,
+                ShiftRequirementAssignment.tenant_id == tenant_id,
+                ShiftRequirement.shift_date >= period_start,
+                ShiftRequirement.shift_date <= period_end_inclusive,
+            )
+        ).all()
+
+        slot_types = [str(r) for r in rows] + [str(slot_type)]
+        total, counts = _count_annual_slots(slot_types)
+        violations.extend(_annual_slot_violations(worker, total, counts, limits))
+
+    return violations
+
+
 def validate_shift_assignments(
     session: Session,
     tenant_id: str,
     requirement: ShiftRequirement,
     workers: list[Worker],
     rules: ShiftRulesConfig,
+    annual_limits: AnnualShiftLimitsConfig | None = None,
 ) -> list[ValidationViolationItem]:
     """指定されたシフトアサインがビジネスルールに適合しているか検証する.
 
@@ -558,6 +692,7 @@ def validate_shift_assignments(
         requirement: アサイン対象のShiftRequirementオブジェクト。
         workers: アサイン対象のWorkerオブジェクトリスト。
         rules: 適用するシフトルール設定。
+        annual_limits: 年間シフト回数上限設定。None の場合はデフォルト値を使用。
 
     Returns:
         バリデーション違反アイテムのリスト。空の場合は違反なし。
@@ -566,6 +701,7 @@ def validate_shift_assignments(
         return []
 
     shift_date: date = requirement.shift_date  # type: ignore[assignment]
+    limits = annual_limits if annual_limits is not None else AnnualShiftLimitsConfig()
 
     return [
         *_check_daily_duplicate(session, tenant_id, requirement, workers),
@@ -580,4 +716,5 @@ def validate_shift_assignments(
         *_check_long_holiday_prev_year_exclusion(
             session, tenant_id, requirement, workers
         ),
+        *_check_annual_shift_limits(session, tenant_id, requirement, workers, limits),
     ]

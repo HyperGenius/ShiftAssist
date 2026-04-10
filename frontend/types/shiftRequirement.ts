@@ -7,7 +7,8 @@ export type SlotType =
   | "sun_hol_day"
   | "sun_hol_night"
   | "long_hol_day"
-  | "long_hol_night";
+  | "long_hol_night"
+  | "sat_pre_hol_night";
 
 export const SLOT_TYPE_LABELS: Record<SlotType, string> = {
   weekday_night: "夜間",
@@ -17,6 +18,7 @@ export const SLOT_TYPE_LABELS: Record<SlotType, string> = {
   sun_hol_night: "夜間",
   long_hol_day: "昼間",
   long_hol_night: "夜間",
+  sat_pre_hol_night: "夜間",
 };
 
 export interface ShiftRequirement {

@@ -1046,3 +1046,163 @@ class TestValidateShiftAssignments:
 
         codes = [v.code for v in result]
         assert "AGE_SUM_EXCEEDED" not in codes
+
+
+# ---------------------------------------------------------------------------
+# _check_annual_shift_limits
+# ---------------------------------------------------------------------------
+
+
+class TestCheckAnnualShiftLimits:
+    """_check_annual_shift_limits の各種テスト."""
+
+    def _make_session_with_slots(self, slot_types: list[str]) -> MagicMock:
+        """指定された slot_type のリストを返すセッションモック."""
+        session = MagicMock()
+        exec_result = MagicMock()
+        exec_result.all.return_value = slot_types
+        exec_result.first.return_value = None
+        session.exec.return_value = exec_result
+        return session
+
+    def test_no_violation_when_under_limits(self) -> None:
+        """正常系: 年間上限未満のワーカーは違反なし."""
+        from app.models.rule_schemas import AnnualShiftLimitsConfig
+
+        # 過去実績: weekday_night x9 (上限10)
+        session = self._make_session_with_slots(["weekday_night"] * 9)
+        req = _make_requirement(slot_type="weekday_night", shift_date_str="2026-04-15")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        limits = AnnualShiftLimitsConfig()  # デフォルト: weekday_night=10
+
+        result = shift_validation_service._check_annual_shift_limits(
+            session, TENANT_ID, req, [worker], limits
+        )
+
+        codes = [v.code for v in result]
+        assert "ANNUAL_WEEKDAY_NIGHT" not in codes
+        assert "ANNUAL_TOTAL_SHIFTS" not in codes
+
+    def test_violation_when_over_weekday_night_limit(self) -> None:
+        """異常系: weekday_night が上限超えの場合、ANNUAL_WEEKDAY_NIGHT 警告を返す."""
+        from app.models.rule_schemas import AnnualShiftLimitsConfig
+
+        # 過去実績: weekday_night x10（上限10）→ 今回アサインで11回になる
+        session = self._make_session_with_slots(["weekday_night"] * 10)
+        req = _make_requirement(slot_type="weekday_night", shift_date_str="2026-04-15")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        limits = AnnualShiftLimitsConfig(weekday_night=10)
+
+        result = shift_validation_service._check_annual_shift_limits(
+            session, TENANT_ID, req, [worker], limits
+        )
+
+        codes = [v.code for v in result]
+        assert "ANNUAL_WEEKDAY_NIGHT" in codes
+        assert result[0].severity == "warning"
+
+    def test_violation_annual_total(self) -> None:
+        """異常系: 年間合計が上限超えの場合、ANNUAL_TOTAL_SHIFTS 警告を返す."""
+        from app.models.rule_schemas import AnnualShiftLimitsConfig
+
+        # 過去実績: weekday_night x22（上限22）→ 今回アサインで23回
+        session = self._make_session_with_slots(["weekday_night"] * 22)
+        req = _make_requirement(slot_type="weekday_night", shift_date_str="2026-04-15")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        limits = AnnualShiftLimitsConfig(annual_total=22)
+
+        result = shift_validation_service._check_annual_shift_limits(
+            session, TENANT_ID, req, [worker], limits
+        )
+
+        codes = [v.code for v in result]
+        assert "ANNUAL_TOTAL_SHIFTS" in codes
+
+    def test_long_hol_day_counted_as_sun_hol_day(self) -> None:
+        """正常系: long_hol_day は sun_hol_day に合算される."""
+        from app.models.rule_schemas import AnnualShiftLimitsConfig
+
+        # 過去実績: long_hol_day x4（上限4）→ sun_hol_day扱いで上限ちょうど → 今回 sun_hol_day で +1 → 5回
+        session = self._make_session_with_slots(["long_hol_day"] * 4)
+        req = _make_requirement(slot_type="sun_hol_day", shift_date_str="2026-04-15")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        limits = AnnualShiftLimitsConfig(sun_hol_day=4)
+
+        result = shift_validation_service._check_annual_shift_limits(
+            session, TENANT_ID, req, [worker], limits
+        )
+
+        codes = [v.code for v in result]
+        assert "ANNUAL_SUN_HOL_DAY" in codes
+
+    def test_sat_pre_hol_night_violation(self) -> None:
+        """異常系: sat_pre_hol_night が上限超えの場合、ANNUAL_SAT_PRE_HOL_NIGHT 警告を返す."""
+        from app.models.rule_schemas import AnnualShiftLimitsConfig
+
+        # 過去実績: sat_pre_hol_night x4（上限4）→ 今回アサインで5回
+        session = self._make_session_with_slots(["sat_pre_hol_night"] * 4)
+        req = _make_requirement(slot_type="sat_pre_hol_night", shift_date_str="2026-04-15")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        limits = AnnualShiftLimitsConfig(sat_pre_hol_night=4)
+
+        result = shift_validation_service._check_annual_shift_limits(
+            session, TENANT_ID, req, [worker], limits
+        )
+
+        codes = [v.code for v in result]
+        assert "ANNUAL_SAT_PRE_HOL_NIGHT" in codes
+        assert result[0].severity == "warning"
+
+    def test_zero_limit_means_no_restriction(self) -> None:
+        """正常系: 上限が0の場合は制限なし."""
+        from app.models.rule_schemas import AnnualShiftLimitsConfig
+
+        # 過去実績: weekday_night x100（0=制限なし）
+        session = self._make_session_with_slots(["weekday_night"] * 100)
+        req = _make_requirement(slot_type="weekday_night", shift_date_str="2026-04-15")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        limits = AnnualShiftLimitsConfig(annual_total=0, weekday_night=0)
+
+        result = shift_validation_service._check_annual_shift_limits(
+            session, TENANT_ID, req, [worker], limits
+        )
+
+        assert result == []
+
+    def test_is_included_via_validate_shift_assignments(self) -> None:
+        """正常系: validate_shift_assignments から年間上限チェックが呼ばれることを確認."""
+        from app.models.rule_schemas import AnnualShiftLimitsConfig
+        from unittest.mock import patch
+
+        req = _make_requirement(slot_type="sat_pre_hol_night", shift_date_str="2026-04-15")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        limits = AnnualShiftLimitsConfig(sat_pre_hol_night=4)
+
+        # 年間上限チェックのみを直接テストするため、他のチェックをスキップ
+        # 空のセッション（first=None, all=[]）で他のチェックを通過させる
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+
+        with patch.object(
+            shift_validation_service,
+            "_check_annual_shift_limits",
+            return_value=[
+                __import__("app.models.rule_schemas", fromlist=["ValidationViolationItem"]).ValidationViolationItem(
+                    code="ANNUAL_SAT_PRE_HOL_NIGHT",
+                    severity="warning",
+                    message="テストワーカー の土曜・祝前日夜間年間シフト回数が上限（4回）を超えています（現在: 5回）",
+                    worker_ids=[str(WORKER_ID_1)],
+                )
+            ],
+        ) as mock_check:
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [worker], DEFAULT_RULES, limits
+            )
+            mock_check.assert_called_once()
+
+        codes = [v.code for v in result]
+        assert "ANNUAL_SAT_PRE_HOL_NIGHT" in codes
+        annual_violations = [v for v in result if v.code == "ANNUAL_SAT_PRE_HOL_NIGHT"]
+        assert all(v.severity == "warning" for v in annual_violations)

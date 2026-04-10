@@ -102,3 +102,29 @@ export function getCalendarGrid(year: number, month: number): (Date | null)[] {
   }
   return grid;
 }
+
+/**
+ * 指定された日付が「土曜・祝前日」かどうかを判定する。
+ * - 翌日が土曜日 or 祝日
+ * - かつ自身が平日（土曜・日曜・祝日でない）
+ */
+export function isSatPreHolidayDate(
+  dateStr: string,
+  holidayDates: Set<string>,
+): boolean {
+  const date = parseDateStr(dateStr);
+  const day = date.getDay(); // 0=日, 1=月, ..., 6=土
+
+  // 自身が土曜・日曜・祝日の場合は対象外
+  if (day === 0 || day === 6 || holidayDates.has(dateStr)) {
+    return false;
+  }
+
+  // 翌日の日付文字列を計算
+  const nextDate = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+  const nextDateStr = toDateStr(nextDate);
+  const nextDay = nextDate.getDay();
+
+  // 翌日が土曜または祝日
+  return nextDay === 6 || holidayDates.has(nextDateStr);
+}
