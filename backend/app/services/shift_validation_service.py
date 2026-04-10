@@ -6,7 +6,7 @@
 """
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from typing import cast
 
 from sqlmodel import Session, select
@@ -14,9 +14,13 @@ from sqlmodel import Session, select
 from app.models.models import (
     LongHolidayPeriod,
     LongHolidayTypeEnum,
+    PlanStatusEnum,
     Position,
+    ShiftAssignment,
+    ShiftPlan,
     ShiftRequirement,
     ShiftRequirementAssignment,
+    ShiftSlot,
     SlotTypeEnum,
     TenantSkillRank,
     Worker,
@@ -140,26 +144,39 @@ def _check_work_interval(
     workers: list[Worker],
     rules: ShiftRulesConfig,
 ) -> list[ValidationViolationItem]:
-    """ルール4: 中N日以上の勤務間隔チェック."""
+    """ルール4: 中N日以上の勤務間隔チェック（月跨ぎ対応）.
+
+    同月内の ShiftRequirementAssignment に加え、前月の確定済み（published）
+    ShiftPlan の ShiftSlot/ShiftAssignment も検索対象に含める。
+    これにより月を跨いだアサイン（例: 3月31日 → 4月1日）でも
+    min_interval_days を遵守しているか検証できる。
+    """
+    shift_date: date = requirement.shift_date  # type: ignore[assignment]
+    date_from = shift_date - timedelta(days=rules.min_interval_days - 1)
+    date_to = shift_date + timedelta(days=rules.min_interval_days - 1)
+
     violations: list[ValidationViolationItem] = []
     for worker in workers:
-        other_req_ids = session.exec(
-            select(ShiftRequirementAssignment.requirement_id).where(  # type: ignore[arg-type]
+        found_violation = False
+
+        # ShiftRequirementAssignment ベースのチェック（日付範囲でフィルタリング済み）
+        nearby_reqs = session.exec(
+            select(ShiftRequirement)
+            .join(
+                ShiftRequirementAssignment,
+                ShiftRequirement.id == ShiftRequirementAssignment.requirement_id,  # type: ignore[arg-type]
+            )
+            .where(
                 ShiftRequirementAssignment.worker_id == worker.id,
                 ShiftRequirementAssignment.tenant_id == tenant_id,
                 ShiftRequirementAssignment.requirement_id != requirement.id,  # type: ignore[arg-type]
-            )
-        ).all()
-        if not other_req_ids:
-            continue
-        other_reqs = session.exec(
-            select(ShiftRequirement).where(
-                ShiftRequirement.id.in_(other_req_ids),  # type: ignore[attr-defined]
                 ShiftRequirement.tenant_id == tenant_id,
+                ShiftRequirement.shift_date >= date_from,
+                ShiftRequirement.shift_date <= date_to,
             )
         ).all()
-        for other_req in other_reqs:
-            shift_date: date = requirement.shift_date  # type: ignore[assignment]
+
+        for other_req in nearby_reqs:
             other_date: date = other_req.shift_date  # type: ignore[assignment]
             diff = abs((shift_date - other_date).days)
             if diff < rules.min_interval_days:
@@ -175,7 +192,50 @@ def _check_work_interval(
                         worker_ids=[str(worker.id)],
                     )
                 )
+                found_violation = True
                 break
+
+        if found_violation:
+            continue
+
+        # ShiftSlot/ShiftAssignment ベースのチェック（確定済み ShiftPlan のみ）
+        # 前月の published シフトデータと月跨ぎ間隔を検証する
+        published_slot_dates = session.exec(
+            select(ShiftSlot.date)
+            .join(ShiftAssignment, ShiftAssignment.slot_id == ShiftSlot.id)  # type: ignore[arg-type]
+            .join(ShiftPlan, ShiftPlan.id == ShiftSlot.plan_id)  # type: ignore[arg-type]
+            .where(
+                ShiftAssignment.worker_id == worker.id,
+                ShiftSlot.tenant_id == tenant_id,
+                ShiftPlan.status == PlanStatusEnum.published,
+                ShiftSlot.date >= date_from,
+                ShiftSlot.date <= date_to,
+            )
+        ).all()
+
+        for slot_date_raw in published_slot_dates:
+            # ShiftSlot.date は DateTime 型のため date に変換
+            slot_date_val: date = (
+                slot_date_raw.date()
+                if hasattr(slot_date_raw, "date")
+                else slot_date_raw  # type: ignore[assignment]
+            )
+            diff = abs((shift_date - slot_date_val).days)
+            if 0 < diff < rules.min_interval_days:
+                violations.append(
+                    ValidationViolationItem(
+                        code="WORK_INTERVAL",
+                        severity="error",
+                        message=(
+                            f"{worker.name} の勤務間隔が"
+                            f"中{rules.min_interval_days - 1}日を満たしていません"
+                            f"（{diff - 1}日間隔）"
+                        ),
+                        worker_ids=[str(worker.id)],
+                    )
+                )
+                break
+
     return violations
 
 

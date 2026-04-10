@@ -7,6 +7,7 @@ import { useMemo } from "react";
 import type { CalendarState, SlotType } from "@/types/shiftRequirement";
 import type { ShiftRulesConfig } from "@/types/shiftRules";
 import type { TenantSkillRank } from "@/types/skillRank";
+import type { ValidationContextWorkerStats } from "@/types/validationContext";
 import type { Worker } from "@/types/worker";
 import { validateSlot, type ValidationViolation } from "@/utils/shiftValidators";
 
@@ -24,12 +25,16 @@ export type ValidationMap = Record<SlotKey, ValidationViolation[]>;
 /**
  * カレンダー全体のバリデーション結果を返すカスタムフック。
  * calendarState、workers、または rules が変化した際に再計算される。
+ *
+ * workerStats を渡すと、前月の直近シフト日付も `WORK_INTERVAL` チェックに含まれる。
+ * これにより月跨ぎ（例: 3月31日→4月1日）のアサイン間隔違反を検出できる。
  */
 export function useShiftValidation(
   calendarState: CalendarState,
   workers: Worker[],
   rules?: ShiftRulesConfig,
   skillRanks?: TenantSkillRank[],
+  workerStats?: ValidationContextWorkerStats[],
 ): ValidationMap {
   const workerMap = useMemo(
     () => new Map(workers.map((w) => [w.id, w])),
@@ -40,6 +45,17 @@ export function useShiftValidation(
     () => new Map((skillRanks ?? []).map((r) => [r.id, r])),
     [skillRanks],
   );
+
+  /**
+   * 前月の直近シフト日付マップ（workerId → last_shift_date）。
+   * バリデーションコンテキストから取得した confirmed（published）プランのデータを使う。
+   */
+  const prevMonthDatesByWorker = useMemo<Record<string, string | null>>(() => {
+    if (!workerStats || workerStats.length === 0) return {};
+    return Object.fromEntries(
+      workerStats.map((s) => [s.worker_id, s.last_shift_date]),
+    );
+  }, [workerStats]);
 
   const validationMap = useMemo(() => {
     const result: ValidationMap = {};
@@ -55,6 +71,7 @@ export function useShiftValidation(
           workerMap,
           rules,
           skillRankMap,
+          prevMonthDatesByWorker,
         );
         if (violations.length > 0) {
           result[buildSlotKey(dateStr, slotType as SlotType)] = violations;
@@ -63,7 +80,7 @@ export function useShiftValidation(
     }
 
     return result;
-  }, [calendarState, workerMap, rules, skillRankMap]);
+  }, [calendarState, workerMap, rules, skillRankMap, prevMonthDatesByWorker]);
 
   return validationMap;
 }

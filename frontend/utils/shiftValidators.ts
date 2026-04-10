@@ -200,6 +200,8 @@ export function validateSkillRankA(
 /**
  * ルール4: 中9日以上の勤務間隔
  * 同一ワーカーの他アサインとmin_interval_days日未満の間隔がある場合エラー。
+ * prevMonthDatesByWorker に前月の直近シフト日付（published プランから取得）を
+ * 渡すことで月跨ぎのバリデーションにも対応する。
  */
 export function validateWorkInterval(
   dateStr: string,
@@ -208,6 +210,7 @@ export function validateWorkInterval(
   calendarState: CalendarState,
   workerMap: Map<string, Worker>,
   rules?: Pick<ShiftRulesConfig, "min_interval_days">,
+  prevMonthDatesByWorker?: Record<string, string | null>,
 ): ValidationViolation[] {
   const minIntervalDays = rules?.min_interval_days ?? 10;
   const violations: ValidationViolation[] = [];
@@ -217,11 +220,13 @@ export function validateWorkInterval(
     const worker = workerMap.get(workerId);
     if (!worker) continue;
 
+    // 当月カレンダー内での間隔チェック
     const otherDates = getWorkerAssignedDates(workerId, calendarState, {
       dateStr,
       slotType,
     });
 
+    let violated = false;
     for (const otherDate of otherDates) {
       const diff = diffDays(dateStr, otherDate);
       if (diff < minIntervalDays) {
@@ -231,7 +236,24 @@ export function validateWorkInterval(
           message: `${worker.name} の勤務間隔が中${minIntervalDays - 1}日を満たしていません（${Math.round(diff) - 1}日間隔）`,
           workerIds: [workerId],
         });
+        violated = true;
         break;
+      }
+    }
+
+    if (violated) continue;
+
+    // 前月の直近シフト日付との月跨ぎ間隔チェック
+    const prevDate = prevMonthDatesByWorker?.[workerId];
+    if (prevDate) {
+      const diff = diffDays(dateStr, prevDate);
+      if (diff > 0 && diff < minIntervalDays) {
+        violations.push({
+          code: "WORK_INTERVAL",
+          severity: "error",
+          message: `${worker.name} の勤務間隔が中${minIntervalDays - 1}日を満たしていません（${Math.round(diff) - 1}日間隔）`,
+          workerIds: [workerId],
+        });
       }
     }
   }
@@ -417,6 +439,7 @@ export function validateSlot(
   workerMap: Map<string, Worker>,
   rules?: ShiftRulesConfig,
   skillRankMap?: Map<string, TenantSkillRank>,
+  prevMonthDatesByWorker?: Record<string, string | null>,
 ): ValidationViolation[] {
   const assignedCount = workers.filter((id) => id !== null).length;
   if (assignedCount === 0) return [];
@@ -425,7 +448,7 @@ export function validateSlot(
     ...validateDailyDuplicate(dateStr, slotType, workers, calendarState, workerMap),
     ...validateSameDepartment(workers, workerMap, rules),
     ...validateSkillRankA(workers, requiredHeadcount, workerMap, rules, skillRankMap),
-    ...validateWorkInterval(dateStr, slotType, workers, calendarState, workerMap, rules),
+    ...validateWorkInterval(dateStr, slotType, workers, calendarState, workerMap, rules, prevMonthDatesByWorker),
     ...validateSpecialEmployment(slotType, workers, workerMap, rules),
     ...validateTenureRestriction(dateStr, workers, workerMap, rules),
     ...validateConsecutiveHolidays(dateStr, slotType, workers, calendarState, workerMap),

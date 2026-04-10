@@ -26,6 +26,8 @@ import { useSkillRanks } from "@/hooks/useSkillRanks";
 import { useWorkers } from "@/hooks/useWorkers";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useAvailableWorkers } from "@/hooks/useAvailableWorkers";
+import { useShiftRules } from "@/hooks/useShiftRules";
+import { useValidationContext } from "@/hooks/useValidationContext";
 import type {
   CalendarState,
   SlotState,
@@ -86,8 +88,27 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
   const { workers } = useWorkers();
   const { skillRanks } = useSkillRanks();
   const { departments } = useDepartments();
+  const { rules } = useShiftRules();
 
-  const validationMap = useShiftValidation(calendarState, workers, undefined, skillRanks);
+  // 月跨ぎの min_interval_days チェック用に前月バッファを start_date として渡す
+  const targetYearMonth = `${year}-${String(month).padStart(2, "0")}`;
+  const validationStartDate = useMemo(() => {
+    const minIntervalDays = rules.shift_rules?.min_interval_days ?? 10;
+    const monthStart = new Date(year, month - 1, 1);
+    const bufferStart = new Date(monthStart);
+    bufferStart.setDate(bufferStart.getDate() - (minIntervalDays - 1));
+    return bufferStart.toISOString().slice(0, 10); // YYYY-MM-DD
+  }, [year, month, rules.shift_rules?.min_interval_days]);
+
+  const { validationContext } = useValidationContext(targetYearMonth, validationStartDate);
+
+  const validationMap = useShiftValidation(
+    calendarState,
+    workers,
+    rules.shift_rules,
+    skillRanks,
+    validationContext?.worker_stats ?? [],
+  );
 
   const holidayMap = useMemo(() => getHolidayMap(year, month), [year, month]);
   const holidaySet = useMemo(() => new Set(holidayMap.keys()), [holidayMap]);

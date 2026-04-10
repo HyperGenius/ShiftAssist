@@ -12,8 +12,12 @@ from sqlmodel import Session, select
 from app.models.models import (
     LongHolidayPeriod,
     LongHolidayTypeEnum,
+    PlanStatusEnum,
+    ShiftAssignment,
+    ShiftPlan,
     ShiftRequirement,
     ShiftRequirementAssignment,
+    ShiftSlot,
     SlotTypeEnum,
     Worker,
 )
@@ -28,6 +32,7 @@ def get_validation_context(
     session: Session,
     tenant_id: str,
     target_year_month: str,
+    start_date: date | None = None,
 ) -> ValidationContextResponse:
     """シフト作成画面マウント時の一括バリデーションコンテキストを返す.
 
@@ -35,12 +40,14 @@ def get_validation_context(
     - テナントに属する全ワーカー一覧
     - 各ワーカーの当月日曜・祝日昼間シフト回数
     - 各ワーカーの前年GW・年末年始シフト参加回数
-    - 各ワーカーの直近シフト日付
+    - 各ワーカーの直近シフト日付（start_date 以降の published データも含む）
 
     Args:
         session: SQLModelセッション。
         tenant_id: テナントID。
         target_year_month: 対象年月（YYYY-MM形式）。
+        start_date: 直近シフト日付を検索する際の開始日（省略時は制限なし）。
+            フロントエンドから (月初日 - min_interval_days) として指定される。
 
     Returns:
         バリデーションコンテキストレスポンス。
@@ -64,8 +71,8 @@ def get_validation_context(
         session, tenant_id, worker_ids, prev_year
     )
 
-    # 直近シフト日付を取得
-    last_shift_dates = _get_last_shift_dates(session, tenant_id, worker_ids)
+    # 直近シフト日付を取得（published ShiftPlan のデータも含む）
+    last_shift_dates = _get_last_shift_dates(session, tenant_id, worker_ids, start_date)
 
     # ワーカー実績サマリーを構築
     worker_stats = []
@@ -192,12 +199,27 @@ def _get_last_shift_dates(
     session: Session,
     tenant_id: str,
     worker_ids: list,
+    start_date: date | None = None,
 ) -> dict[str, date]:
-    """各ワーカーの直近のシフト日付を取得する（シフト間隔チェック用）."""
+    """各ワーカーの直近のシフト日付を取得する（シフト間隔チェック用）.
+
+    ShiftRequirementAssignment ベースの日付に加え、確定済み（published）
+    ShiftPlan の ShiftSlot/ShiftAssignment から日付も取得してマージする。
+
+    Args:
+        session: SQLModelセッション。
+        tenant_id: テナントID。
+        worker_ids: 対象ワーカーIDリスト。
+        start_date: この日付以降のデータのみ検索する（省略時は全期間）。
+
+    Returns:
+        ワーカーIDの文字列 → 最新シフト日付のマップ。
+    """
     if not worker_ids:
         return {}
 
-    rows = session.exec(
+    # ShiftRequirementAssignment ベースの日付を取得
+    req_query = (
         select(
             ShiftRequirementAssignment.worker_id,
             ShiftRequirement.shift_date,
@@ -210,12 +232,51 @@ def _get_last_shift_dates(
             ShiftRequirementAssignment.tenant_id == tenant_id,
             ShiftRequirementAssignment.worker_id.in_(worker_ids),  # type: ignore[attr-defined]
         )
-        .order_by(ShiftRequirement.shift_date.desc())  # type: ignore[attr-defined]
+    )
+    if start_date is not None:
+        req_query = req_query.where(ShiftRequirement.shift_date >= start_date)
+
+    req_rows = session.exec(
+        req_query.order_by(ShiftRequirement.shift_date.desc())  # type: ignore[attr-defined]
     ).all()
 
+    # ShiftSlot/ShiftAssignment ベースの日付を取得（confirmed: published のみ）
+    slot_query = (
+        select(
+            ShiftAssignment.worker_id,
+            ShiftSlot.date,
+        )
+        .join(ShiftSlot, ShiftAssignment.slot_id == ShiftSlot.id)  # type: ignore[arg-type]
+        .join(ShiftPlan, ShiftPlan.id == ShiftSlot.plan_id)  # type: ignore[arg-type]
+        .where(
+            ShiftAssignment.tenant_id == tenant_id,
+            ShiftAssignment.worker_id.in_(worker_ids),  # type: ignore[attr-defined]
+            ShiftPlan.status == PlanStatusEnum.published,
+        )
+    )
+    if start_date is not None:
+        slot_query = slot_query.where(ShiftSlot.date >= start_date)
+
+    slot_rows = session.exec(
+        slot_query.order_by(ShiftSlot.date.desc())  # type: ignore[attr-defined]
+    ).all()
+
+    # 両方の結果をマージして各ワーカーの最新日付を決定
     last_dates: dict[str, date] = {}
-    for worker_id, shift_date in rows:
+
+    def _update(worker_id: object, raw_date: object) -> None:
         key = str(worker_id)
-        if key not in last_dates:
-            last_dates[key] = shift_date  # type: ignore[assignment]
+        if hasattr(raw_date, "date"):
+            d: date = raw_date.date()  # type: ignore[union-attr]
+        else:
+            d = raw_date  # type: ignore[assignment]
+        if key not in last_dates or d > last_dates[key]:
+            last_dates[key] = d
+
+    for worker_id, shift_date in req_rows:
+        _update(worker_id, shift_date)
+
+    for worker_id, slot_date in slot_rows:
+        _update(worker_id, slot_date)
+
     return last_dates
