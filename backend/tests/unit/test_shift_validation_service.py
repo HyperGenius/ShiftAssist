@@ -338,14 +338,11 @@ class TestValidateShiftAssignments:
                 m.first.return_value = None
                 m.all.return_value = []
             elif idx == 2:
-                # ルール4: アサイン済み requirement_id リスト → [other_req_id]
-                m.all.return_value = [other_req_id]
-                m.first.return_value = None
-            elif idx == 3:
-                # ルール4: 対応する ShiftRequirement オブジェクト取得
+                # ルール4: ShiftRequirementAssignment JOIN クエリ → [other_req]
                 m.all.return_value = [other_req]
                 m.first.return_value = None
             else:
+                # ルール4: ShiftSlot cross-month チェック等
                 m.all.return_value = []
                 m.first.return_value = None
             return m
@@ -368,6 +365,74 @@ class TestValidateShiftAssignments:
             **{"first.return_value": None, "all.return_value": []}
         )
         req = _make_requirement()
+        worker = _make_worker()
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [worker], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "WORK_INTERVAL" not in codes
+
+    def test_work_interval_cross_month_violation_from_published_plan(self) -> None:
+        """異常系（ルール4）: 前月の published ShiftPlan に間隔違反がある場合、WORK_INTERVAL を返す."""
+        from datetime import date, datetime
+
+        from app.models.models import ShiftSlot, SlotTypeEnum
+
+        # 前月末（2099-05-31）の ShiftSlot（DateTime として格納）
+        prev_slot = ShiftSlot()
+        prev_slot.id = uuid.uuid4()
+        prev_slot.tenant_id = TENANT_ID
+        prev_slot.plan_id = uuid.uuid4()
+        prev_slot.date = datetime(2099, 5, 31)
+        prev_slot.slot_type = SlotTypeEnum.weekday_night
+
+        call_index = [0]
+
+        def exec_side_effect(stmt: object) -> MagicMock:
+            m = MagicMock()
+            call_index[0] += 1
+            idx = call_index[0]
+            if idx == 1:
+                # ルール1: daily_duplicate（first → None）
+                m.first.return_value = None
+                m.all.return_value = []
+            elif idx == 2:
+                # ルール4: ShiftRequirementAssignment JOIN（間隔違反なし）
+                m.all.return_value = []
+                m.first.return_value = None
+            elif idx == 3:
+                # ルール4: published ShiftSlot cross-month チェック → 前月末の日付
+                m.all.return_value = [prev_slot.date]
+                m.first.return_value = None
+            else:
+                m.all.return_value = []
+                m.first.return_value = None
+            return m
+
+        session = MagicMock()
+        session.exec.side_effect = exec_side_effect
+
+        # 当月1日（2099-06-01）に 2099-05-31 の assignment → diff=1 < min_interval_days=10
+        req = _make_requirement(shift_date_str="2099-06-01")
+        worker = _make_worker()
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [worker], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "WORK_INTERVAL" in codes
+
+    def test_work_interval_cross_month_no_violation_when_plan_not_published(self) -> None:
+        """正常系（ルール4）: 前月の ShiftPlan が published でない場合、月跨ぎ違反なし."""
+        session = MagicMock()
+        # ShiftRequirementAssignment なし、ShiftSlot なし（published 以外は除外）
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement(shift_date_str="2099-06-01")
         worker = _make_worker()
 
         result = shift_validation_service.validate_shift_assignments(
@@ -541,14 +606,18 @@ class TestValidateShiftAssignments:
                 m.first.return_value = None
                 m.all.return_value = []
             elif idx == 2:
-                # ルール4: work_interval all
+                # ルール4: ShiftRequirementAssignment JOIN クエリ（all → 空）
                 m.all.return_value = []
                 m.first.return_value = None
             elif idx == 3:
+                # ルール4: ShiftSlot cross-month チェック（all → 空）
+                m.all.return_value = []
+                m.first.return_value = None
+            elif idx == 4:
                 # ルール7: get_period_for_date（GW期間を返す）
                 m.all.return_value = [gw_period]
                 m.first.return_value = gw_period
-            elif idx == 4:
+            elif idx == 5:
                 # ルール7: position lookup
                 m.first.return_value = pos
                 m.all.return_value = [pos]
