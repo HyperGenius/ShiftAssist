@@ -75,7 +75,7 @@ export function useAvailableWorkers({
 
   /** ワーカー年間統計マップ */
   const workerStatsMap = useMemo(
-    () => workerStats ? new Map(workerStats.map((s) => [s.worker_id, s])) : null,
+    () => workerStats ? new Map(workerStats.map((s) => [s.worker_id, s])) : undefined,
     [workerStats],
   );
 
