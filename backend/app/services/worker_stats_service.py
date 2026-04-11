@@ -469,7 +469,9 @@ def upsert_monthly_slot_stats(
         isodow = int(row[1]) if row[1] is not None else None
         cnt = int(row[2])
         # isodow 1〜4 → weekday 0〜3 (月〜木), 5〜7 → None
-        weekday: int | None = (isodow - 1) if (isodow is not None and 1 <= isodow <= 4) else None
+        weekday: int | None = (
+            (isodow - 1) if (isodow is not None and 1 <= isodow <= 4) else None
+        )
         key = (worker_id, weekday)
         wn_map[key] = wn_map.get(key, 0) + cnt
 
@@ -523,9 +525,7 @@ def get_aggregate_stats(
     """
     start_ym, end_ym = _compute_aggregate_cutoff(year_month)
 
-    workers = session.exec(
-        select(Worker).where(Worker.tenant_id == tenant_id)
-    ).all()
+    workers = session.exec(select(Worker).where(Worker.tenant_id == tenant_id)).all()
 
     if not workers:
         return AggregateStatsResponse(
