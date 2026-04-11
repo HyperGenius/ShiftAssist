@@ -710,3 +710,12 @@ class AggregateStatsResponse(BaseModel):
     period_months: int
     """集計期間月数（常に12）。"""
     items: list[AggregateWorkerStats]
+
+
+class RecalculateStatsResponse(BaseModel):
+    """集計テーブル再計算結果レスポンススキーマ."""
+
+    year_month: str
+    """再計算を行った末月（YYYY-MM形式）。"""
+    upserted_months: list[str]
+    """Upsert を実行した年月リスト。"""

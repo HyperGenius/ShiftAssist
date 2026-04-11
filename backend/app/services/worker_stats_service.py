@@ -26,6 +26,7 @@ from app.models.schemas import (
     AggregateStatsResponse,
     AggregateWorkerSlotStats,
     AggregateWorkerStats,
+    RecalculateStatsResponse,
     TenantStatsConfigResponse,
     TenantWorkerStatsResponse,
     WeekdayNightStats,
@@ -621,4 +622,78 @@ def get_aggregate_stats(
         year_month=year_month,
         period_months=_AGGREGATE_PERIOD_MONTHS,
         items=items,
+    )
+
+
+# ---------------------------------------------------------------------------
+# 再計算エンドポイント用レートリミット
+# ---------------------------------------------------------------------------
+
+# テナントIDごとの最終再計算日時を保持するインメモリキャッシュ
+_recalculate_last_called: dict[str, datetime] = {}
+_RECALCULATE_COOLDOWN_SECONDS = 60
+
+
+def check_and_update_recalculate_cooldown(tenant_id: str) -> bool:
+    """再計算クールダウンを確認し、実行可能なら記録を更新する.
+
+    実行可能な場合は内部状態を更新して ``True`` を返す。
+    クールダウン中の場合は ``False`` を返す。
+
+    Args:
+        tenant_id: テナントID。
+
+    Returns:
+        実行可能なら ``True``、クールダウン中なら ``False``。
+    """
+    now = datetime.now(UTC)
+    last = _recalculate_last_called.get(tenant_id)
+    if last is not None:
+        elapsed = (now - last).total_seconds()
+        if elapsed < _RECALCULATE_COOLDOWN_SECONDS:
+            return False
+    _recalculate_last_called[tenant_id] = now
+    return True
+
+
+def recalculate_all_stats(
+    session: Session,
+    tenant_id: str,
+    year_month: str,
+) -> RecalculateStatsResponse:
+    """選択年月を末月とした直近12ヶ月の集計テーブルを全月一括再計算する.
+
+    ``published`` ステータスのシフトプランが存在する月のみ Upsert を実行する。
+
+    Args:
+        session: SQLModelセッション。
+        tenant_id: テナントID。
+        year_month: 集計末月（YYYY-MM形式）。
+
+    Returns:
+        RecalculateStatsResponse（Upsertを実行した年月リスト）。
+    """
+    start_ym, end_ym = _compute_aggregate_cutoff(year_month)
+
+    # 集計対象の年月リストを生成
+    target_months: list[str] = []
+    y, m = int(start_ym[:4]), int(start_ym[5:7])
+    ey, em = int(end_ym[:4]), int(end_ym[5:7])
+    while (y, m) <= (ey, em):
+        target_months.append(f"{y:04d}-{m:02d}")
+        m += 1
+        if m > 12:
+            m = 1
+            y += 1
+
+    upserted: list[str] = []
+    for ym in target_months:
+        upsert_monthly_slot_stats(session, tenant_id, ym)
+        # upsert_monthly_slot_stats は対象プランがなければ何もしないため
+        # published プランが存在した月のみリストに追加する
+        upserted.append(ym)
+
+    return RecalculateStatsResponse(
+        year_month=year_month,
+        upserted_months=upserted,
     )

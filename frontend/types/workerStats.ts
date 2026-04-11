@@ -68,3 +68,9 @@ export interface AggregateStatsResponse {
   period_months: number;
   items: AggregateWorkerStats[];
 }
+
+/** 集計テーブル再計算結果レスポンス型 */
+export interface RecalculateStatsResponse {
+  year_month: string; // YYYY-MM
+  upserted_months: string[];
+}
