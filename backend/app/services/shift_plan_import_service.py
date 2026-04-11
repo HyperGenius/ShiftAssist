@@ -32,6 +32,7 @@ from app.models.schemas import (
     ShiftPlanImportResponse,
     ShiftSlotDetail,
 )
+from app.services import worker_stats_service
 
 logger = logging.getLogger(__name__)
 
@@ -275,6 +276,55 @@ def _detect_target_year_month(rows: list[dict[str, object]]) -> str:
     return next(iter(year_months))
 
 
+def _create_slots_and_assignments(
+    session: Session,
+    tenant_id: str,
+    plan_id: uuid.UUID,
+    rows: list[dict],
+    worker_map: dict[str, uuid.UUID],
+) -> tuple[int, int]:
+    """各行に対して ShiftSlot と ShiftAssignment を作成し、(slots_created, assignments_created) を返す."""
+    slots_created = 0
+    assignments_created = 0
+
+    for row in rows:
+        slot_date = cast(date, row["date"])
+        slot_type = row["slot_type"]
+        worker_nos = cast(list[str], row["worker_nos"])
+
+        slot = ShiftSlot(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            plan_id=plan_id,
+            date=datetime.combine(slot_date, datetime.min.time()),
+            slot_type=slot_type,
+        )
+        session.add(slot)
+        session.flush()
+        slots_created += 1
+
+        seen_worker_ids: set[uuid.UUID] = set()
+        for emp_code in worker_nos:
+            worker_id = worker_map.get(emp_code.strip())
+            if worker_id is None:
+                continue
+            if worker_id in seen_worker_ids:
+                continue
+            seen_worker_ids.add(worker_id)
+            assignment = ShiftAssignment(
+                id=uuid.uuid4(),
+                tenant_id=tenant_id,
+                slot_id=slot.id,
+                worker_id=worker_id,
+                is_manual_override=True,
+                created_at=datetime.utcnow(),
+            )
+            session.add(assignment)
+            assignments_created += 1
+
+    return slots_created, assignments_created
+
+
 def import_shift_plan(
     session: Session,
     tenant_id: str,
@@ -346,49 +396,11 @@ def import_shift_plan(
         session.add(plan)
         session.flush()  # plan.id を確定させる
 
-        slots_created = 0
-        assignments_created = 0
         skipped: list[str] = list(missing_codes)
 
-        for row in rows:
-            slot_date = cast(date, row["date"])
-            slot_type = row["slot_type"]
-            worker_nos = cast(list[str], row["worker_nos"])
-
-            # ShiftSlot 作成
-            slot = ShiftSlot(
-                id=uuid.uuid4(),
-                tenant_id=tenant_id,
-                plan_id=plan.id,
-                date=datetime.combine(slot_date, datetime.min.time()),
-                slot_type=slot_type,
-            )
-            session.add(slot)
-            session.flush()  # slot.id を確定させる
-            slots_created += 1
-
-            # ShiftAssignment 作成（is_manual_override=True で強制保存）
-            seen_worker_ids: set[uuid.UUID] = set()
-            for emp_code in worker_nos:
-                worker_id = worker_map.get(emp_code.strip())
-                if worker_id is None:
-                    # 既にスキップリストに追加済み（_lookup_workers_by_employee_code で収集）
-                    continue
-                if worker_id in seen_worker_ids:
-                    # 同一スロット内での重複をスキップ
-                    continue
-                seen_worker_ids.add(worker_id)
-
-                assignment = ShiftAssignment(
-                    id=uuid.uuid4(),
-                    tenant_id=tenant_id,
-                    slot_id=slot.id,
-                    worker_id=worker_id,
-                    is_manual_override=True,
-                    created_at=datetime.utcnow(),
-                )
-                session.add(assignment)
-                assignments_created += 1
+        slots_created, assignments_created = _create_slots_and_assignments(
+            session, tenant_id, cast(uuid.UUID, plan.id), rows, worker_map
+        )
 
         session.commit()
 
@@ -401,6 +413,20 @@ def import_shift_plan(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"インポート処理中にエラーが発生しました: {exc}",
         ) from exc
+
+    # published プランのみ集計テーブルを Upsert する
+    if plan_status == PlanStatusEnum.published:
+        try:
+            worker_stats_service.upsert_monthly_slot_stats(
+                session, tenant_id, target_year_month
+            )
+        except Exception:
+            logger.warning(
+                "シフトインポート後の統計集計に失敗しました (tenant_id=%s, year_month=%s)",
+                tenant_id,
+                target_year_month,
+                exc_info=True,
+            )
 
     return ShiftPlanImportResponse(
         plan_id=cast(uuid.UUID, plan.id),

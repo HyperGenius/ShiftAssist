@@ -673,3 +673,49 @@ class ShiftPlanDetailResponse(BaseModel):
     target_year_month: str
     status: PlanStatusEnum
     slots: list[ShiftSlotDetail] = []
+
+
+class WeekdayNightStats(BaseModel):
+    """weekday_night 枠の曜日別集計スキーマ."""
+
+    weekday: int  # 0=月, 1=火, 2=水, 3=木
+    count: int
+    monthly_avg: float
+
+
+class AggregateWorkerSlotStats(BaseModel):
+    """集計ページ用・枠種別ごとの合計・月平均スキーマ."""
+
+    slot_type: SlotTypeEnum
+    count: int
+    monthly_avg: float
+    weekday_stats: list[WeekdayNightStats] | None = None
+    """weekday_night の場合のみ曜日別集計を保持する。"""
+
+
+class AggregateWorkerStats(BaseModel):
+    """集計ページ用・ワーカー1名分の統計スキーマ."""
+
+    worker_id: uuid.UUID
+    worker_name: str
+    effective_months: float
+    slot_stats: list[AggregateWorkerSlotStats]
+
+
+class AggregateStatsResponse(BaseModel):
+    """集計ページ用・テナント全ワーカーの集計レスポンススキーマ."""
+
+    year_month: str
+    """選択年月（末月, YYYY-MM形式）。"""
+    period_months: int
+    """集計期間月数（常に12）。"""
+    items: list[AggregateWorkerStats]
+
+
+class RecalculateStatsResponse(BaseModel):
+    """集計テーブル再計算結果レスポンススキーマ."""
+
+    year_month: str
+    """再計算を行った末月（YYYY-MM形式）。"""
+    upserted_months: list[str]
+    """Upsert を実行した年月リスト。"""

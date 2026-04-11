@@ -46,6 +46,12 @@ const SETTINGS_LINKS = [
     description: "テナント固有の雇用形態（正職員・非常勤・特別雇用等）を定義します。",
     icon: "🗂️",
   },
+  {
+    href: "/admin/aggregate-stats",
+    label: "シフト集計",
+    description: "Worker単位のシフト集計（直近12ヶ月のSlotType別合計・月平均）を表示します。",
+    icon: "📊",
+  },
 ] as const;
 
 export default async function SettingsIndexPage() {
