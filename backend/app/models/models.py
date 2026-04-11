@@ -596,3 +596,45 @@ class LongHolidayPeriod(Base):
             name="uq_long_holiday_period_tenant_type_year",
         ),
     )
+
+
+class WorkerMonthlySlotStats(Base):
+    """ワーカー月次シフト枠種別集計テーブルを表すSQLAlchemyモデル.
+
+    ``published`` 状態のシフトプランを元に、ワーカーごと・年月ごと・枠種別ごとの
+    シフト回数を集計して保存する。スマートサジェスト機能でも再利用する。
+
+    Attributes:
+        id: UUIDによるプライマリキー。
+        tenant_id: Clerk OrganizationのID。テナント分離に使用。
+        worker_id: 集計対象ワーカーのID（workersテーブルへのFK）。
+        year_month: 集計対象年月（YYYY-MM形式）。
+        slot_type: 枠の種別（SlotTypeEnum）。
+        weekday: 曜日（0=月〜3=木）。``weekday_night`` 以外は NULL。
+        count: シフト回数。
+        updated_at: レコード最終更新日時。
+    """
+
+    __tablename__ = "worker_monthly_slot_stats"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String, index=True, nullable=False)
+    worker_id = Column(
+        UUID(as_uuid=True), ForeignKey("workers.id", ondelete="CASCADE"), nullable=False
+    )
+    year_month = Column(String, nullable=False)  # YYYY-MM
+    slot_type = Column(Enum(SlotTypeEnum), nullable=False)  # type: ignore[var-annotated]
+    weekday = Column(Integer, nullable=True)  # 0=月〜3=木, weekday_night以外はNULL
+    count = Column(Integer, nullable=False, default=0)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "worker_id",
+            "year_month",
+            "slot_type",
+            "weekday",
+            name="uq_worker_monthly_slot_stats",
+        ),
+        Index("ix_worker_monthly_slot_stats_tenant_ym", "tenant_id", "year_month"),
+    )

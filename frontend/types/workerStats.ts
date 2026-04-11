@@ -38,3 +38,33 @@ export interface TenantStatsConfig {
   tenant_id: string;
   stats_period_months: number;
 }
+
+/** weekday_night 枠の曜日別集計 */
+export interface WeekdayNightStats {
+  weekday: 0 | 1 | 2 | 3; // 0=月, 1=火, 2=水, 3=木
+  count: number;
+  monthly_avg: number;
+}
+
+/** 集計ページ用・枠種別ごとの合計・月平均 */
+export interface AggregateWorkerSlotStats {
+  slot_type: SlotType;
+  count: number;
+  monthly_avg: number;
+  weekday_stats?: WeekdayNightStats[]; // weekday_night の場合のみ
+}
+
+/** 集計ページ用・ワーカー1名分の統計 */
+export interface AggregateWorkerStats {
+  worker_id: string;
+  worker_name: string;
+  effective_months: number;
+  slot_stats: AggregateWorkerSlotStats[];
+}
+
+/** 集計ページ用レスポンス型 */
+export interface AggregateStatsResponse {
+  year_month: string; // YYYY-MM
+  period_months: number;
+  items: AggregateWorkerStats[];
+}

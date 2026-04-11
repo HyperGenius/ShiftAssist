@@ -32,6 +32,7 @@ from app.models.schemas import (
     ShiftPlanImportResponse,
     ShiftSlotDetail,
 )
+from app.services import worker_stats_service
 
 logger = logging.getLogger(__name__)
 
@@ -401,6 +402,12 @@ def import_shift_plan(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"インポート処理中にエラーが発生しました: {exc}",
         ) from exc
+
+    # published プランのみ集計テーブルを Upsert する
+    if plan_status == PlanStatusEnum.published:
+        worker_stats_service.upsert_monthly_slot_stats(
+            session, tenant_id, target_year_month
+        )
 
     return ShiftPlanImportResponse(
         plan_id=cast(uuid.UUID, plan.id),

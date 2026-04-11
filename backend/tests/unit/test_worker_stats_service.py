@@ -386,3 +386,170 @@ class TestGetAllWorkerStats:
         assert len(result.items) == 1
         # published プランがないため、全カウントは0
         assert result.items[0].holiday_slot_monthly_avg == 0.0
+
+
+# ---------------------------------------------------------------------------
+# _compute_aggregate_cutoff
+# ---------------------------------------------------------------------------
+
+
+class TestComputeAggregateCutoff:
+    """_compute_aggregate_cutoff の正常系テスト."""
+
+    def test_basic_case(self) -> None:
+        """2026-04 を末月にすると 2025-05〜2026-04 になる."""
+        start, end = worker_stats_service._compute_aggregate_cutoff("2026-04")
+        assert start == "2025-05"
+        assert end == "2026-04"
+
+    def test_year_boundary(self) -> None:
+        """2026-01 を末月にすると 2025-02〜2026-01 になる."""
+        start, end = worker_stats_service._compute_aggregate_cutoff("2026-01")
+        assert start == "2025-02"
+        assert end == "2026-01"
+
+    def test_exact_boundary(self) -> None:
+        """2026-12 を末月にすると 2026-01〜2026-12 になる."""
+        start, end = worker_stats_service._compute_aggregate_cutoff("2026-12")
+        assert start == "2026-01"
+        assert end == "2026-12"
+
+
+# ---------------------------------------------------------------------------
+# _compute_effective_months_for_aggregate
+# ---------------------------------------------------------------------------
+
+
+class TestComputeEffectiveMonthsForAggregate:
+    """_compute_effective_months_for_aggregate の正常系テスト."""
+
+    def test_none_joined_at_returns_12(self) -> None:
+        """joined_at が None の場合は12ヶ月を返す."""
+        result = worker_stats_service._compute_effective_months_for_aggregate(
+            None, "2025-05", "2026-04"
+        )
+        assert result == 12.0
+
+    def test_joined_before_start_returns_12(self) -> None:
+        """着任が集計開始より前なら12ヶ月を返す."""
+        joined_at = date(2025, 1, 1)  # 2025-05 より前
+        result = worker_stats_service._compute_effective_months_for_aggregate(
+            joined_at, "2025-05", "2026-04"
+        )
+        assert result == 12.0
+
+    def test_joined_at_start_returns_12(self) -> None:
+        """着任が集計開始月と同月なら12ヶ月を返す."""
+        joined_at = date(2025, 5, 15)  # 2025-05
+        result = worker_stats_service._compute_effective_months_for_aggregate(
+            joined_at, "2025-05", "2026-04"
+        )
+        assert result == 12.0
+
+    def test_joined_in_period_returns_reduced_months(self) -> None:
+        """集計期間内に着任した場合は期間を短縮する（2025-07着任 → 10ヶ月）."""
+        joined_at = date(2025, 7, 1)  # 2025-07 着任、末月 2026-04 → 10ヶ月
+        result = worker_stats_service._compute_effective_months_for_aggregate(
+            joined_at, "2025-05", "2026-04"
+        )
+        assert result == 10.0
+
+    def test_joined_after_end_returns_minimum(self) -> None:
+        """集計終了月より後に着任した場合は最低値1.0を返す."""
+        joined_at = date(2026, 6, 1)  # 集計期間外
+        result = worker_stats_service._compute_effective_months_for_aggregate(
+            joined_at, "2025-05", "2026-04"
+        )
+        assert result == 1.0
+
+    def test_joined_at_end_month_returns_1(self) -> None:
+        """着任が集計末月と同月なら1ヶ月を返す."""
+        joined_at = date(2026, 4, 1)
+        result = worker_stats_service._compute_effective_months_for_aggregate(
+            joined_at, "2025-05", "2026-04"
+        )
+        assert result == 1.0
+
+
+# ---------------------------------------------------------------------------
+# get_aggregate_stats
+# ---------------------------------------------------------------------------
+
+
+class TestGetAggregateStats:
+    """get_aggregate_stats の正常系テスト."""
+
+    def test_returns_empty_when_no_workers(self) -> None:
+        """ワーカーが存在しない場合、空のレスポンスを返す."""
+        session = MagicMock()
+        exec_result = MagicMock()
+        exec_result.all.return_value = []
+        session.exec.return_value = exec_result
+
+        from app.models.schemas import AggregateStatsResponse
+
+        result = worker_stats_service.get_aggregate_stats(session, TENANT_ID, "2026-04")
+
+        assert isinstance(result, AggregateStatsResponse)
+        assert result.year_month == "2026-04"
+        assert result.period_months == 12
+        assert result.items == []
+
+    def test_returns_stats_for_workers(self) -> None:
+        """ワーカーが存在する場合、集計データを返す."""
+        worker = _make_worker()
+
+        call_count = [0]
+
+        def exec_side_effect(query: object) -> MagicMock:
+            result = MagicMock()
+            call_count[0] += 1
+            if call_count[0] == 1:
+                # workers取得
+                result.all.return_value = [worker]
+            else:
+                # stats取得
+                result.all.return_value = []
+            return result
+
+        session = MagicMock()
+        session.exec.side_effect = exec_side_effect
+
+        from app.models.schemas import AggregateStatsResponse
+
+        result = worker_stats_service.get_aggregate_stats(session, TENANT_ID, "2026-04")
+
+        assert isinstance(result, AggregateStatsResponse)
+        assert len(result.items) == 1
+        assert result.items[0].worker_name == "田中 太郎"
+        assert result.items[0].effective_months == 12.0
+
+    def test_weekday_night_has_weekday_stats(self) -> None:
+        """weekday_night の slot_stats には weekday_stats が含まれる."""
+        worker = _make_worker()
+
+        call_count = [0]
+
+        def exec_side_effect(query: object) -> MagicMock:
+            mock_result = MagicMock()
+            call_count[0] += 1
+            if call_count[0] == 1:
+                mock_result.all.return_value = [worker]
+            else:
+                # weekday_night, weekday=0 (月), count=5
+                mock_result.all.return_value = [
+                    (worker.id, "weekday_night", 0, 5),
+                ]
+            return mock_result
+
+        session = MagicMock()
+        session.exec.side_effect = exec_side_effect
+
+        result = worker_stats_service.get_aggregate_stats(session, TENANT_ID, "2026-04")
+
+        wn_stat = next(
+            s for s in result.items[0].slot_stats if str(s.slot_type) == "weekday_night"
+        )
+        assert wn_stat.weekday_stats is not None
+        mon = next(ws for ws in wn_stat.weekday_stats if ws.weekday == 0)
+        assert mon.count == 5

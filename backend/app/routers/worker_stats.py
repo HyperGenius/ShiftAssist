@@ -6,13 +6,15 @@
 """
 
 import uuid
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
 from app.db import get_session
 from app.dependencies import get_tenant_id
 from app.models.schemas import (
+    AggregateStatsResponse,
     TenantStatsConfigResponse,
     TenantStatsConfigUpdate,
     TenantWorkerStatsResponse,
@@ -118,3 +120,38 @@ def update_stats_config(
     return worker_stats_service.update_stats_config(
         session, tenant_id, data.stats_period_months
     )
+
+
+@router.get(
+    "/api/tenants/{tenant_id}/worker-stats/aggregate",
+    response_model=AggregateStatsResponse,
+)
+def get_aggregate_stats(
+    tenant_id: str,
+    year_month: str | None = Query(
+        default=None,
+        description="集計末月（YYYY-MM形式）。省略時は当月。",
+        pattern=r"^\d{4}-\d{2}$",
+    ),
+    x_tenant_id: str = Depends(get_tenant_id),
+    session: Session = Depends(get_session),
+) -> AggregateStatsResponse:
+    """選択年月を末月とした直近12ヶ月のSlotType別集計を全ワーカーについて返す.
+
+    ``published`` ステータスのシフトプランのみを集計対象とする。
+    ``Worker.joined_at`` による有効月数正規化を適用した月平均を返す。
+    ``weekday_night`` は月〜木の曜日別集計を含む。
+
+    Args:
+        tenant_id: パスパラメーターのテナントID。
+        year_month: 集計末月（YYYY-MM形式）。省略時は当月。
+        x_tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID（認証用）。
+        session: DBセッション。
+
+    Returns:
+        AggregateStatsResponse。
+    """
+    if year_month is None:
+        today = datetime.now(UTC).date()
+        year_month = f"{today.year:04d}-{today.month:02d}"
+    return worker_stats_service.get_aggregate_stats(session, tenant_id, year_month)
