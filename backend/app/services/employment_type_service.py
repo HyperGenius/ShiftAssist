@@ -70,13 +70,13 @@ def create_employment_type(
         )
 
     # is_default=True の場合、既存のデフォルトフラグを解除する（アトミック処理）
-    if data.is_default:
+    if data.is_default is True:
         _clear_default_flag(session, tenant_id)
 
     employment_type = EmploymentType(
         tenant_id=tenant_id,
         name=data.name,
-        is_default=data.is_default,
+        is_default=data.is_default if data.is_default is not None else False,
     )
     session.add(employment_type)
     session.commit()

@@ -100,11 +100,11 @@ def _make_worker(
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True, scope="function")
 def mock_load_non_default_et_ids(monkeypatch: pytest.MonkeyPatch) -> None:
     """デフォルト: 非デフォルト雇用形態IDのロードを空セットに固定する.
 
-    テスト全体で余分な DB クエリを防ぐためにオートユーズで適用する。
+    テスト全体で余分な DB クエリを防ぐためにオートユーズで適用する（スコープ: function）。
     特別雇用チェックのテストは patch で個別に上書きすること。
     """
     monkeypatch.setattr(
