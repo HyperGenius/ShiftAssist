@@ -5,9 +5,10 @@
 import { useMemo } from "react";
 
 import type { CalendarState, SlotType } from "@/types/shiftRequirement";
-import type { ShiftRulesConfig } from "@/types/shiftRules";
+import type { AnnualShiftLimitsConfig, ShiftRulesConfig } from "@/types/shiftRules";
 import type { TenantSkillRank } from "@/types/skillRank";
 import type { ValidationContextWorkerStats } from "@/types/validationContext";
+import type { WorkerStatsResponse } from "@/types/workerStats";
 import type { Worker } from "@/types/worker";
 import { validateSlot, type ValidationViolation } from "@/utils/shiftValidators";
 
@@ -28,6 +29,8 @@ export type ValidationMap = Record<SlotKey, ValidationViolation[]>;
  *
  * workerStats を渡すと、前月の直近シフト日付も `WORK_INTERVAL` チェックに含まれる。
  * これにより月跨ぎ（例: 3月31日→4月1日）のアサイン間隔違反を検出できる。
+ *
+ * annualWorkerStats と annualLimits を渡すと、年間シフト回数上限チェックも実行される。
  */
 export function useShiftValidation(
   calendarState: CalendarState,
@@ -35,6 +38,8 @@ export function useShiftValidation(
   rules?: ShiftRulesConfig,
   skillRanks?: TenantSkillRank[],
   workerStats?: ValidationContextWorkerStats[],
+  annualWorkerStats?: WorkerStatsResponse[],
+  annualLimits?: AnnualShiftLimitsConfig,
 ): ValidationMap {
   const workerMap = useMemo(
     () => new Map(workers.map((w) => [w.id, w])),
@@ -57,6 +62,12 @@ export function useShiftValidation(
     );
   }, [workerStats]);
 
+  /** 年間統計マップ（workerId → WorkerStatsResponse）。 */
+  const workerStatsMap = useMemo(() => {
+    if (!annualWorkerStats) return undefined;
+    return new Map(annualWorkerStats.map((s) => [s.worker_id, s]));
+  }, [annualWorkerStats]);
+
   const validationMap = useMemo(() => {
     const result: ValidationMap = {};
 
@@ -72,6 +83,8 @@ export function useShiftValidation(
           rules,
           skillRankMap,
           prevMonthDatesByWorker,
+          workerStatsMap,
+          annualLimits,
         );
         if (violations.length > 0) {
           result[buildSlotKey(dateStr, slotType as SlotType)] = violations;
@@ -80,7 +93,7 @@ export function useShiftValidation(
     }
 
     return result;
-  }, [calendarState, workerMap, rules, skillRankMap, prevMonthDatesByWorker]);
+  }, [calendarState, workerMap, rules, skillRankMap, prevMonthDatesByWorker, workerStatsMap, annualLimits]);
 
   return validationMap;
 }

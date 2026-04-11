@@ -23,10 +23,30 @@ export interface ShiftRulesConfig {
   cross_division_transfer_tenure_months: number;
 }
 
+/** 年間シフト回数上限設定 */
+export interface AnnualShiftLimitsConfig {
+  /** 全スロット合計の年間上限。0 で制限なし。 */
+  annual_total: number;
+  /** weekday_night の年間上限。0 で制限なし。 */
+  weekday_night: number;
+  /** sat_day の年間上限。0 で制限なし。 */
+  sat_day: number;
+  /** sat_night の年間上限。0 で制限なし。 */
+  sat_night: number;
+  /** sun_hol_day の年間上限（long_hol_day の実績を合算）。0 で制限なし。 */
+  sun_hol_day: number;
+  /** sun_hol_night の年間上限（long_hol_night の実績を合算）。0 で制限なし。 */
+  sun_hol_night: number;
+  /** sat_pre_hol_night の年間上限。0 で制限なし。 */
+  sat_pre_hol_night: number;
+}
+
 /** シフト警告設定 */
 export interface ShiftWarningsConfig {
   /** 休日の連続アサインを警告するか。 */
   avoid_consecutive_holidays: boolean;
+  /** 年間シフト回数上限設定。 */
+  annual_shift_limits: AnnualShiftLimitsConfig;
 }
 
 /** ルール定義APIレスポンス */
@@ -50,5 +70,14 @@ export const DEFAULT_SHIFT_RULES: ShiftRules = {
   },
   warnings: {
     avoid_consecutive_holidays: true,
+    annual_shift_limits: {
+      annual_total: 22,
+      weekday_night: 10,
+      sat_day: 3,
+      sat_night: 3,
+      sun_hol_day: 4,
+      sun_hol_night: 5,
+      sat_pre_hol_night: 4,
+    },
   },
 };

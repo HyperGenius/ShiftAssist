@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 
 from app.models.models import TenantRulesConfig
 from app.models.rule_schemas import (
+    AnnualShiftLimitsConfig,
     ShiftRulesConfig,
     ShiftRulesResponse,
     ShiftWarningsConfig,
@@ -28,6 +29,7 @@ _DEFAULT_SHIFT_RULES = ShiftRulesResponse(
     ),
     warnings=ShiftWarningsConfig(
         avoid_consecutive_holidays=True,
+        annual_shift_limits=AnnualShiftLimitsConfig(),
     ),
 )
 

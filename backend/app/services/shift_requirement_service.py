@@ -7,7 +7,7 @@
 import calendar
 import uuid
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from typing import cast
 
 from fastapi import HTTPException, status
@@ -305,7 +305,13 @@ def _determine_slot_types_for_date(
         return [SlotTypeEnum.sat_day, SlotTypeEnum.sat_night]
     if is_sunday or is_holiday:
         return [SlotTypeEnum.sun_hol_day, SlotTypeEnum.sun_hol_night]
-    # 平日は夜間のみ
+    # 平日: 翌日が土曜または祝日の場合は sat_pre_hol_night
+    next_day = target_date + timedelta(days=1)
+    next_day_is_saturday = next_day.weekday() == 5
+    next_day_is_holiday = next_day in holiday_dates
+    if next_day_is_saturday or next_day_is_holiday:
+        return [SlotTypeEnum.sat_pre_hol_night]
+    # 通常平日は夜間のみ
     return [SlotTypeEnum.weekday_night]
 
 

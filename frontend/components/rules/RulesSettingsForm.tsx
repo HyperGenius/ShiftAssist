@@ -39,6 +39,34 @@ const rulesSchema = z.object({
     .number()
     .int("整数を入力してください")
     .min(0, "事業部間転入アサイン可能期間は0以上の値を指定してください"),
+  annual_total: z
+    .number()
+    .int("整数を入力してください")
+    .min(0, "0以上の値を指定してください"),
+  annual_weekday_night: z
+    .number()
+    .int("整数を入力してください")
+    .min(0, "0以上の値を指定してください"),
+  annual_sat_day: z
+    .number()
+    .int("整数を入力してください")
+    .min(0, "0以上の値を指定してください"),
+  annual_sat_night: z
+    .number()
+    .int("整数を入力してください")
+    .min(0, "0以上の値を指定してください"),
+  annual_sun_hol_day: z
+    .number()
+    .int("整数を入力してください")
+    .min(0, "0以上の値を指定してください"),
+  annual_sun_hol_night: z
+    .number()
+    .int("整数を入力してください")
+    .min(0, "0以上の値を指定してください"),
+  annual_sat_pre_hol_night: z
+    .number()
+    .int("整数を入力してください")
+    .min(0, "0以上の値を指定してください"),
 });
 
 type RulesFormValues = z.infer<typeof rulesSchema>;
@@ -58,6 +86,13 @@ function toFormValues(rules: ShiftRules): RulesFormValues {
     hired_tenure_months: rules.shift_rules.hired_tenure_months,
     cross_division_transfer_tenure_months:
       rules.shift_rules.cross_division_transfer_tenure_months,
+    annual_total: rules.warnings.annual_shift_limits?.annual_total ?? 22,
+    annual_weekday_night: rules.warnings.annual_shift_limits?.weekday_night ?? 10,
+    annual_sat_day: rules.warnings.annual_shift_limits?.sat_day ?? 3,
+    annual_sat_night: rules.warnings.annual_shift_limits?.sat_night ?? 3,
+    annual_sun_hol_day: rules.warnings.annual_shift_limits?.sun_hol_day ?? 4,
+    annual_sun_hol_night: rules.warnings.annual_shift_limits?.sun_hol_night ?? 5,
+    annual_sat_pre_hol_night: rules.warnings.annual_shift_limits?.sat_pre_hol_night ?? 4,
   };
 }
 
@@ -84,6 +119,15 @@ function toShiftRules(values: RulesFormValues, currentRules: ShiftRules): ShiftR
     },
     warnings: {
       avoid_consecutive_holidays: values.avoid_consecutive_holidays,
+      annual_shift_limits: {
+        annual_total: values.annual_total,
+        weekday_night: values.annual_weekday_night,
+        sat_day: values.annual_sat_day,
+        sat_night: values.annual_sat_night,
+        sun_hol_day: values.annual_sun_hol_day,
+        sun_hol_night: values.annual_sun_hol_night,
+        sat_pre_hol_night: values.annual_sat_pre_hol_night,
+      },
     },
   };
 }
@@ -306,6 +350,88 @@ export function RulesSettingsForm() {
               休日枠への連続アサインを警告する
             </label>
           </div>
+        </SciFiPanel>
+
+        {/* 年間シフト回数上限設定 */}
+        <SciFiPanel className="p-6 space-y-6">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-700">
+              年間シフト回数上限
+            </h2>
+            <p className="mt-1 text-xs text-gray-400">
+              1ワーカーあたりの年間合計シフト回数の上限を設定します。0を設定すると制限なし（無制限）となります。
+            </p>
+          </div>
+
+          <SciFiInput
+            id="annual_total"
+            label="年間総シフト回数上限（全種別合計）"
+            type="number"
+            min={0}
+            {...register("annual_total", { valueAsNumber: true })}
+            error={errors.annual_total?.message}
+            disabled={isSubmitting}
+          />
+
+          <SciFiInput
+            id="annual_weekday_night"
+            label="年間上限: 平日夜間（weekday_night）"
+            type="number"
+            min={0}
+            {...register("annual_weekday_night", { valueAsNumber: true })}
+            error={errors.annual_weekday_night?.message}
+            disabled={isSubmitting}
+          />
+
+          <SciFiInput
+            id="annual_sat_pre_hol_night"
+            label="年間上限: 土曜・祝前日夜間（sat_pre_hol_night）"
+            type="number"
+            min={0}
+            {...register("annual_sat_pre_hol_night", { valueAsNumber: true })}
+            error={errors.annual_sat_pre_hol_night?.message}
+            disabled={isSubmitting}
+          />
+
+          <SciFiInput
+            id="annual_sat_day"
+            label="年間上限: 土曜昼間（sat_day）"
+            type="number"
+            min={0}
+            {...register("annual_sat_day", { valueAsNumber: true })}
+            error={errors.annual_sat_day?.message}
+            disabled={isSubmitting}
+          />
+
+          <SciFiInput
+            id="annual_sat_night"
+            label="年間上限: 土曜夜間（sat_night）"
+            type="number"
+            min={0}
+            {...register("annual_sat_night", { valueAsNumber: true })}
+            error={errors.annual_sat_night?.message}
+            disabled={isSubmitting}
+          />
+
+          <SciFiInput
+            id="annual_sun_hol_day"
+            label="年間上限: 日祝昼間（sun_hol_day・long_hol_day 合算）"
+            type="number"
+            min={0}
+            {...register("annual_sun_hol_day", { valueAsNumber: true })}
+            error={errors.annual_sun_hol_day?.message}
+            disabled={isSubmitting}
+          />
+
+          <SciFiInput
+            id="annual_sun_hol_night"
+            label="年間上限: 日祝夜間（sun_hol_night・long_hol_night 合算）"
+            type="number"
+            min={0}
+            {...register("annual_sun_hol_night", { valueAsNumber: true })}
+            error={errors.annual_sun_hol_night?.message}
+            disabled={isSubmitting}
+          />
         </SciFiPanel>
 
         <div className="flex justify-end">

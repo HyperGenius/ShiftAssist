@@ -16,6 +16,7 @@ const SLOT_TYPE_FULL_LABELS: Record<SlotType, string> = {
   sun_hol_night: "日祝夜間",
   long_hol_day: "長期連休昼間",
   long_hol_night: "長期連休夜間",
+  sat_pre_hol_night: "土曜・祝前日夜間",
 };
 
 interface ViolationEntry {

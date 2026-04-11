@@ -2,8 +2,9 @@
 // シフトバリデーションのための純粋関数群
 
 import type { CalendarState, SlotType } from "@/types/shiftRequirement";
-import type { ShiftRulesConfig } from "@/types/shiftRules";
+import type { AnnualShiftLimitsConfig, ShiftRulesConfig } from "@/types/shiftRules";
 import type { TenantSkillRank } from "@/types/skillRank";
+import type { WorkerStatsResponse } from "@/types/workerStats";
 import type { Worker } from "@/types/worker";
 import { parseDateStr } from "@/utils/calendarUtils";
 
@@ -15,7 +16,14 @@ export type ValidationCode =
   | "SPECIAL_EMPLOYMENT" // 特別雇用者の枠制限違反
   | "NEW_HIRE_TENURE" // 採用後の期間制限
   | "TRANSFER_TENURE" // 事業本部間転入後の期間制限
-  | "CONSECUTIVE_HOLIDAYS"; // 休日の連続アサイン (Warning)
+  | "CONSECUTIVE_HOLIDAYS" // 休日の連続アサイン (Warning)
+  | "ANNUAL_TOTAL_SHIFTS" // 年間総シフト回数上限 (Warning)
+  | "ANNUAL_WEEKDAY_NIGHT" // 年間平日夜間上限 (Warning)
+  | "ANNUAL_SAT_DAY" // 年間土曜昼間上限 (Warning)
+  | "ANNUAL_SAT_NIGHT" // 年間土曜夜間上限 (Warning)
+  | "ANNUAL_SUN_HOL_DAY" // 年間日祝昼間上限 (Warning)
+  | "ANNUAL_SUN_HOL_NIGHT" // 年間日祝夜間上限 (Warning)
+  | "ANNUAL_SAT_PRE_HOL_NIGHT"; // 年間土曜・祝前日夜間上限 (Warning)
 
 export type ValidationSeverity = "error" | "warning";
 
@@ -34,7 +42,8 @@ function isHolidaySlot(slotType: SlotType): boolean {
     slotType === "sun_hol_day" ||
     slotType === "sun_hol_night" ||
     slotType === "long_hol_day" ||
-    slotType === "long_hol_night"
+    slotType === "long_hol_night" ||
+    slotType === "sat_pre_hol_night"
   );
 }
 
@@ -429,6 +438,99 @@ export function validateConsecutiveHolidays(
   return violations;
 }
 
+/**
+ * 任意ルール: 年間シフト回数上限チェック (Warning)
+ * WorkerStatsResponse を参照して年間合計・各スロット種別の上限を超えているか検証する。
+ * - long_hol_day / long_hol_night は sun_hol_day / sun_hol_night に合算する
+ * - limits の各フィールドが 0 の場合は制限なし
+ */
+export function validateAnnualShiftLimits(
+  slotType: SlotType,
+  workers: readonly (string | null)[],
+  workerMap: Map<string, Worker>,
+  workerStatsMap: Map<string, WorkerStatsResponse>,
+  limits: AnnualShiftLimitsConfig,
+): ValidationViolation[] {
+  const violations: ValidationViolation[] = [];
+  const assignedWorkers = workers.filter((id): id is string => id !== null);
+
+  for (const workerId of assignedWorkers) {
+    const worker = workerMap.get(workerId);
+    if (!worker) continue;
+
+    const stats = workerStatsMap.get(workerId);
+
+    // 実績の集計（long_hol は sun_hol に合算）
+    const counts: Record<string, number> = {
+      weekday_night: 0,
+      sat_day: 0,
+      sat_night: 0,
+      sun_hol_day: 0,
+      sun_hol_night: 0,
+      sat_pre_hol_night: 0,
+    };
+    let total = 0;
+
+    if (stats) {
+      for (const s of stats.slot_stats) {
+        const st = s.slot_type as string;
+        total += s.count;
+        if (st === "long_hol_day") {
+          counts["sun_hol_day"] += s.count;
+        } else if (st === "long_hol_night") {
+          counts["sun_hol_night"] += s.count;
+        } else if (st in counts) {
+          counts[st] += s.count;
+        }
+      }
+    }
+
+    // 今回アサインされるスロット種別を加算
+    const currentSt = slotType as string;
+    total += 1;
+    if (currentSt === "long_hol_day") {
+      counts["sun_hol_day"] += 1;
+    } else if (currentSt === "long_hol_night") {
+      counts["sun_hol_night"] += 1;
+    } else if (currentSt in counts) {
+      counts[currentSt] += 1;
+    }
+
+    // 年間合計チェック
+    if (limits.annual_total > 0 && total > limits.annual_total) {
+      violations.push({
+        code: "ANNUAL_TOTAL_SHIFTS",
+        severity: "warning",
+        message: `${worker.name} の年間シフト回数が上限（${limits.annual_total}回）を超えています（現在: ${total}回）`,
+        workerIds: [workerId],
+      });
+    }
+
+    // 各スロット種別チェック
+    const slotLimitMap: Array<[string, ValidationCode, number, string]> = [
+      ["weekday_night", "ANNUAL_WEEKDAY_NIGHT", limits.weekday_night, "平日夜間"],
+      ["sat_day", "ANNUAL_SAT_DAY", limits.sat_day, "土曜昼間"],
+      ["sat_night", "ANNUAL_SAT_NIGHT", limits.sat_night, "土曜夜間"],
+      ["sun_hol_day", "ANNUAL_SUN_HOL_DAY", limits.sun_hol_day, "日祝昼間"],
+      ["sun_hol_night", "ANNUAL_SUN_HOL_NIGHT", limits.sun_hol_night, "日祝夜間"],
+      ["sat_pre_hol_night", "ANNUAL_SAT_PRE_HOL_NIGHT", limits.sat_pre_hol_night, "土曜・祝前日夜間"],
+    ];
+
+    for (const [stKey, code, limit, label] of slotLimitMap) {
+      if (limit > 0 && (counts[stKey] ?? 0) > limit) {
+        violations.push({
+          code,
+          severity: "warning",
+          message: `${worker.name} の${label}年間シフト回数が上限（${limit}回）を超えています（現在: ${counts[stKey]}回）`,
+          workerIds: [workerId],
+        });
+      }
+    }
+  }
+
+  return violations;
+}
+
 /** 1スロットの全バリデーションを実行して違反リストを返す */
 export function validateSlot(
   dateStr: string,
@@ -440,6 +542,8 @@ export function validateSlot(
   rules?: ShiftRulesConfig,
   skillRankMap?: Map<string, TenantSkillRank>,
   prevMonthDatesByWorker?: Record<string, string | null>,
+  workerStatsMap?: Map<string, WorkerStatsResponse>,
+  annualLimits?: AnnualShiftLimitsConfig,
 ): ValidationViolation[] {
   const assignedCount = workers.filter((id) => id !== null).length;
   if (assignedCount === 0) return [];
@@ -452,5 +556,8 @@ export function validateSlot(
     ...validateSpecialEmployment(slotType, workers, workerMap, rules),
     ...validateTenureRestriction(dateStr, workers, workerMap, rules),
     ...validateConsecutiveHolidays(dateStr, slotType, workers, calendarState, workerMap),
+    ...(workerStatsMap && annualLimits
+      ? validateAnnualShiftLimits(slotType, workers, workerMap, workerStatsMap, annualLimits)
+      : []),
   ];
 }

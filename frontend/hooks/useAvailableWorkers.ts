@@ -5,8 +5,9 @@
 import { useMemo } from "react";
 
 import type { SlotType } from "@/types/shiftRequirement";
-import type { ShiftRulesConfig } from "@/types/shiftRules";
+import type { AnnualShiftLimitsConfig, ShiftRulesConfig } from "@/types/shiftRules";
 import type { TenantSkillRank } from "@/types/skillRank";
+import type { WorkerStatsResponse } from "@/types/workerStats";
 import type { Worker } from "@/types/worker";
 
 /** 休日系スロットタイプ */
@@ -15,6 +16,7 @@ const HOLIDAY_SLOT_TYPES = new Set<SlotType>([
   "sun_hol_night",
   "long_hol_day",
   "long_hol_night",
+  "sat_pre_hol_night",
 ]);
 
 export interface AvailableWorkersResult {
@@ -41,6 +43,10 @@ interface UseAvailableWorkersOptions {
   assignedWorkerIds: (string | null)[];
   /** 全表示モード（制約無視） */
   showAll: boolean;
+  /** ワーカー年間統計（年間上限チェックに使用） */
+  workerStats?: WorkerStatsResponse[];
+  /** 年間シフト回数上限設定 */
+  annualLimits?: AnnualShiftLimitsConfig;
 }
 
 /**
@@ -54,6 +60,8 @@ export function useAvailableWorkers({
   slotType,
   assignedWorkerIds,
   showAll,
+  workerStats,
+  annualLimits,
 }: UseAvailableWorkersOptions): AvailableWorkersResult {
   const skillRankMap = useMemo(
     () => new Map(skillRanks.map((r) => [r.id, r])),
@@ -63,6 +71,12 @@ export function useAvailableWorkers({
   const assignedSet = useMemo(
     () => new Set(assignedWorkerIds.filter((id): id is string => id !== null)),
     [assignedWorkerIds],
+  );
+
+  /** ワーカー年間統計マップ */
+  const workerStatsMap = useMemo(
+    () => workerStats ? new Map(workerStats.map((s) => [s.worker_id, s])) : undefined,
+    [workerStats],
   );
 
   // ルール由来の設定（未設定時はデフォルト値を適用）
@@ -105,9 +119,69 @@ export function useAvailableWorkers({
         return false;
       }
 
+      // 例4: 年間上限超過チェック（showAll=false の場合のみ）
+      if (workerStatsMap && annualLimits) {
+        const stats = workerStatsMap.get(w.id);
+        const counts: Record<string, number> = {
+          weekday_night: 0,
+          sat_day: 0,
+          sat_night: 0,
+          sun_hol_day: 0,
+          sun_hol_night: 0,
+          sat_pre_hol_night: 0,
+        };
+        let total = 0;
+
+        if (stats) {
+          for (const s of stats.slot_stats) {
+            const st = s.slot_type as string;
+            total += s.count;
+            if (st === "long_hol_day") {
+              counts["sun_hol_day"] += s.count;
+            } else if (st === "long_hol_night") {
+              counts["sun_hol_night"] += s.count;
+            } else if (st in counts) {
+              counts[st] += s.count;
+            }
+          }
+        }
+
+        // 今回アサインされるスロット種別を加算
+        const currentSt = slotType as string;
+        total += 1;
+        if (currentSt === "long_hol_day") {
+          counts["sun_hol_day"] += 1;
+        } else if (currentSt === "long_hol_night") {
+          counts["sun_hol_night"] += 1;
+        } else if (currentSt in counts) {
+          counts[currentSt] += 1;
+        }
+
+        // 年間合計が上限を超える場合は除外
+        if (annualLimits.annual_total > 0 && total > annualLimits.annual_total) {
+          return false;
+        }
+
+        // 各スロット種別の上限チェック
+        const slotLimitMap: Array<[string, number]> = [
+          ["weekday_night", annualLimits.weekday_night],
+          ["sat_day", annualLimits.sat_day],
+          ["sat_night", annualLimits.sat_night],
+          ["sun_hol_day", annualLimits.sun_hol_day],
+          ["sun_hol_night", annualLimits.sun_hol_night],
+          ["sat_pre_hol_night", annualLimits.sat_pre_hol_night],
+        ];
+
+        for (const [stKey, limit] of slotLimitMap) {
+          if (limit > 0 && (counts[stKey] ?? 0) > limit) {
+            return false;
+          }
+        }
+      }
+
       return true;
     });
-  }, [workers, skillRankMap, assignedSet, allowSameDepartment, slotType, showAll]);
+  }, [workers, skillRankMap, assignedSet, allowSameDepartment, slotType, showAll, workerStatsMap, annualLimits]);
 
   const isWorkerAvailable = useMemo(() => {
     const availableSet = new Set(availableWorkers.map((w) => w.id));

@@ -403,6 +403,65 @@ class TestDetermineSlotTypesForDate:
         )
         assert result == [SlotTypeEnum.long_hol_day, SlotTypeEnum.long_hol_night]
 
+    def test_friday_before_saturday_returns_sat_pre_hol_night(self) -> None:
+        """正常系: 金曜日（翌日が土曜）は sat_pre_hol_night を返す."""
+        # 2026-04-03 は金曜日（翌日 04-04 が土曜日）
+        result = shift_requirement_service._determine_slot_types_for_date(
+            date(2026, 4, 3), set(), set()
+        )
+        assert result == [SlotTypeEnum.sat_pre_hol_night]
+
+    def test_weekday_before_holiday_returns_sat_pre_hol_night(self) -> None:
+        """正常系: 翌日が祝日の平日は sat_pre_hol_night を返す."""
+        # 翌日が祝日（木曜日→金曜祝日）
+        holiday_fri = date(2026, 4, 24)
+        thu_before = date(2026, 4, 23)  # 木曜日
+        result = shift_requirement_service._determine_slot_types_for_date(
+            thu_before, {holiday_fri}, set()
+        )
+        assert result == [SlotTypeEnum.sat_pre_hol_night]
+
+    def test_saturday_before_holiday_not_sat_pre_hol(self) -> None:
+        """正常系: 土曜日は翌日が祝日でも sat_pre_hol_night にならない（土曜は sat_day/sat_night）."""
+        # 2026-04-04 は土曜日
+        sunday_hol = date(2026, 4, 5)
+        result = shift_requirement_service._determine_slot_types_for_date(
+            date(2026, 4, 4), {sunday_hol}, set()
+        )
+        assert result == [SlotTypeEnum.sat_day, SlotTypeEnum.sat_night]
+
+    def test_sunday_before_holiday_not_sat_pre_hol(self) -> None:
+        """正常系: 日曜日は翌日が祝日でも sat_pre_hol_night にならない（日曜は sun_hol 枠）."""
+        monday_hol = date(2026, 4, 6)
+        result = shift_requirement_service._determine_slot_types_for_date(
+            date(2026, 4, 5), set(), set()
+        )
+        # 日曜は sun_hol_day, sun_hol_night
+        assert result == [SlotTypeEnum.sun_hol_day, SlotTypeEnum.sun_hol_night]
+        # 念のため monday_hol をセットしても同じ
+        result2 = shift_requirement_service._determine_slot_types_for_date(
+            date(2026, 4, 5), {monday_hol}, set()
+        )
+        assert result2 == [SlotTypeEnum.sun_hol_day, SlotTypeEnum.sun_hol_night]
+
+    def test_holiday_itself_not_sat_pre_hol(self) -> None:
+        """正常系: 祝日当日（翌日も祝日）は sat_pre_hol_night にならない（sun_hol 枠）."""
+        # 対象日が祝日であれば sun_hol 扱い
+        today_hol = date(2026, 4, 22)
+        tomorrow_hol = date(2026, 4, 23)
+        result = shift_requirement_service._determine_slot_types_for_date(
+            today_hol, {today_hol, tomorrow_hol}, set()
+        )
+        assert result == [SlotTypeEnum.sun_hol_day, SlotTypeEnum.sun_hol_night]
+
+    def test_normal_thursday_returns_weekday_night(self) -> None:
+        """正常系: 通常の木曜日（翌日が祝日でない）は weekday_night を返す."""
+        # 2026-04-09 は木曜日、翌日 04-10 は金曜日で祝日ではない
+        result = shift_requirement_service._determine_slot_types_for_date(
+            date(2026, 4, 9), set(), set()
+        )
+        assert result == [SlotTypeEnum.weekday_night]
+
 
 # ---------------------------------------------------------------------------
 # generate_requirements_for_month
