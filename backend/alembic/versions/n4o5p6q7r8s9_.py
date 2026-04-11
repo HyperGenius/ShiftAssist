@@ -10,6 +10,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import UUID
 
 # revision identifiers, used by Alembic.
@@ -34,18 +35,7 @@ def upgrade() -> None:
         sa.Column("year_month", sa.String(), nullable=False),
         sa.Column(
             "slot_type",
-            sa.Enum(
-                "weekday_night",
-                "sat_day",
-                "sat_night",
-                "sun_hol_day",
-                "sun_hol_night",
-                "long_hol_day",
-                "long_hol_night",
-                "sat_pre_hol_night",
-                name="slottypeenum",
-                create_type=False,
-            ),
+            postgresql.ENUM(name="slottypeenum", create_type=False),
             nullable=False,
         ),
         sa.Column("weekday", sa.Integer(), nullable=True),
