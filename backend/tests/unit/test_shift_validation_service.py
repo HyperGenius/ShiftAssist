@@ -26,6 +26,8 @@ WORKER_ID_1 = uuid.uuid4()
 WORKER_ID_2 = uuid.uuid4()
 SKILL_RANK_LEADER_ID = uuid.uuid4()
 SKILL_RANK_NON_LEADER_ID = uuid.uuid4()
+# 非デフォルト雇用形態ID（特別雇用）
+NON_DEFAULT_ET_ID = uuid.uuid4()
 
 DEFAULT_RULES = ShiftRulesConfig(
     min_interval_days=10,
@@ -66,7 +68,7 @@ def _make_worker(
     name: str = "テストワーカー",
     department_id: uuid.UUID | None = None,
     skill_rank_id: uuid.UUID | None = None,
-    is_special: bool = False,
+    employment_type_id: uuid.UUID | None = None,
     birth_date: object = None,
     position_id: uuid.UUID | None = None,
     joined_at: object = None,
@@ -81,7 +83,7 @@ def _make_worker(
     w.name = name
     w.department_id = department_id or DEPT_A_ID
     w.skill_rank_id = skill_rank_id or SKILL_RANK_LEADER_ID
-    w.is_special = is_special
+    w.employment_type_id = employment_type_id  # type: ignore[assignment]
     w.birth_date = birth_date  # type: ignore[assignment]
     w.position_id = position_id  # type: ignore[assignment]
     w.joined_at = joined_at  # type: ignore[assignment]
@@ -96,6 +98,20 @@ def _make_worker(
 # ---------------------------------------------------------------------------
 # validate_shift_assignments
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def mock_load_non_default_et_ids(monkeypatch: pytest.MonkeyPatch) -> None:
+    """デフォルト: 非デフォルト雇用形態IDのロードを空セットに固定する.
+
+    テスト全体で余分な DB クエリを防ぐためにオートユーズで適用する。
+    特別雇用チェックのテストは patch で個別に上書きすること。
+    """
+    monkeypatch.setattr(
+        shift_validation_service,
+        "_load_non_default_employment_type_ids",
+        lambda session, tenant_id: set(),
+    )
 
 
 class TestValidateShiftAssignments:
@@ -451,11 +467,15 @@ class TestValidateShiftAssignments:
             **{"first.return_value": None, "all.return_value": []}
         )
         req = _make_requirement(slot_type="sat_day")
-        worker = _make_worker(is_special=True)
+        worker = _make_worker(employment_type_id=NON_DEFAULT_ET_ID)
 
-        result = shift_validation_service.validate_shift_assignments(
-            session, TENANT_ID, req, [worker], DEFAULT_RULES
-        )
+        with patch(
+            "app.services.shift_validation_service._load_non_default_employment_type_ids",
+            return_value={NON_DEFAULT_ET_ID},
+        ):
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [worker], DEFAULT_RULES
+            )
 
         codes = [v.code for v in result]
         assert "SPECIAL_EMPLOYMENT" in codes
@@ -467,11 +487,15 @@ class TestValidateShiftAssignments:
             **{"first.return_value": None, "all.return_value": []}
         )
         req = _make_requirement(slot_type="weekday_night")
-        worker = _make_worker(is_special=True)
+        worker = _make_worker(employment_type_id=NON_DEFAULT_ET_ID)
 
-        result = shift_validation_service.validate_shift_assignments(
-            session, TENANT_ID, req, [worker], DEFAULT_RULES
-        )
+        with patch(
+            "app.services.shift_validation_service._load_non_default_employment_type_ids",
+            return_value={NON_DEFAULT_ET_ID},
+        ):
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [worker], DEFAULT_RULES
+            )
 
         codes = [v.code for v in result]
         assert "SPECIAL_EMPLOYMENT" not in codes
@@ -483,11 +507,15 @@ class TestValidateShiftAssignments:
             **{"first.return_value": None, "all.return_value": []}
         )
         req = _make_requirement(slot_type="sat_night")
-        worker = _make_worker(is_special=False)
+        worker = _make_worker(employment_type_id=None)  # 非特別雇用（employment_type なし）
 
-        result = shift_validation_service.validate_shift_assignments(
-            session, TENANT_ID, req, [worker], DEFAULT_RULES
-        )
+        with patch(
+            "app.services.shift_validation_service._load_non_default_employment_type_ids",
+            return_value={NON_DEFAULT_ET_ID},
+        ):
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [worker], DEFAULT_RULES
+            )
 
         codes = [v.code for v in result]
         assert "SPECIAL_EMPLOYMENT" not in codes
@@ -689,18 +717,22 @@ class TestValidateShiftAssignments:
             worker_id=WORKER_ID_1,
             department_id=DEPT_A_ID,
             skill_rank_id=SKILL_RANK_NON_LEADER_ID,
-            is_special=True,
+            employment_type_id=NON_DEFAULT_ET_ID,  # 非デフォルト雇用形態（特別雇用）
         )
         w2 = _make_worker(
             worker_id=WORKER_ID_2,
             department_id=DEPT_A_ID,
             skill_rank_id=SKILL_RANK_NON_LEADER_ID,
-            is_special=False,
+            employment_type_id=None,  # デフォルト雇用形態（通常雇用）
         )
 
-        result = shift_validation_service.validate_shift_assignments(
-            session, TENANT_ID, req, [w1, w2], DEFAULT_RULES
-        )
+        with patch(
+            "app.services.shift_validation_service._load_non_default_employment_type_ids",
+            return_value={NON_DEFAULT_ET_ID},
+        ):
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [w1, w2], DEFAULT_RULES
+            )
 
         codes = [v.code for v in result]
         # 同一所属課・スキルランクA欠如・特別雇用者違反
@@ -715,11 +747,15 @@ class TestValidateShiftAssignments:
             **{"first.return_value": None, "all.return_value": []}
         )
         req = _make_requirement(slot_type="sat_day", required_headcount=1)
-        worker = _make_worker(is_special=True)
+        worker = _make_worker(employment_type_id=NON_DEFAULT_ET_ID)
 
-        result = shift_validation_service.validate_shift_assignments(
-            session, TENANT_ID, req, [worker], DEFAULT_RULES
-        )
+        with patch(
+            "app.services.shift_validation_service._load_non_default_employment_type_ids",
+            return_value={NON_DEFAULT_ET_ID},
+        ):
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [worker], DEFAULT_RULES
+            )
 
         for v in result:
             assert v.severity == "error"

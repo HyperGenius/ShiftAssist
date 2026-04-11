@@ -182,7 +182,6 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
           department_name:
             typeof item.department_name === "string" ? item.department_name.trim() || null : null,
           skill_rank_id: item.skill_rank_id,
-          is_special: typeof item.is_special === "boolean" ? item.is_special : false,
           joined_at:
             typeof item.joined_at === "string" ? item.joined_at : null,
         });
@@ -328,8 +327,7 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
     "name": "田中 太郎",
     "department_code": "dept_1",
     "department_name": "1課",
-    "skill_rank_id": "<UUID>",
-    "is_special": false
+    "skill_rank_id": "<UUID>"
   }
 ]`}
       </pre>

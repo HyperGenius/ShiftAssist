@@ -422,7 +422,6 @@ def preview_bulk_upsert_workers(
             changed = (
                 existing.name != item.name
                 or dept_id_changed
-                or existing.is_special != item.is_special
             )
             if changed:
                 preview_items.append(
@@ -508,7 +507,6 @@ def bulk_upsert_workers(
                 name=item.name,
                 department_id=department_id,
                 skill_rank_id=item.skill_rank_id,
-                is_special=item.is_special,
                 joined_at=item.joined_at,
             )
             session.add(worker)
@@ -518,7 +516,6 @@ def bulk_upsert_workers(
             existing.name = item.name  # type: ignore[assignment]
             existing.department_id = department_id  # type: ignore[assignment]
             existing.skill_rank_id = item.skill_rank_id  # type: ignore[assignment]
-            existing.is_special = item.is_special  # type: ignore[assignment]
             if item.joined_at is not None:
                 existing.joined_at = item.joined_at  # type: ignore[assignment]
             session.add(existing)

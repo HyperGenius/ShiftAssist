@@ -5,14 +5,17 @@ export interface EmploymentType {
   id: string;
   tenant_id: string;
   name: string;
+  is_default: boolean;
   created_at: string;
   updated_at: string;
 }
 
 export interface EmploymentTypeCreate {
   name: string;
+  is_default?: boolean;
 }
 
 export interface EmploymentTypeUpdate {
   name?: string;
+  is_default?: boolean;
 }
