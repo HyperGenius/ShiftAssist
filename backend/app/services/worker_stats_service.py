@@ -387,7 +387,7 @@ def upsert_monthly_slot_stats(
     session: Session,
     tenant_id: str,
     year_month: str,
-) -> None:
+) -> bool:
     """指定年月の集計テーブルを Upsert する.
 
     ``published`` ステータスのシフトプランを参照して
@@ -398,6 +398,9 @@ def upsert_monthly_slot_stats(
         session: SQLModelセッション。
         tenant_id: テナントID。
         year_month: 集計対象年月（YYYY-MM形式）。
+
+    Returns:
+        Upsert を実行した場合は ``True``、published プランが存在しない場合は ``False``。
     """
     # 対象プランを取得
     plan = session.exec(
@@ -409,7 +412,7 @@ def upsert_monthly_slot_stats(
     ).first()
 
     if plan is None:
-        return
+        return False
 
     now = datetime.now(UTC)
     upsert_values = []
@@ -491,7 +494,7 @@ def upsert_monthly_slot_stats(
         )
 
     if not upsert_values:
-        return
+        return True  # プランは存在するがアサインメントがない場合もupsert実行済みとみなす
 
     # ON CONFLICT DO UPDATE (Upsert)
     stmt = pg_insert(WorkerMonthlySlotStats).values(upsert_values)
@@ -504,6 +507,7 @@ def upsert_monthly_slot_stats(
     )
     session.exec(stmt)  # type: ignore[arg-type]
     session.commit()
+    return True
 
 
 def get_aggregate_stats(
@@ -629,7 +633,10 @@ def get_aggregate_stats(
 # 再計算エンドポイント用レートリミット
 # ---------------------------------------------------------------------------
 
-# テナントIDごとの最終再計算日時を保持するインメモリキャッシュ
+# テナントIDごとの最終再計算日時を保持するインメモリキャッシュ。
+# 注意: このキャッシュはプロセス内メモリのみで管理するため、
+#       複数プロセス・複数インスタンスで稼働する場合はプロセスをまたいだ
+#       クールダウンが機能しない。現状はシングルインスタンス運用を前提とする。
 _recalculate_last_called: dict[str, datetime] = {}
 _RECALCULATE_COOLDOWN_SECONDS = 60
 
@@ -663,7 +670,8 @@ def recalculate_all_stats(
 ) -> RecalculateStatsResponse:
     """選択年月を末月とした直近12ヶ月の集計テーブルを全月一括再計算する.
 
-    ``published`` ステータスのシフトプランが存在する月のみ Upsert を実行する。
+    ``published`` ステータスのシフトプランが存在する月のみ Upsert を実行し、
+    実際に Upsert した年月のリストを返す。
 
     Args:
         session: SQLModelセッション。
@@ -671,7 +679,7 @@ def recalculate_all_stats(
         year_month: 集計末月（YYYY-MM形式）。
 
     Returns:
-        RecalculateStatsResponse（Upsertを実行した年月リスト）。
+        RecalculateStatsResponse（published プランが存在しUpsertを実行した年月リスト）。
     """
     start_ym, end_ym = _compute_aggregate_cutoff(year_month)
 
@@ -686,12 +694,11 @@ def recalculate_all_stats(
             m = 1
             y += 1
 
+    # published プランが存在した月のみ upserted リストに追加する
     upserted: list[str] = []
     for ym in target_months:
-        upsert_monthly_slot_stats(session, tenant_id, ym)
-        # upsert_monthly_slot_stats は対象プランがなければ何もしないため
-        # published プランが存在した月のみリストに追加する
-        upserted.append(ym)
+        if upsert_monthly_slot_stats(session, tenant_id, ym):
+            upserted.append(ym)
 
     return RecalculateStatsResponse(
         year_month=year_month,
