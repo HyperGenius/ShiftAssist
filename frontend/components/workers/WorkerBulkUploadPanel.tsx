@@ -121,9 +121,9 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
     [skillRanks],
   );
 
-  /** 雇用形態IDのセット（バリデーション用） */
-  const validEmploymentTypeIds = useMemo(
-    () => new Set(employmentTypes.map((et) => et.id)),
+  /** 雇用形態名のセット（バリデーション用） */
+  const validEmploymentTypeNames = useMemo(
+    () => new Set(employmentTypes.map((et) => et.name)),
     [employmentTypes],
   );
 
@@ -183,14 +183,15 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
           );
           return null;
         }
-        // employment_type_id の検証（指定された場合のみ）
+        // employment_type_name の検証（指定された場合のみ）
         if (
-          typeof item.employment_type_id === "string" &&
-          validEmploymentTypeIds.size > 0 &&
-          !validEmploymentTypeIds.has(item.employment_type_id)
+          typeof item.employment_type_name === "string" &&
+          item.employment_type_name.trim() !== "" &&
+          validEmploymentTypeNames.size > 0 &&
+          !validEmploymentTypeNames.has(item.employment_type_name.trim())
         ) {
           setParseError(
-            `配列の${i + 1}番目の要素の "employment_type_id"（${item.employment_type_id}）が見つかりません。`,
+            `配列の${i + 1}番目の要素の "employment_type_name"（${item.employment_type_name}）が見つかりません。`,
           );
           return null;
         }
@@ -201,8 +202,8 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
           department_name:
             typeof item.department_name === "string" ? item.department_name.trim() || null : null,
           skill_rank_id: item.skill_rank_id,
-          employment_type_id:
-            typeof item.employment_type_id === "string" ? item.employment_type_id : null,
+          employment_type_name:
+            typeof item.employment_type_name === "string" ? item.employment_type_name.trim() || null : null,
           joined_at:
             typeof item.joined_at === "string" ? item.joined_at : null,
         });
@@ -215,7 +216,7 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
 
       return items;
     },
-    [validSkillRankIds, validEmploymentTypeIds],
+    [validSkillRankIds, validEmploymentTypeNames],
   );
 
   /** ファイルを読み込んでパースする */
@@ -349,7 +350,7 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
     "department_code": "dept_1",
     "department_name": "1課",
     "skill_rank_id": "<UUID>",
-    "employment_type_id": "<UUID>（任意）"
+    "employment_type_name": "正職員（任意）"
   }
 ]`}
       </pre>
