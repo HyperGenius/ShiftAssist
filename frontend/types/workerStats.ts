@@ -60,6 +60,13 @@ export interface AggregateWorkerStats {
   worker_name: string;
   effective_months: number;
   slot_stats: AggregateWorkerSlotStats[];
+  position_name?: string | null;
+  department_name?: string | null;
+  skill_rank_name?: string | null;
+  employment_type_name?: string | null;
+  is_non_default_employment?: boolean;
+  joined_at?: string | null; // YYYY-MM-DD
+  skill_acquired_at?: string | null; // YYYY-MM-DD
 }
 
 /** 集計ページ用レスポンス型 */

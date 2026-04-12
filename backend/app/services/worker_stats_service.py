@@ -13,11 +13,15 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import Session, select
 
 from app.models.models import (
+    Department,
+    EmploymentType,
     PlanStatusEnum,
+    Position,
     ShiftAssignment,
     ShiftPlan,
     ShiftSlot,
     SlotTypeEnum,
+    TenantSkillRank,
     TenantStatsConfig,
     Worker,
     WorkerMonthlySlotStats,
@@ -512,6 +516,67 @@ def upsert_monthly_slot_stats(
     return True
 
 
+def _build_slot_stats(
+    worker_counts: dict[str, dict[int | None, int]],
+    effective_months: float,
+) -> list[AggregateWorkerSlotStats]:
+    """SlotTypeEnum ごとの集計統計リストを構築するヘルパー."""
+    slot_stats = []
+    for slot_type in SlotTypeEnum:
+        slot_counts = worker_counts.get(slot_type.value, {})
+        total_count = sum(slot_counts.values())
+        monthly_avg = total_count / effective_months
+
+        weekday_stats: list[WeekdayNightStats] | None = None
+        if slot_type == SlotTypeEnum.weekday_night:
+            weekday_stats = [
+                WeekdayNightStats(
+                    weekday=wd,
+                    count=slot_counts.get(wd, 0),
+                    monthly_avg=slot_counts.get(wd, 0) / effective_months,
+                )
+                for wd in range(4)  # 0=月, 1=火, 2=水, 3=木
+            ]
+
+        slot_stats.append(
+            AggregateWorkerSlotStats(
+                slot_type=slot_type,
+                count=total_count,
+                monthly_avg=monthly_avg,
+                weekday_stats=weekday_stats,
+            )
+        )
+    return slot_stats
+
+
+def _resolve_worker_attributes(
+    worker: Worker,
+    position_map: dict[uuid.UUID, str],
+    department_map: dict[uuid.UUID, str],
+    skill_rank_map: dict[uuid.UUID, str],
+    employment_type_map: dict[uuid.UUID, tuple[str, bool]],
+) -> tuple[str | None, str | None, str | None, str | None, bool]:
+    """Worker の FK から関連属性名と非デフォルト雇用形態フラグを解決するヘルパー.
+
+    Returns:
+        (position_name, department_name, skill_rank_name, emp_type_name, is_non_default)
+    """
+    position_name = position_map.get(worker.position_id) if worker.position_id else None  # type: ignore[arg-type]
+    department_name = department_map.get(worker.department_id) if worker.department_id else None  # type: ignore[arg-type]
+    skill_rank_name = skill_rank_map.get(worker.skill_rank_id) if worker.skill_rank_id else None  # type: ignore[arg-type]
+
+    emp_type_name: str | None = None
+    is_non_default = bool(worker.is_special)
+    if worker.employment_type_id:
+        et = employment_type_map.get(worker.employment_type_id)  # type: ignore[arg-type]
+        if et is not None:
+            emp_type_name, is_default = et
+            if not is_default:
+                is_non_default = True
+
+    return position_name, department_name, skill_rank_name, emp_type_name, is_non_default
+
+
 def get_aggregate_stats(
     session: Session,
     tenant_id: str,
@@ -521,6 +586,8 @@ def get_aggregate_stats(
 
     ``WorkerMonthlySlotStats`` テーブルを参照して Worker 別・SlotType 別の
     合計を集計し、``joined_at`` による有効月数正規化を適用して月平均を算出する。
+    N+1 問題回避のため、関連テーブル（Position / Department / TenantSkillRank /
+    EmploymentType）はバッチクエリで一括取得する。
 
     Args:
         session: SQLModelセッション。
@@ -542,6 +609,29 @@ def get_aggregate_stats(
         )
 
     worker_ids = [w.id for w in workers]
+
+    # --- 関連テーブルをバッチクエリで一括取得（N+1回避） ---
+    positions = session.exec(
+        select(Position).where(Position.tenant_id == tenant_id)
+    ).all()
+    position_map: dict[uuid.UUID, str] = {p.id: p.name for p in positions}  # type: ignore[index]
+
+    departments = session.exec(
+        select(Department).where(Department.tenant_id == tenant_id)
+    ).all()
+    department_map: dict[uuid.UUID, str] = {d.id: d.name for d in departments}  # type: ignore[index]
+
+    skill_ranks = session.exec(
+        select(TenantSkillRank).where(TenantSkillRank.tenant_id == tenant_id)
+    ).all()
+    skill_rank_map: dict[uuid.UUID, str] = {s.id: s.name for s in skill_ranks}  # type: ignore[index]
+
+    employment_types = session.exec(
+        select(EmploymentType).where(EmploymentType.tenant_id == tenant_id)
+    ).all()
+    employment_type_map: dict[uuid.UUID, tuple[str, bool]] = {
+        e.id: (e.name, bool(e.is_default)) for e in employment_types  # type: ignore[index]
+    }
 
     # 集計テーブルから直近12ヶ月分のデータを取得
     stats_rows = session.exec(
@@ -586,34 +676,13 @@ def get_aggregate_stats(
         )
         worker_counts = counts_map.get(worker.id, {})  # type: ignore[call-overload]
 
-        slot_stats = []
-        for slot_type in SlotTypeEnum:
-            slot_counts = worker_counts.get(slot_type.value, {})
-            # None キーを含む全エントリを合計
-            total_count = sum(slot_counts.values())
-            monthly_avg = total_count / effective_months
-
-            weekday_stats: list[WeekdayNightStats] | None = None
-            if slot_type == SlotTypeEnum.weekday_night:
-                weekday_stats = []
-                for wd in range(4):  # 0=月, 1=火, 2=水, 3=木
-                    wd_count = slot_counts.get(wd, 0)
-                    weekday_stats.append(
-                        WeekdayNightStats(
-                            weekday=wd,
-                            count=wd_count,
-                            monthly_avg=wd_count / effective_months,
-                        )
-                    )
-
-            slot_stats.append(
-                AggregateWorkerSlotStats(
-                    slot_type=slot_type,
-                    count=total_count,
-                    monthly_avg=monthly_avg,
-                    weekday_stats=weekday_stats,
-                )
+        position_name, department_name, skill_rank_name, emp_type_name, is_non_default = (
+            _resolve_worker_attributes(
+                worker, position_map, department_map, skill_rank_map, employment_type_map
             )
+        )
+
+        slot_stats = _build_slot_stats(worker_counts, effective_months)
 
         items.append(
             AggregateWorkerStats(
@@ -621,6 +690,13 @@ def get_aggregate_stats(
                 worker_name=worker.name,  # type: ignore[arg-type]
                 effective_months=effective_months,
                 slot_stats=slot_stats,
+                position_name=position_name,
+                department_name=department_name,
+                skill_rank_name=skill_rank_name,
+                employment_type_name=emp_type_name,
+                is_non_default_employment=is_non_default,
+                joined_at=worker.joined_at,  # type: ignore[arg-type]
+                skill_acquired_at=worker.skill_acquired_at,  # type: ignore[arg-type]
             )
         )
 

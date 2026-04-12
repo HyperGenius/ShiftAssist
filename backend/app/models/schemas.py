@@ -704,6 +704,20 @@ class AggregateWorkerStats(BaseModel):
     worker_name: str
     effective_months: float
     slot_stats: list[AggregateWorkerSlotStats]
+    position_name: str | None = None
+    """役職名。position_id に紐づく名称。"""
+    department_name: str | None = None
+    """所属課名。department_id に紐づく名称。"""
+    skill_rank_name: str | None = None
+    """スキルランク名。skill_rank_id に紐づく名称。"""
+    employment_type_name: str | None = None
+    """雇用形態名。employment_type_id に紐づく名称。"""
+    is_non_default_employment: bool = False
+    """雇用形態が非デフォルト（標準外）または is_special=True の場合 True。"""
+    joined_at: date | None = None
+    """着任日。有効月数バッジ表示に使用。"""
+    skill_acquired_at: date | None = None
+    """スキルランク取得日。有効月数バッジ表示に使用。"""
 
 
 class AggregateStatsResponse(BaseModel):

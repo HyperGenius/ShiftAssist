@@ -534,7 +534,11 @@ class TestGetAggregateStats:
             mock_result = MagicMock()
             call_count[0] += 1
             if call_count[0] == 1:
+                # workers取得
                 mock_result.all.return_value = [worker]
+            elif call_count[0] <= 5:
+                # Position/Department/TenantSkillRank/EmploymentType の一括取得（空）
+                mock_result.all.return_value = []
             else:
                 # weekday_night, weekday=0 (月), count=5
                 mock_result.all.return_value = [
