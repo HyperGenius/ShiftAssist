@@ -419,7 +419,11 @@ def preview_bulk_upsert_workers(
                 existing_dept is not None
                 and str(existing.department_id) != str(existing_dept.id)
             )
-            changed = existing.name != item.name or dept_id_changed
+            changed = (
+                existing.name != item.name
+                or dept_id_changed
+                or (item.employment_type_id is not None and str(existing.employment_type_id) != str(item.employment_type_id))
+            )
             if changed:
                 preview_items.append(
                     WorkerBulkPreviewItem(
@@ -483,6 +487,11 @@ def bulk_upsert_workers(
     for skill_rank_id in skill_rank_ids:
         _validate_skill_rank(session, tenant_id, skill_rank_id)
 
+    # 雇用形態の存在確認（指定がある場合のみ）
+    employment_type_ids = list({item.employment_type_id for item in items if item.employment_type_id is not None})
+    for employment_type_id in employment_type_ids:
+        _validate_employment_type(session, tenant_id, employment_type_id)
+
     # 課コードを解決し、未登録の課を自動生成
     dept_id_map, departments_created = _ensure_departments(session, tenant_id, items)
 
@@ -504,6 +513,7 @@ def bulk_upsert_workers(
                 name=item.name,
                 department_id=department_id,
                 skill_rank_id=item.skill_rank_id,
+                employment_type_id=item.employment_type_id,
                 joined_at=item.joined_at,
             )
             session.add(worker)
@@ -513,6 +523,8 @@ def bulk_upsert_workers(
             existing.name = item.name  # type: ignore[assignment]
             existing.department_id = department_id  # type: ignore[assignment]
             existing.skill_rank_id = item.skill_rank_id  # type: ignore[assignment]
+            if item.employment_type_id is not None:
+                existing.employment_type_id = item.employment_type_id  # type: ignore[assignment]
             if item.joined_at is not None:
                 existing.joined_at = item.joined_at  # type: ignore[assignment]
             session.add(existing)

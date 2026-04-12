@@ -363,6 +363,7 @@ class WorkerBulkItem(BaseModel):
     department_code: str
     department_name: str | None = None
     skill_rank_id: uuid.UUID
+    employment_type_id: uuid.UUID | None = None
     joined_at: date | None = None
 
 

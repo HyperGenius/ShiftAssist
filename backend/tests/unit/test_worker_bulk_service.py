@@ -26,6 +26,7 @@ DEPT_ID_2 = uuid.uuid4()
 SKILL_RANK_ID = uuid.uuid4()
 WORKER_ID_1 = uuid.uuid4()
 WORKER_ID_2 = uuid.uuid4()
+EMPLOYMENT_TYPE_ID = uuid.uuid4()
 
 
 def _make_department(
@@ -53,6 +54,7 @@ def _make_worker(
     name: str = "田中 太郎",
     department_id: uuid.UUID | None = None,
     skill_rank_id: uuid.UUID | None = None,
+    employment_type_id: uuid.UUID | None = None,
 ) -> Worker:
     """テスト用Workerオブジェクトを生成するヘルパー."""
     w = Worker()
@@ -62,6 +64,7 @@ def _make_worker(
     w.name = name
     w.department_id = department_id or DEPT_ID_1
     w.skill_rank_id = skill_rank_id or SKILL_RANK_ID
+    w.employment_type_id = employment_type_id  # type: ignore[assignment]
     w.created_at = datetime(2026, 1, 1)
     w.updated_at = datetime(2026, 1, 1)
     return w
@@ -74,6 +77,7 @@ def _make_bulk_item(
     department_code: str = "dept_1",
     department_name: str | None = None,
     skill_rank_id: uuid.UUID | None = None,
+    employment_type_id: uuid.UUID | None = None,
 ) -> WorkerBulkItem:
     """テスト用WorkerBulkItemを生成するヘルパー."""
     return WorkerBulkItem(
@@ -82,6 +86,7 @@ def _make_bulk_item(
         department_code=department_code,
         department_name=department_name,
         skill_rank_id=skill_rank_id or SKILL_RANK_ID,
+        employment_type_id=employment_type_id,
     )
 
 
@@ -461,6 +466,110 @@ class TestBulkUpsertWorkers:
             worker_service,
             "_validate_skill_rank",
             side_effect=HTTPException(status_code=404, detail="SkillRank not found"),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                worker_service.bulk_upsert_workers(session, TENANT_ID, items)
+
+        assert exc_info.value.status_code == 404
+
+    def test_creates_worker_with_employment_type(self) -> None:
+        """正常系: employment_type_id を指定して新規Workerを作成する."""
+        session = MagicMock()
+        items = [
+            _make_bulk_item(
+                employee_no="EMP001",
+                name="田中 太郎",
+                department_code="dept_1",
+                employment_type_id=EMPLOYMENT_TYPE_ID,
+            ),
+        ]
+
+        captured_workers: list[Worker] = []
+
+        def _add_side_effect(obj: object) -> None:
+            if isinstance(obj, Worker):
+                captured_workers.append(obj)
+
+        session.add.side_effect = _add_side_effect
+
+        with patch.object(worker_service, "_validate_skill_rank"), patch.object(
+            worker_service,
+            "_validate_employment_type",
+        ), patch.object(
+            worker_service,
+            "_ensure_departments",
+            return_value=({"dept_1": DEPT_ID_1}, 0),
+        ), patch.object(
+            worker_service,
+            "_fetch_workers_by_employee_nos",
+            return_value={},
+        ):
+            def _refresh(obj: Worker) -> None:
+                if isinstance(obj, Worker):
+                    obj.id = WORKER_ID_1
+                    obj.tenant_id = TENANT_ID
+                    obj.employee_no = obj.employee_no
+                    obj.name = obj.name
+                    obj.department_id = obj.department_id
+                    obj.skill_rank_id = obj.skill_rank_id
+                    obj.employment_type_id = obj.employment_type_id
+                    obj.created_at = datetime(2026, 1, 1)
+                    obj.updated_at = datetime(2026, 1, 1)
+
+            session.refresh.side_effect = _refresh
+
+            result = worker_service.bulk_upsert_workers(session, TENANT_ID, items)
+
+        assert result.created == 1
+        assert len(captured_workers) == 1
+        assert captured_workers[0].employment_type_id == EMPLOYMENT_TYPE_ID
+
+    def test_updates_employment_type_on_existing_worker(self) -> None:
+        """正常系: 既存Workerに employment_type_id を更新できる."""
+        existing = _make_worker(employee_no="EMP001", name="田中 太郎", employment_type_id=None)
+        session = MagicMock()
+
+        items = [
+            _make_bulk_item(
+                employee_no="EMP001",
+                department_code="dept_1",
+                employment_type_id=EMPLOYMENT_TYPE_ID,
+            ),
+        ]
+
+        with patch.object(worker_service, "_validate_skill_rank"), patch.object(
+            worker_service,
+            "_validate_employment_type",
+        ), patch.object(
+            worker_service,
+            "_ensure_departments",
+            return_value=({"dept_1": DEPT_ID_1}, 0),
+        ), patch.object(
+            worker_service,
+            "_fetch_workers_by_employee_nos",
+            return_value={"EMP001": existing},
+        ):
+            def _refresh(obj: Worker) -> None:
+                if isinstance(obj, Worker):
+                    obj.created_at = datetime(2026, 1, 1)
+                    obj.updated_at = datetime(2026, 1, 2)
+
+            session.refresh.side_effect = _refresh
+
+            result = worker_service.bulk_upsert_workers(session, TENANT_ID, items)
+
+        assert result.updated == 1
+        assert existing.employment_type_id == EMPLOYMENT_TYPE_ID
+
+    def test_invalid_employment_type_raises_404(self) -> None:
+        """異常系: 存在しないemployment_type_idが含まれる場合、404例外を送出する."""
+        session = MagicMock()
+        items = [_make_bulk_item(employee_no="EMP001", employment_type_id=EMPLOYMENT_TYPE_ID)]
+
+        with patch.object(worker_service, "_validate_skill_rank"), patch.object(
+            worker_service,
+            "_validate_employment_type",
+            side_effect=HTTPException(status_code=404, detail="EmploymentType not found"),
         ):
             with pytest.raises(HTTPException) as exc_info:
                 worker_service.bulk_upsert_workers(session, TENANT_ID, items)

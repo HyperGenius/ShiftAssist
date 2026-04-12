@@ -65,6 +65,7 @@ export interface WorkerBulkItem {
   department_code: string;
   department_name?: string | null;
   skill_rank_id: string;
+  employment_type_id?: string | null;
   joined_at?: string | null;
 }
 

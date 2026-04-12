@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { SciFiButton } from "@/components/ui/SciFiButton";
 import { SciFiHeading } from "@/components/ui/SciFiHeading";
 import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { useEmploymentTypes } from "@/hooks/useEmploymentTypes";
 import { useSkillRanks } from "@/hooks/useSkillRanks";
 import { useWorkers } from "@/hooks/useWorkers";
 import type {
@@ -104,6 +105,7 @@ interface WorkerBulkUploadPanelProps {
 export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
   const { previewBulkUpload, bulkUploadWorkers } = useWorkers();
   const { skillRanks } = useSkillRanks();
+  const { employmentTypes } = useEmploymentTypes();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isDragging, setIsDragging] = useState(false);
@@ -117,6 +119,12 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
   const validSkillRankIds = useMemo(
     () => new Set(skillRanks.map((r) => r.id)),
     [skillRanks],
+  );
+
+  /** 雇用形態IDのセット（バリデーション用） */
+  const validEmploymentTypeIds = useMemo(
+    () => new Set(employmentTypes.map((et) => et.id)),
+    [employmentTypes],
   );
 
   /** JSON文字列をパースして検証する */
@@ -175,6 +183,17 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
           );
           return null;
         }
+        // employment_type_id の検証（指定された場合のみ）
+        if (
+          typeof item.employment_type_id === "string" &&
+          validEmploymentTypeIds.size > 0 &&
+          !validEmploymentTypeIds.has(item.employment_type_id)
+        ) {
+          setParseError(
+            `配列の${i + 1}番目の要素の "employment_type_id"（${item.employment_type_id}）が見つかりません。`,
+          );
+          return null;
+        }
         items.push({
           employee_no: item.employee_no.trim(),
           name: item.name.trim(),
@@ -182,6 +201,8 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
           department_name:
             typeof item.department_name === "string" ? item.department_name.trim() || null : null,
           skill_rank_id: item.skill_rank_id,
+          employment_type_id:
+            typeof item.employment_type_id === "string" ? item.employment_type_id : null,
           joined_at:
             typeof item.joined_at === "string" ? item.joined_at : null,
         });
@@ -194,7 +215,7 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
 
       return items;
     },
-    [validSkillRankIds],
+    [validSkillRankIds, validEmploymentTypeIds],
   );
 
   /** ファイルを読み込んでパースする */
@@ -327,7 +348,8 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
     "name": "田中 太郎",
     "department_code": "dept_1",
     "department_name": "1課",
-    "skill_rank_id": "<UUID>"
+    "skill_rank_id": "<UUID>",
+    "employment_type_id": "<UUID>（任意）"
   }
 ]`}
       </pre>
