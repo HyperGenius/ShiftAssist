@@ -561,20 +561,30 @@ def _resolve_worker_attributes(
     Returns:
         (position_name, department_name, skill_rank_name, emp_type_name, is_non_default)
     """
-    position_name = position_map.get(worker.position_id) if worker.position_id else None  # type: ignore[arg-type]
-    department_name = department_map.get(worker.department_id) if worker.department_id else None  # type: ignore[arg-type]
-    skill_rank_name = skill_rank_map.get(worker.skill_rank_id) if worker.skill_rank_id else None  # type: ignore[arg-type]
+    position_name = position_map.get(worker.position_id) if worker.position_id else None  # type: ignore[call-overload]
+    department_name = (
+        department_map.get(worker.department_id) if worker.department_id else None  # type: ignore[call-overload]
+    )
+    skill_rank_name = (
+        skill_rank_map.get(worker.skill_rank_id) if worker.skill_rank_id else None  # type: ignore[call-overload]
+    )
 
     emp_type_name: str | None = None
     is_non_default = bool(worker.is_special)
     if worker.employment_type_id:
-        et = employment_type_map.get(worker.employment_type_id)  # type: ignore[arg-type]
+        et = employment_type_map.get(worker.employment_type_id)  # type: ignore[call-overload]
         if et is not None:
             emp_type_name, is_default = et
             if not is_default:
                 is_non_default = True
 
-    return position_name, department_name, skill_rank_name, emp_type_name, is_non_default
+    return (
+        position_name,
+        department_name,
+        skill_rank_name,
+        emp_type_name,
+        is_non_default,
+    )
 
 
 def get_aggregate_stats(
@@ -614,23 +624,24 @@ def get_aggregate_stats(
     positions = session.exec(
         select(Position).where(Position.tenant_id == tenant_id)
     ).all()
-    position_map: dict[uuid.UUID, str] = {p.id: p.name for p in positions}  # type: ignore[index]
+    position_map: dict[uuid.UUID, str] = {p.id: p.name for p in positions}  # type: ignore[misc]
 
     departments = session.exec(
         select(Department).where(Department.tenant_id == tenant_id)
     ).all()
-    department_map: dict[uuid.UUID, str] = {d.id: d.name for d in departments}  # type: ignore[index]
+    department_map: dict[uuid.UUID, str] = {d.id: d.name for d in departments}  # type: ignore[misc]
 
     skill_ranks = session.exec(
         select(TenantSkillRank).where(TenantSkillRank.tenant_id == tenant_id)
     ).all()
-    skill_rank_map: dict[uuid.UUID, str] = {s.id: s.name for s in skill_ranks}  # type: ignore[index]
+    skill_rank_map: dict[uuid.UUID, str] = {s.id: s.name for s in skill_ranks}  # type: ignore[misc]
 
     employment_types = session.exec(
         select(EmploymentType).where(EmploymentType.tenant_id == tenant_id)
     ).all()
     employment_type_map: dict[uuid.UUID, tuple[str, bool]] = {
-        e.id: (e.name, bool(e.is_default)) for e in employment_types  # type: ignore[index]
+        e.id: (e.name, bool(e.is_default))  # type: ignore[misc]
+        for e in employment_types
     }
 
     # 集計テーブルから直近12ヶ月分のデータを取得
@@ -676,10 +687,14 @@ def get_aggregate_stats(
         )
         worker_counts = counts_map.get(worker.id, {})  # type: ignore[call-overload]
 
-        position_name, department_name, skill_rank_name, emp_type_name, is_non_default = (
-            _resolve_worker_attributes(
-                worker, position_map, department_map, skill_rank_map, employment_type_map
-            )
+        (
+            position_name,
+            department_name,
+            skill_rank_name,
+            emp_type_name,
+            is_non_default,
+        ) = _resolve_worker_attributes(
+            worker, position_map, department_map, skill_rank_map, employment_type_map
         )
 
         slot_stats = _build_slot_stats(worker_counts, effective_months)

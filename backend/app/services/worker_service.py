@@ -448,7 +448,8 @@ def preview_bulk_upsert_workers(
         dept_is_new = item.department_code in new_dept_codes
         resolved_et_id: uuid.UUID | None = (
             et_name_to_id[item.employment_type_name.strip()]
-            if item.employment_type_name is not None and item.employment_type_name.strip()
+            if item.employment_type_name is not None
+            and item.employment_type_name.strip()
             else None
         )
 
@@ -560,7 +561,8 @@ def bulk_upsert_workers(
         existing = existing_map.get(item.employee_no)
         resolved_et_id: uuid.UUID | None = (
             et_name_to_id[item.employment_type_name.strip()]
-            if item.employment_type_name is not None and item.employment_type_name.strip()
+            if item.employment_type_name is not None
+            and item.employment_type_name.strip()
             else None
         )
 
