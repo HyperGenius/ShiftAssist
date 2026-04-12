@@ -184,12 +184,9 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
           return null;
         }
         // employment_type_name の検証（指定された場合のみ）
-        if (
-          typeof item.employment_type_name === "string" &&
-          item.employment_type_name.trim() !== "" &&
-          validEmploymentTypeNames.size > 0 &&
-          !validEmploymentTypeNames.has(item.employment_type_name.trim())
-        ) {
+        const etName =
+          typeof item.employment_type_name === "string" ? item.employment_type_name.trim() : "";
+        if (etName !== "" && validEmploymentTypeNames.size > 0 && !validEmploymentTypeNames.has(etName)) {
           setParseError(
             `配列の${i + 1}番目の要素の "employment_type_name"（${item.employment_type_name}）が見つかりません。`,
           );
@@ -202,8 +199,7 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
           department_name:
             typeof item.department_name === "string" ? item.department_name.trim() || null : null,
           skill_rank_id: item.skill_rank_id,
-          employment_type_name:
-            typeof item.employment_type_name === "string" ? item.employment_type_name.trim() || null : null,
+          employment_type_name: etName || null,
           joined_at:
             typeof item.joined_at === "string" ? item.joined_at : null,
         });

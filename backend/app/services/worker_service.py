@@ -420,7 +420,11 @@ def preview_bulk_upsert_workers(
     _validate_no_duplicate_employee_nos(items)
 
     # 雇用形態名→IDマップを事前解決
-    et_names = {item.employment_type_name for item in items if item.employment_type_name is not None}
+    et_names = {
+        item.employment_type_name.strip()
+        for item in items
+        if item.employment_type_name is not None and item.employment_type_name.strip()
+    }
     et_name_to_id = _resolve_employment_types_by_name(session, tenant_id, et_names)
 
     # 既存Workerの取得
@@ -443,7 +447,9 @@ def preview_bulk_upsert_workers(
         existing = existing_map.get(item.employee_no)
         dept_is_new = item.department_code in new_dept_codes
         resolved_et_id: uuid.UUID | None = (
-            et_name_to_id[item.employment_type_name] if item.employment_type_name is not None else None
+            et_name_to_id[item.employment_type_name.strip()]
+            if item.employment_type_name is not None and item.employment_type_name.strip()
+            else None
         )
 
         if existing is None:
@@ -532,7 +538,11 @@ def bulk_upsert_workers(
         _validate_skill_rank(session, tenant_id, skill_rank_id)
 
     # 雇用形態名→IDマップを事前解決（指定がある場合のみ）
-    et_names = {item.employment_type_name for item in items if item.employment_type_name is not None}
+    et_names = {
+        item.employment_type_name.strip()
+        for item in items
+        if item.employment_type_name is not None and item.employment_type_name.strip()
+    }
     et_name_to_id = _resolve_employment_types_by_name(session, tenant_id, et_names)
 
     # 課コードを解決し、未登録の課を自動生成
@@ -549,7 +559,9 @@ def bulk_upsert_workers(
         department_id = dept_id_map[item.department_code]
         existing = existing_map.get(item.employee_no)
         resolved_et_id: uuid.UUID | None = (
-            et_name_to_id[item.employment_type_name] if item.employment_type_name is not None else None
+            et_name_to_id[item.employment_type_name.strip()]
+            if item.employment_type_name is not None and item.employment_type_name.strip()
+            else None
         )
 
         if existing is None:
