@@ -198,13 +198,13 @@ export function WorkerListPanel({
       <div className="flex-1 overflow-auto">
         {/* グリッドヘッダー（縦スクロール時に上部固定） */}
         {!showAll && activeSlotType && workers.length > 0 && (
-          <div className={`sticky top-0 z-10 grid items-center gap-x-1 px-1.5 py-0.5 bg-gray-50 border-b border-gray-100 text-[9px] text-gray-400 min-w-max ${SMART_SUGGEST_GRID_COLS}`}>
+          <div className={`sticky top-0 z-10 grid items-center gap-x-2 px-1.5 py-0.5 bg-gray-50 border-b border-gray-100 text-[9px] text-gray-400 min-w-max ${SMART_SUGGEST_GRID_COLS}`}>
             <div />
             <div />
             <span>氏名</span>
             <span>所属課</span>
             <span>役職</span>
-            <span className="text-right">回数(月平均)</span>
+            <span>回数(月平均)</span>
           </div>
         )}
 

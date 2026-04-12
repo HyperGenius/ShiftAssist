@@ -8,7 +8,7 @@ import type { TenantSkillRank } from "@/types/skillRank";
 import type { Worker } from "@/types/worker";
 
 /** スマートサジェスト行の CSS Grid カラム定義 */
-export const SMART_SUGGEST_GRID_COLS = "grid-cols-[18px_20px_auto_60px_60px_76px]";
+export const SMART_SUGGEST_GRID_COLS = "grid-cols-[18px_20px_80px_40px_40px_76px]";
 
 interface SmartSuggestRowProps {
   worker: Worker;
@@ -96,7 +96,7 @@ export function SmartSuggestRow({
             title={employmentTypeName}
             aria-label={`雇用形態: ${employmentTypeName}`}
           >
-            {employmentTypeName.slice(0, 2)}
+            {employmentTypeName.slice(0, 1)}
           </span>
         ) : (
           <span className="inline-block w-[14px]" />
@@ -123,7 +123,7 @@ export function SmartSuggestRow({
       </span>
 
       {/* 列6: 集計情報 */}
-      <span className="text-right text-gray-400 text-[10px] whitespace-nowrap">
+      <span className="text-center text-gray-400 text-[10px] whitespace-nowrap">
         {statsText}
       </span>
     </div>
