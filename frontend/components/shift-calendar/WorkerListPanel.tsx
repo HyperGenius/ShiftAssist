@@ -194,69 +194,72 @@ export function WorkerListPanel({
         </div>
       )}
 
-      {/* グリッドヘッダー */}
-      {!showAll && activeSlotType && workers.length > 0 && (
-        <div className={`grid items-center gap-x-1 px-1.5 py-0.5 bg-gray-50 border-b border-gray-100 text-[9px] text-gray-400 ${SMART_SUGGEST_GRID_COLS}`}>
-          <div />
-          <div />
-          <span>氏名</span>
-          <span>所属課</span>
-          <span>役職</span>
-          <span className="text-right">回数(月平均)</span>
-        </div>
-      )}
+      {/* グリッドヘッダー + Workerリスト（横スクロール領域） */}
+      <div className="flex-1 overflow-auto">
+        {/* グリッドヘッダー（縦スクロール時に上部固定） */}
+        {!showAll && activeSlotType && workers.length > 0 && (
+          <div className={`sticky top-0 z-10 grid items-center gap-x-1 px-1.5 py-0.5 bg-gray-50 border-b border-gray-100 text-[9px] text-gray-400 min-w-max ${SMART_SUGGEST_GRID_COLS}`}>
+            <div />
+            <div />
+            <span>氏名</span>
+            <span>所属課</span>
+            <span>役職</span>
+            <span className="text-right">回数(月平均)</span>
+          </div>
+        )}
 
-      {/* Workerリスト */}
-      <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1">
-        {workers.length === 0 ? (
-          <p className="text-[11px] text-gray-400 text-center py-4">
-            対応者が登録されていません
-          </p>
-        ) : showAll ? (
-          // 全表示モード: フィルタで除外されるWorkerを薄く表示
-          workers.map((w) => (
-            <WorkerCard
-              key={w.id}
-              worker={w}
-              departments={departments}
-              skillRanks={skillRanks}
-              disabled={!availableIds.has(w.id)}
-            />
-          ))
-        ) : (
-          // スマートサジェストモード: 6カラムGrid表示 + スマートソート
-          sortedAvailableWorkers.map((w) => {
-            const statsItem = aggregateStatsMap.get(w.id);
-            const slotStat = activeSlotType
-              ? statsItem?.slot_stats.find((s) => s.slot_type === activeSlotType) ?? null
-              : null;
-            const positionName = statsItem?.position_name ?? null;
-            const employmentTypeName =
-              statsItem?.employment_type_name ??
-              (w.employment_type_id
-                ? (employmentTypeNameById.get(w.employment_type_id) ?? null)
-                : null);
-            const isNonDefaultEmployment =
-              statsItem?.is_non_default_employment ?? w.is_special ?? false;
-
-            return (
-              <SmartSuggestRow
+        {/* Workerリスト */}
+        <div className="min-w-max px-2 py-2 space-y-1">
+          {workers.length === 0 ? (
+            <p className="text-[11px] text-gray-400 text-center py-4">
+              対応者が登録されていません
+            </p>
+          ) : showAll ? (
+            // 全表示モード: フィルタで除外されるWorkerを薄く表示
+            workers.map((w) => (
+              <WorkerCard
                 key={w.id}
                 worker={w}
                 departments={departments}
                 skillRanks={skillRanks}
-                positionName={positionName}
-                employmentTypeName={employmentTypeName}
-                isNonDefaultEmployment={isNonDefaultEmployment}
-                slotStats={
-                  slotStat
-                    ? { count: slotStat.count, monthlyAvg: slotStat.monthly_avg }
-                    : null
-                }
+                disabled={!availableIds.has(w.id)}
               />
-            );
-          })
-        )}
+            ))
+          ) : (
+            // スマートサジェストモード: 6カラムGrid表示 + スマートソート
+            sortedAvailableWorkers.map((w) => {
+              const statsItem = aggregateStatsMap.get(w.id);
+              const slotStat = activeSlotType
+                ? statsItem?.slot_stats.find((s) => s.slot_type === activeSlotType) ?? null
+                : null;
+              const positionName = statsItem?.position_name ?? null;
+              const employmentTypeName =
+                statsItem?.employment_type_name ??
+                (w.employment_type_id
+                  ? (employmentTypeNameById.get(w.employment_type_id) ?? null)
+                  : null);
+              const isNonDefaultEmployment =
+                statsItem?.is_non_default_employment ?? w.is_special ?? false;
+
+              return (
+                <SmartSuggestRow
+                  key={w.id}
+                  worker={w}
+                  departments={departments}
+                  skillRanks={skillRanks}
+                  positionName={positionName}
+                  employmentTypeName={employmentTypeName}
+                  isNonDefaultEmployment={isNonDefaultEmployment}
+                  slotStats={
+                    slotStat
+                      ? { count: slotStat.count, monthlyAvg: slotStat.monthly_avg }
+                      : null
+                  }
+                />
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* アクティブスロットなし時のヒント */}
