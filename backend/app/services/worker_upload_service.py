@@ -18,6 +18,7 @@ from sqlmodel import Session, select
 from app.models.models import (
     Branch,
     Department,
+    EmploymentType,
     Position,
     TenantSkillRank,
     TransferTypeEnum,
@@ -44,6 +45,7 @@ _COL_TRANSFER_TYPE = "異動種別"
 _COL_TRANSFER_SCHEDULED_MONTH = "異動予定月"
 _COL_IS_CROSS_DIVISION = "事業本部変更の有無"
 _COL_SKILL_RANK_NAME = "スキルランク名"
+_COL_EMPLOYMENT_TYPE_NAME = "雇用形態名"
 
 # 必須列
 _REQUIRED_COLS = {_COL_EMPLOYEE_CODE, _COL_NAME}
@@ -178,6 +180,16 @@ def _fetch_skill_ranks_by_name(
     """テナントの全スキルランクを名前→IDマップで取得する."""
     rows = session.exec(
         select(TenantSkillRank).where(TenantSkillRank.tenant_id == tenant_id)
+    ).all()
+    return {str(row.name): row.id for row in rows}  # type: ignore[misc]
+
+
+def _fetch_employment_types_by_name(
+    session: Session, tenant_id: str
+) -> dict[str, uuid.UUID]:
+    """テナントの全雇用形態を名前→IDマップで取得する."""
+    rows = session.exec(
+        select(EmploymentType).where(EmploymentType.tenant_id == tenant_id)
     ).all()
     return {str(row.name): row.id for row in rows}  # type: ignore[misc]
 
@@ -321,9 +333,11 @@ class _ParsedRow:
         "transfer_scheduled_month",
         "is_cross_division_transfer",
         "skill_rank_name",
+        "employment_type_name",
         "position_id",
         "department_id",
         "skill_rank_id",
+        "employment_type_id",
         "errors",
     )
 
@@ -341,9 +355,11 @@ class _ParsedRow:
         self.transfer_scheduled_month: str | None = None
         self.is_cross_division_transfer: bool | None = None
         self.skill_rank_name: str | None = None
+        self.employment_type_name: str | None = None
         self.position_id: uuid.UUID | None = None
         self.department_id: uuid.UUID | None = None
         self.skill_rank_id: uuid.UUID | None = None
+        self.employment_type_id: uuid.UUID | None = None
         self.errors: list[str] = []
 
 
@@ -392,8 +408,12 @@ def _resolve_names_for_row(
     branch_map: dict[str, uuid.UUID],
     department_map: dict[str, Department],
     skill_rank_map: dict[str, uuid.UUID],
+    employment_type_map: dict[str, uuid.UUID],
 ) -> None:
-    """行の名前フィールドをマスタと照合してIDに解決し _ParsedRow に設定する."""
+    """行の名前フィールドをマスタと照合してIDに解決し _ParsedRow に設定する.
+
+    雇用形態の解決は複雑度制限のため _resolve_employment_type_for_row に委譲する。
+    """
     i = pr.row_index
 
     pos_name = row.get(_COL_POSITION_NAME, "").strip()
@@ -431,6 +451,26 @@ def _resolve_names_for_row(
         else:
             pr.skill_rank_id = sr_id
 
+    _resolve_employment_type_for_row(pr, row, employment_type_map)
+
+
+def _resolve_employment_type_for_row(
+    pr: _ParsedRow,
+    row: dict[str, str],
+    employment_type_map: dict[str, uuid.UUID],
+) -> None:
+    """行の雇用形態名をIDに解決して _ParsedRow に設定する."""
+    et_name = row.get(_COL_EMPLOYMENT_TYPE_NAME, "").strip()
+    if et_name:
+        pr.employment_type_name = et_name
+        et_id = employment_type_map.get(et_name)
+        if et_id is None:
+            pr.errors.append(
+                f"行{pr.row_index}: 雇用形態名『{et_name}』は登録されていません。"
+            )
+        else:
+            pr.employment_type_id = et_id
+
 
 def _parse_single_row(
     row_index: int,
@@ -439,6 +479,7 @@ def _parse_single_row(
     branch_map: dict[str, uuid.UUID],
     department_map: dict[str, Department],
     skill_rank_map: dict[str, uuid.UUID],
+    employment_type_map: dict[str, uuid.UUID],
 ) -> _ParsedRow:
     """1行をパース・バリデーション・名前解決して _ParsedRow を返す."""
     pr = _ParsedRow(row_index)
@@ -455,7 +496,7 @@ def _parse_single_row(
 
     _parse_scalar_fields(pr, row)
     _resolve_names_for_row(
-        pr, row, position_map, branch_map, department_map, skill_rank_map
+        pr, row, position_map, branch_map, department_map, skill_rank_map, employment_type_map
     )
 
     return pr
@@ -467,6 +508,7 @@ def _parse_rows(
     branch_map: dict[str, uuid.UUID],
     department_map: dict[str, Department],
     skill_rank_map: dict[str, uuid.UUID],
+    employment_type_map: dict[str, uuid.UUID],
 ) -> list[_ParsedRow]:
     """生の行データをパース・バリデーション・名前解決する.
 
@@ -476,13 +518,14 @@ def _parse_rows(
         branch_map: 支所名→UUID マッピング。
         department_map: 課名→Departmentオブジェクト マッピング。
         skill_rank_map: スキルランク名→UUID マッピング。
+        employment_type_map: 雇用形態名→UUID マッピング。
 
     Returns:
         パース済み行データのリスト（エラーがあってもリストに含まれる）。
     """
     return [
         _parse_single_row(
-            i, row, position_map, branch_map, department_map, skill_rank_map
+            i, row, position_map, branch_map, department_map, skill_rank_map, employment_type_map
         )
         for i, row in enumerate(raw_rows, start=2)
     ]
@@ -492,7 +535,10 @@ def _parse_rows(
 
 
 def _worker_to_row_values(
-    worker: Worker, dept_name: str | None, pos_name: str | None
+    worker: Worker,
+    dept_name: str | None,
+    pos_name: str | None,
+    et_name: str | None = None,
 ) -> WorkerUploadRowValues:
     """WorkerオブジェクトをWorkerUploadRowValuesに変換する."""
     return WorkerUploadRowValues(
@@ -514,6 +560,7 @@ def _worker_to_row_values(
             if worker.is_cross_division_transfer is not None
             else None
         ),
+        employment_type_name=et_name,
     )
 
 
@@ -528,6 +575,7 @@ def _parsed_to_row_values(pr: _ParsedRow) -> WorkerUploadRowValues:
         transfer_type=str(pr.transfer_type.value) if pr.transfer_type else None,
         transfer_scheduled_month=pr.transfer_scheduled_month,
         is_cross_division_transfer=pr.is_cross_division_transfer,
+        employment_type_name=pr.employment_type_name,
     )
 
 
@@ -548,6 +596,8 @@ def _is_row_changed(
         and before.transfer_scheduled_month != after.transfer_scheduled_month,
         after.is_cross_division_transfer is not None
         and before.is_cross_division_transfer != after.is_cross_division_transfer,
+        after.employment_type_name is not None
+        and before.employment_type_name != after.employment_type_name,
     ]
     return any(checks)
 
@@ -557,16 +607,23 @@ def _build_diff_for_existing(
     existing: Worker,
     dept_id_to_name: dict[str, str],
     pos_id_to_name: dict[str, str],
+    et_id_to_name: dict[str, str],
 ) -> tuple[WorkerUploadDiffItem, bool]:
     """既存Workerと新データを比較して差分アイテムを構築する.
 
     Returns:
         (WorkerUploadDiffItem, is_updated) のタプル。
     """
+    existing_et_name = (
+        et_id_to_name.get(str(existing.employment_type_id))
+        if existing.employment_type_id
+        else None
+    )
     before_vals = _worker_to_row_values(
         existing,
         dept_id_to_name.get(str(existing.department_id)),
         pos_id_to_name.get(str(existing.position_id)) if existing.position_id else None,
+        existing_et_name,
     )
     after_vals = _parsed_to_row_values(pr)
     changed = _is_row_changed(before_vals, after_vals)
@@ -605,9 +662,10 @@ def preview_upload(
     branch_map = _fetch_branches_by_name(session, tenant_id)
     department_map = _fetch_departments_by_name(session, tenant_id)
     skill_rank_map = _fetch_skill_ranks_by_name(session, tenant_id)
+    employment_type_map = _fetch_employment_types_by_name(session, tenant_id)
 
     parsed_rows = _parse_rows(
-        raw_rows, position_map, branch_map, department_map, skill_rank_map
+        raw_rows, position_map, branch_map, department_map, skill_rank_map, employment_type_map
     )
 
     valid_codes = [
@@ -617,6 +675,7 @@ def preview_upload(
 
     dept_id_to_name = {str(dept.id): name for name, dept in department_map.items()}
     pos_id_to_name = {str(v): k for k, v in position_map.items()}
+    et_id_to_name = {str(v): k for k, v in employment_type_map.items()}
 
     error_rows: list[WorkerUploadErrorRow] = []
     diff_items: list[WorkerUploadDiffItem] = []
@@ -647,7 +706,7 @@ def preview_upload(
             create_count += 1
         else:
             diff_item, changed = _build_diff_for_existing(
-                pr, existing, dept_id_to_name, pos_id_to_name
+                pr, existing, dept_id_to_name, pos_id_to_name, et_id_to_name
             )
             diff_items.append(diff_item)
             if changed:
@@ -721,6 +780,8 @@ def _apply_updates_to_worker(existing: Worker, pr: _ParsedRow) -> None:
         existing.position_id = pr.position_id  # type: ignore[assignment]
     if pr.skill_rank_id is not None:
         existing.skill_rank_id = pr.skill_rank_id  # type: ignore[assignment]
+    if pr.employment_type_id is not None:
+        existing.employment_type_id = pr.employment_type_id  # type: ignore[assignment]
     if pr.birth_date is not None:
         existing.birth_date = pr.birth_date  # type: ignore[assignment]
     if pr.skill_acquired_at is not None:
@@ -755,6 +816,7 @@ def _upsert_single_row(
             department_id=pr.department_id,
             skill_rank_id=pr.skill_rank_id,
             position_id=pr.position_id,
+            employment_type_id=pr.employment_type_id,
             birth_date=pr.birth_date,
             skill_acquired_at=pr.skill_acquired_at,
             transfer_type=pr.transfer_type,
@@ -794,9 +856,10 @@ def execute_upload(
     branch_map = _fetch_branches_by_name(session, tenant_id)
     department_map = _fetch_departments_by_name(session, tenant_id)
     skill_rank_map = _fetch_skill_ranks_by_name(session, tenant_id)
+    employment_type_map = _fetch_employment_types_by_name(session, tenant_id)
 
     parsed_rows = _parse_rows(
-        raw_rows, position_map, branch_map, department_map, skill_rank_map
+        raw_rows, position_map, branch_map, department_map, skill_rank_map, employment_type_map
     )
     valid_rows = _validate_upload_rows(parsed_rows)
 

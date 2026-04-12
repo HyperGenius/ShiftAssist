@@ -414,6 +414,7 @@ class WorkerUploadRowValues(BaseModel):
     transfer_type: str | None = None
     transfer_scheduled_month: str | None = None
     is_cross_division_transfer: bool | None = None
+    employment_type_name: str | None = None
 
 
 class WorkerUploadDiffItem(BaseModel):

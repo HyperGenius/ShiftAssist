@@ -208,11 +208,12 @@ def _make_session_mock(
     branches: list = (),
     departments: list = (),
     skill_ranks: list = (),
+    employment_types: list = (),
     workers: list = (),
 ) -> MagicMock:
     """指定したマスタデータを返すセッションMockを作成する."""
     session = MagicMock()
-    results = [positions, branches, departments, skill_ranks, workers]
+    results = [positions, branches, departments, skill_ranks, employment_types, workers]
 
     def make_exec_result(data: list) -> MagicMock:
         r = MagicMock()
@@ -320,8 +321,8 @@ class TestExecuteUpload:
         dept = _make_dept()
         session = MagicMock()
 
-        # マスタフェッチ + 既存Worker取得のmock（5回のexec呼び出し）
-        results = [[], [], [dept], [], []]  # positions, branches, depts, skill_ranks, workers
+        # マスタフェッチ + 既存Worker取得のmock（6回のexec呼び出し）
+        results = [[], [], [dept], [], [], []]  # positions, branches, depts, skill_ranks, employment_types, workers
 
         def make_r(data: list) -> MagicMock:
             r = MagicMock()
@@ -365,7 +366,7 @@ class TestExecuteUpload:
         existing = _make_worker(name="旧名前")
         session = MagicMock()
 
-        results = [[], [], [dept], [], [existing]]
+        results = [[], [], [dept], [], [], [existing]]  # positions, branches, depts, skill_ranks, employment_types, workers
 
         def make_r(data: list) -> MagicMock:
             r = MagicMock()
@@ -393,7 +394,7 @@ class TestExecuteUpload:
         """バリデーションエラーがある場合、422例外を送出する."""
         session = MagicMock()
 
-        results = [[], [], [], [], []]
+        results = [[], [], [], [], [], []]  # 6 items: positions, branches, depts, skill_ranks, employment_types, workers
 
         def make_r(data: list) -> MagicMock:
             r = MagicMock()
@@ -414,7 +415,7 @@ class TestExecuteUpload:
         """重複する職員番号がある場合、422例外を送出する."""
         session = MagicMock()
 
-        results = [[], [], [], [], []]
+        results = [[], [], [], [], [], []]  # 6 items
 
         def make_r(data: list) -> MagicMock:
             r = MagicMock()
@@ -433,3 +434,119 @@ class TestExecuteUpload:
 
         assert exc_info.value.status_code == 422
         assert "E001" in exc_info.value.detail
+
+
+# ---------------------------------------------------------------------------
+# 雇用形態名サポート
+# ---------------------------------------------------------------------------
+
+
+ET_ID_1 = uuid.uuid4()
+
+
+def _make_employment_type(
+    et_id: uuid.UUID = ET_ID_1, name: str = "正職員"
+) -> MagicMock:
+    """テスト用EmploymentTypeモックを生成する."""
+    et = MagicMock()
+    et.id = et_id
+    et.name = name
+    et.tenant_id = TENANT_ID
+    return et
+
+
+class TestEmploymentTypeName:
+    """雇用形態名の CSV サポートに関するテスト."""
+
+    def test_preview_with_employment_type_name(self) -> None:
+        """雇用形態名を指定した行はcreateアクションで表示される."""
+        dept = _make_dept()
+        et = _make_employment_type()
+        session = _make_session_mock(departments=[dept], employment_types=[et], workers=[])
+        raw_rows = [{"職員番号": "E001", "氏名": "田中 太郎", "課名": "1課", "雇用形態名": "正職員"}]
+
+        result = worker_upload_service.preview_upload(session, TENANT_ID, raw_rows)
+
+        assert result.create_count == 1
+        assert result.diff_items[0].after.employment_type_name == "正職員"
+
+    def test_preview_unknown_employment_type_creates_error_row(self) -> None:
+        """未登録の雇用形態名はエラー行として表示される."""
+        session = _make_session_mock()
+        raw_rows = [{"職員番号": "E001", "氏名": "田中 太郎", "雇用形態名": "未登録雇用形態"}]
+
+        result = worker_upload_service.preview_upload(session, TENANT_ID, raw_rows)
+
+        assert result.error_count == 1
+        assert any("未登録雇用形態" in e for e in result.error_rows[0].errors)
+
+    def test_execute_sets_employment_type_on_new_worker(self) -> None:
+        """新規Worker作成時に雇用形態IDが設定される."""
+        dept = _make_dept()
+        et = _make_employment_type()
+        session = MagicMock()
+        results = [[], [], [dept], [], [et], []]  # positions, branches, depts, skill_ranks, employment_types, workers
+
+        def make_r(data: list) -> MagicMock:
+            r = MagicMock()
+            r.all.return_value = list(data)
+            return r
+
+        session.exec.side_effect = [make_r(d) for d in results]
+
+        captured_workers: list[Worker] = []
+
+        def _add(obj: object) -> None:
+            if isinstance(obj, Worker):
+                obj.id = WORKER_ID_1  # type: ignore[assignment]
+                captured_workers.append(obj)
+
+        session.add.side_effect = _add
+
+        def _refresh(obj: object) -> None:
+            if isinstance(obj, Worker):
+                obj.id = WORKER_ID_1  # type: ignore[assignment]
+                obj.tenant_id = TENANT_ID  # type: ignore[assignment]
+                obj.is_special = False  # type: ignore[assignment]
+                if obj.skill_rank_id is None:
+                    obj.skill_rank_id = SR_ID_1  # type: ignore[assignment]
+                obj.created_at = datetime(2026, 1, 1)  # type: ignore[assignment]
+                obj.updated_at = datetime(2026, 1, 1)  # type: ignore[assignment]
+
+        session.refresh.side_effect = _refresh
+
+        raw_rows = [{"職員番号": "E001", "氏名": "田中 太郎", "課名": "1課", "雇用形態名": "正職員"}]
+        result = worker_upload_service.execute_upload(session, TENANT_ID, raw_rows)
+
+        assert result.created == 1
+        assert len(captured_workers) == 1
+        assert captured_workers[0].employment_type_id == ET_ID_1
+
+    def test_execute_updates_employment_type_on_existing_worker(self) -> None:
+        """既存Workerの雇用形態を更新できる."""
+        dept = _make_dept()
+        et = _make_employment_type()
+        existing = _make_worker()
+        existing.employment_type_id = None
+        session = MagicMock()
+        results = [[], [], [dept], [], [et], [existing]]
+
+        def make_r(data: list) -> MagicMock:
+            r = MagicMock()
+            r.all.return_value = list(data)
+            return r
+
+        session.exec.side_effect = [make_r(d) for d in results]
+
+        def _refresh(obj: object) -> None:
+            if isinstance(obj, Worker):
+                obj.created_at = datetime(2026, 1, 1)  # type: ignore[assignment]
+                obj.updated_at = datetime(2026, 1, 2)  # type: ignore[assignment]
+
+        session.refresh.side_effect = _refresh
+
+        raw_rows = [{"職員番号": "E001", "氏名": "田中 太郎", "課名": "1課", "雇用形態名": "正職員"}]
+        result = worker_upload_service.execute_upload(session, TENANT_ID, raw_rows)
+
+        assert result.updated == 1
+        assert existing.employment_type_id == ET_ID_1

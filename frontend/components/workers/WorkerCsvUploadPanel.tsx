@@ -14,6 +14,7 @@ import type {
   WorkerUploadErrorRow,
   WorkerUploadPreviewResponse,
 } from "@/types/worker";
+import { CheckIcon, CountBadge, UploadIcon } from "./WorkerUploadShared";
 
 const ACTION_LABELS: Record<WorkerUploadDiffItem["action"], string> = {
   create: "新規追加",
@@ -64,6 +65,7 @@ function DiffTable({ diffItems }: { diffItems: WorkerUploadDiffItem[] }) {
             <th className="px-3 py-2 text-gray-500 font-medium">役職名</th>
             <th className="px-3 py-2 text-gray-500 font-medium">生年月日</th>
             <th className="px-3 py-2 text-gray-500 font-medium">異動種別</th>
+            <th className="px-3 py-2 text-gray-500 font-medium">雇用形態名</th>
           </tr>
         </thead>
         <tbody>
@@ -112,6 +114,13 @@ function DiffTable({ diffItems }: { diffItems: WorkerUploadDiffItem[] }) {
                   action={item.action}
                 />
               </td>
+              <td className="px-3 py-2">
+                <DiffCell
+                  before={item.before?.employment_type_name}
+                  after={item.after.employment_type_name}
+                  action={item.action}
+                />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -155,26 +164,6 @@ function ErrorTable({ errorRows }: { errorRows: WorkerUploadErrorRow[] }) {
         </tbody>
       </table>
     </div>
-  );
-}
-
-/** 件数バッジ */
-function CountBadge({
-  label,
-  count,
-  colorClass,
-}: {
-  label: string;
-  count: number;
-  colorClass: string;
-}) {
-  if (count === 0) return null;
-  return (
-    <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${colorClass}`}
-    >
-      {label}: {count}件
-    </span>
   );
 }
 
@@ -295,7 +284,7 @@ export function WorkerCsvUploadPanel({ onClose }: WorkerCsvUploadPanelProps) {
         <br />
         <span className="text-gray-400">任意:</span>{" "}
         生年月日, 現在のスキル取得日, 役職名, 支所名, 課名, 異動種別, 異動予定月,
-        事業本部変更の有無, スキルランク名
+        事業本部変更の有無, スキルランク名, 雇用形態名
       </div>
 
       {/* ドラッグ＆ドロップ エリア */}
@@ -318,20 +307,7 @@ export function WorkerCsvUploadPanel({ onClose }: WorkerCsvUploadPanelProps) {
             if (e.key === "Enter" || e.key === " ") fileInputRef.current?.click();
           }}
         >
-          <svg
-            className="w-10 h-10 mx-auto mb-3 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
-            />
-          </svg>
+          <UploadIcon />
           <p className="text-sm text-gray-500">
             CSV/Excelファイルをここにドラッグ＆ドロップ
           </p>
@@ -363,20 +339,7 @@ export function WorkerCsvUploadPanel({ onClose }: WorkerCsvUploadPanelProps) {
       {selectedFile && !uploadError && (
         <div className="mt-4 space-y-4">
           <div className="flex items-center gap-3 text-sm text-gray-700">
-            <svg
-              className="w-5 h-5 text-blue-600 flex-shrink-0"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
+            <CheckIcon />
             <span>{selectedFile.name} が選択されました。</span>
             <SciFiButton variant="ghost" size="sm" onClick={handleReset}>
               やり直す

@@ -108,6 +108,7 @@ export interface WorkerUploadRowValues {
   transfer_type: string | null;
   transfer_scheduled_month: string | null;
   is_cross_division_transfer: boolean | null;
+  employment_type_name: string | null;
 }
 
 export interface WorkerUploadDiffItem {

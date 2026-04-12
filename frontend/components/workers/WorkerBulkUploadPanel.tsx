@@ -17,6 +17,7 @@ import type {
   WorkerBulkPreviewResponse,
 } from "@/types/worker";
 import { ApiError } from "@/utils/apiClient";
+import { CheckIcon, CountBadge, UploadIcon } from "./WorkerUploadShared";
 
 const ACTION_LABELS: Record<WorkerBulkPreviewItem["action"], string> = {
   create: "新規追加",
@@ -73,26 +74,6 @@ function PreviewTable({
         </tbody>
       </table>
     </div>
-  );
-}
-
-/** 件数バッジ */
-function CountBadge({
-  label,
-  count,
-  colorClass,
-}: {
-  label: string;
-  count: number;
-  colorClass: string;
-}) {
-  if (count === 0) return null;
-  return (
-    <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${colorClass}`}
-    >
-      {label}: {count}件
-    </span>
   );
 }
 
@@ -371,20 +352,7 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
             if (e.key === "Enter" || e.key === " ") fileInputRef.current?.click();
           }}
         >
-          <svg
-            className="w-10 h-10 mx-auto mb-3 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
-            />
-          </svg>
+          <UploadIcon />
           <p className="text-sm text-gray-500">
             JSONファイルをここにドラッグ＆ドロップ
           </p>
@@ -416,20 +384,7 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
       {parsedItems && !parseError && (
         <div className="mt-4 space-y-4">
           <div className="flex items-center gap-3 text-sm text-gray-700">
-            <svg
-              className="w-5 h-5 text-blue-600 flex-shrink-0"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
+            <CheckIcon />
             <span>{parsedItems.length}件のデータが読み込まれました。</span>
             <SciFiButton variant="ghost" size="sm" onClick={handleReset}>
               やり直す
