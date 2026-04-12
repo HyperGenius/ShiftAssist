@@ -28,6 +28,8 @@ import { useDepartments } from "@/hooks/useDepartments";
 import { useAvailableWorkers } from "@/hooks/useAvailableWorkers";
 import { useShiftRules } from "@/hooks/useShiftRules";
 import { useValidationContext } from "@/hooks/useValidationContext";
+import { useAggregateStats } from "@/hooks/useAggregateStats";
+import { useEmploymentTypes } from "@/hooks/useEmploymentTypes";
 import type {
   CalendarState,
   SlotState,
@@ -92,6 +94,10 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
 
   // 月跨ぎの min_interval_days チェック用に前月バッファを start_date として渡す
   const targetYearMonth = `${year}-${String(month).padStart(2, "0")}`;
+
+  // 集計データ（スマートサジェストのソートと集計情報表示に使用）
+  const { aggregateStats, isLoading: isAggregateStatsLoading } = useAggregateStats(targetYearMonth);
+  const { employmentTypes } = useEmploymentTypes();
   const validationStartDate = useMemo(() => {
     const minIntervalDays = rules.shift_rules?.min_interval_days ?? 10;
     const monthStart = new Date(year, month - 1, 1);
@@ -527,16 +533,19 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
         </div>
 
         {/* サイドパネル */}
-        <div className="w-52 shrink-0">
+        <div className="w-80 shrink-0">
           <div className="sticky top-4 h-[calc(100vh-8rem)]">
             <WorkerListPanel
               workers={workers}
               departments={departments}
               skillRanks={skillRanks}
+              employmentTypes={employmentTypes}
               activeSlotType={activeSlot?.slotType ?? null}
               activeAssignedWorkerIds={activeAssignedWorkerIds}
               showAll={showAll}
               onShowAllChange={setShowAll}
+              aggregateStats={aggregateStats}
+              isAggregateStatsLoading={isAggregateStatsLoading}
             />
           </div>
         </div>

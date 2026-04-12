@@ -127,7 +127,9 @@ AnnualShiftLimitsConfig:
 | フロントエンド: バリデーション結果フック | `frontend/hooks/useShiftValidation.ts` |
 | フロントエンド: ルール取得・更新フック | `frontend/hooks/useShiftRules.ts` |
 | フロントエンド: バリデーションコンテキスト取得フック | `frontend/hooks/useValidationContext.ts` |
-| フロントエンド: スマートサジェストフック | `frontend/hooks/useAvailableWorkers.ts` |
+| フロントエンド: スマートサジェストフック（フィルタリング） | `frontend/hooks/useAvailableWorkers.ts` |
+| フロントエンド: スマートサジェスト行コンポーネント（6カラムGrid） | `frontend/components/shift-calendar/SmartSuggestRow.tsx` |
+| フロントエンド: 対応者リストパネル（スマートソート・集計連携） | `frontend/components/shift-calendar/WorkerListPanel.tsx` |
 | フロントエンド: ルール設定フォーム | `frontend/components/rules/RulesSettingsForm.tsx` |
 | バックエンド: バリデーションテスト | `backend/tests/unit/test_shift_validation_service.py` |
 | バックエンド: ルールサービステスト | `backend/tests/unit/test_shift_rules_service.py` |
@@ -203,3 +205,55 @@ GET /api/shifts/validation-context?target_year_month=2026-04&start_date=2026-03-
    * オーバーライド可能なルールの場合、`is_manual_override=True` で強制保存するパターン
 2. **フロントエンド**: 現時点でE2Eテスト（Playwright）は未整備です。追加する場合は `frontend/e2e/` ディレクトリを作成してください。
 
+---
+
+## 7. スマートサジェスト高度化（6カラムGrid・スマートソート・集計連携）
+
+### 概要
+
+シフト枠選択時の対応者リストを刷新し、6カラムGridレイアウト・スマートソート・集計データ警告を実装した。
+
+### 7.1. 6カラムGridレイアウト（SmartSuggestRow）
+
+`frontend/components/shift-calendar/SmartSuggestRow.tsx` が対応者1行を担当する。
+
+| カラム | 幅 | 内容 |
+|-------|-----|------|
+| 1 | 18px | リーダーバッジ（`is_leader_eligible=true` の場合「L」を表示、ない場合も領域確保） |
+| 2 | 20px | 雇用形態バッジ（`is_non_default_employment=true` の場合、雇用形態名先頭2文字を表示） |
+| 3 | 1fr | 氏名（はみ出しは `truncate`） |
+| 4 | 60px | 所属課名 |
+| 5 | 60px | 役職名（`position_id` に紐づく名称） |
+| 6 | 76px | 集計情報（`回数(月平均/月)` 形式、データなしは「—」） |
+
+バッジがない場合も `inline-block` スペーサーで領域を確保し、垂直方向のラインを揃える。
+
+### 7.2. スマートソートロジック
+
+`WorkerListPanel` 内の `sortedAvailableWorkers` が以下の優先順位でソートを実施する。
+
+1. **リーダー優先度**: 選択中の枠にすでにリーダー（`is_leader_eligible=true`）が1名以上いる場合、他のリーダー適性者を最下位に移動する。
+2. **勤務平準化**: 過去12ヶ月の対象スロット種別の `monthly_avg`（月平均回数）が**少ない者**を上位に表示する。集計データが存在しないワーカーは `0` として扱う。
+3. **フォールバック**: 月平均が同値の場合、所属課名順 → 氏名順（ともに日本語ロケール比較）。
+
+### 7.3. 集計データ未計算時の警告
+
+`aggregateStats` が未取得（`null`）またはアイテムが空の場合、リスト上部に警告バナーを表示する。
+
+```
+⚠️ 集計データが最新ではありません。[シフト集計ページ]で再計算してください
+```
+
+カレンダー画面では計算処理を行わず、集計ページ（`/admin/aggregate-stats`）への導線のみ提供する。
+
+### 7.4. データフロー
+
+```
+ShiftCalendar
+  ├─ useAggregateStats(targetYearMonth)  ← GET /api/tenants/{id}/worker-stats/aggregate
+  ├─ useEmploymentTypes()                ← GET /api/employment-types/
+  └─ WorkerListPanel (aggregateStats, employmentTypes)
+       └─ SmartSuggestRow × n  (positionName, employmentTypeName, isNonDefaultEmployment, slotStats)
+```
+
+集計データの `AggregateWorkerStats` には `position_name`・`department_name`・`is_non_default_employment`・`employment_type_name`・`slot_stats` が含まれており、バックエンドの Eager Loading によって効率的に取得される。
