@@ -103,9 +103,6 @@ export function CalendarCell({
       {/* 昼間スロット */}
       {daytimeSlots.length > 0 && (
         <div className="flex flex-col gap-1">
-          <div className="text-[9px] text-gray-400 border-b border-gray-200 pb-0.5 text-center">
-              昼間
-            </div>
           {daytimeSlots.map(([slotType, slotState]) => (
             <ShiftSlot
               key={slotType}
@@ -128,11 +125,6 @@ export function CalendarCell({
       {/* 夜間スロット */}
       {nighttimeSlots.length > 0 && (
         <div className="flex flex-col gap-1">
-          {daytimeSlots.length > 0 && (
-            <div className="text-[9px] text-gray-400 border-b border-gray-200 pb-0.5 text-center mt-0.5">
-              夜間
-            </div>
-          )}
           {nighttimeSlots.map(([slotType, slotState]) => (
             <ShiftSlot
               key={slotType}

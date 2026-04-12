@@ -496,7 +496,13 @@ def _parse_single_row(
 
     _parse_scalar_fields(pr, row)
     _resolve_names_for_row(
-        pr, row, position_map, branch_map, department_map, skill_rank_map, employment_type_map
+        pr,
+        row,
+        position_map,
+        branch_map,
+        department_map,
+        skill_rank_map,
+        employment_type_map,
     )
 
     return pr
@@ -525,7 +531,13 @@ def _parse_rows(
     """
     return [
         _parse_single_row(
-            i, row, position_map, branch_map, department_map, skill_rank_map, employment_type_map
+            i,
+            row,
+            position_map,
+            branch_map,
+            department_map,
+            skill_rank_map,
+            employment_type_map,
         )
         for i, row in enumerate(raw_rows, start=2)
     ]
@@ -665,7 +677,12 @@ def preview_upload(
     employment_type_map = _fetch_employment_types_by_name(session, tenant_id)
 
     parsed_rows = _parse_rows(
-        raw_rows, position_map, branch_map, department_map, skill_rank_map, employment_type_map
+        raw_rows,
+        position_map,
+        branch_map,
+        department_map,
+        skill_rank_map,
+        employment_type_map,
     )
 
     valid_codes = [
@@ -859,7 +876,12 @@ def execute_upload(
     employment_type_map = _fetch_employment_types_by_name(session, tenant_id)
 
     parsed_rows = _parse_rows(
-        raw_rows, position_map, branch_map, department_map, skill_rank_map, employment_type_map
+        raw_rows,
+        position_map,
+        branch_map,
+        department_map,
+        skill_rank_map,
+        employment_type_map,
     )
     valid_rows = _validate_upload_rows(parsed_rows)
 
