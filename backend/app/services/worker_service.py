@@ -419,10 +419,7 @@ def preview_bulk_upsert_workers(
                 existing_dept is not None
                 and str(existing.department_id) != str(existing_dept.id)
             )
-            changed = (
-                existing.name != item.name
-                or dept_id_changed
-            )
+            changed = existing.name != item.name or dept_id_changed
             if changed:
                 preview_items.append(
                     WorkerBulkPreviewItem(

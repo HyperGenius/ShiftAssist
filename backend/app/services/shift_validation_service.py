@@ -60,7 +60,7 @@ def _load_non_default_employment_type_ids(
             EmploymentType.is_default.is_(False),  # type: ignore[union-attr]
         )
     ).all()
-    return {et.id for et in non_default_types if et.id is not None}
+    return {cast(uuid.UUID, et.id) for et in non_default_types if et.id is not None}
 
 
 def _check_daily_duplicate(
