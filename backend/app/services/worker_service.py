@@ -99,6 +99,43 @@ def _validate_employment_type(
         )
 
 
+def _resolve_employment_types_by_name(
+    session: Session, tenant_id: str, names: set[str]
+) -> dict[str, uuid.UUID]:
+    """雇用形態名から雇用形態 ID へのマップを返す.
+
+    ``names`` に含まれるすべての名称をテナント内で検索し、存在しない名称があれば
+    HTTP 422 を送出する。
+
+    Args:
+        session: SQLModelセッション。
+        tenant_id: テナントID。
+        names: 検索対象の雇用形態名セット。
+
+    Returns:
+        ``{name: id}`` の辞書。
+
+    Raises:
+        HTTPException: ``names`` のいずれかがテナント内に存在しない場合（HTTP 422）。
+    """
+    if not names:
+        return {}
+    rows = session.exec(
+        select(EmploymentType).where(
+            EmploymentType.tenant_id == tenant_id,
+            EmploymentType.name.in_(names),  # type: ignore[attr-defined]
+        )
+    ).all()
+    name_to_id: dict[str, uuid.UUID] = {str(et.name): et.id for et in rows}  # type: ignore[misc]
+    missing = names - name_to_id.keys()
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"EmploymentType が見つかりません: {', '.join(sorted(missing))}",
+        )
+    return name_to_id
+
+
 def create_worker(
     session: Session, tenant_id: str, data: WorkerCreate
 ) -> WorkerResponse:
@@ -382,6 +419,14 @@ def preview_bulk_upsert_workers(
     """
     _validate_no_duplicate_employee_nos(items)
 
+    # 雇用形態名→IDマップを事前解決
+    et_names = {
+        item.employment_type_name.strip()
+        for item in items
+        if item.employment_type_name is not None and item.employment_type_name.strip()
+    }
+    et_name_to_id = _resolve_employment_types_by_name(session, tenant_id, et_names)
+
     # 既存Workerの取得
     employee_nos = [item.employee_no for item in items]
     existing_map = _fetch_workers_by_employee_nos(session, tenant_id, employee_nos)
@@ -401,6 +446,11 @@ def preview_bulk_upsert_workers(
     for item in items:
         existing = existing_map.get(item.employee_no)
         dept_is_new = item.department_code in new_dept_codes
+        resolved_et_id: uuid.UUID | None = (
+            et_name_to_id[item.employment_type_name.strip()]
+            if item.employment_type_name is not None and item.employment_type_name.strip()
+            else None
+        )
 
         if existing is None:
             preview_items.append(
@@ -422,7 +472,7 @@ def preview_bulk_upsert_workers(
             changed = (
                 existing.name != item.name
                 or dept_id_changed
-                or existing.is_special != item.is_special
+                or existing.employment_type_id != resolved_et_id
             )
             if changed:
                 preview_items.append(
@@ -487,6 +537,14 @@ def bulk_upsert_workers(
     for skill_rank_id in skill_rank_ids:
         _validate_skill_rank(session, tenant_id, skill_rank_id)
 
+    # 雇用形態名→IDマップを事前解決（指定がある場合のみ）
+    et_names = {
+        item.employment_type_name.strip()
+        for item in items
+        if item.employment_type_name is not None and item.employment_type_name.strip()
+    }
+    et_name_to_id = _resolve_employment_types_by_name(session, tenant_id, et_names)
+
     # 課コードを解決し、未登録の課を自動生成
     dept_id_map, departments_created = _ensure_departments(session, tenant_id, items)
 
@@ -500,6 +558,11 @@ def bulk_upsert_workers(
     for item in items:
         department_id = dept_id_map[item.department_code]
         existing = existing_map.get(item.employee_no)
+        resolved_et_id: uuid.UUID | None = (
+            et_name_to_id[item.employment_type_name.strip()]
+            if item.employment_type_name is not None and item.employment_type_name.strip()
+            else None
+        )
 
         if existing is None:
             worker = Worker(
@@ -508,7 +571,7 @@ def bulk_upsert_workers(
                 name=item.name,
                 department_id=department_id,
                 skill_rank_id=item.skill_rank_id,
-                is_special=item.is_special,
+                employment_type_id=resolved_et_id,
                 joined_at=item.joined_at,
             )
             session.add(worker)
@@ -518,7 +581,7 @@ def bulk_upsert_workers(
             existing.name = item.name  # type: ignore[assignment]
             existing.department_id = department_id  # type: ignore[assignment]
             existing.skill_rank_id = item.skill_rank_id  # type: ignore[assignment]
-            existing.is_special = item.is_special  # type: ignore[assignment]
+            existing.employment_type_id = resolved_et_id  # type: ignore[assignment]
             if item.joined_at is not None:
                 existing.joined_at = item.joined_at  # type: ignore[assignment]
             session.add(existing)

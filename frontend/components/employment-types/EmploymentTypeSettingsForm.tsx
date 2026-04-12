@@ -20,29 +20,43 @@ function AddEmploymentTypeForm({
   isSubmitting: boolean;
 }) {
   const [name, setName] = useState("");
+  const [isDefault, setIsDefault] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    await onAdd({ name: name.trim() });
+    await onAdd({ name: name.trim(), is_default: isDefault });
     setName("");
+    setIsDefault(false);
   };
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="flex items-end gap-3">
-      <div className="flex-1">
-        <SciFiInput
-          id="new-employment-type-name"
-          label="雇用形態名"
-          placeholder="例: 正職員、非常勤、特別雇用"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          disabled={isSubmitting}
-        />
+    <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
+      <div className="flex items-end gap-3">
+        <div className="flex-1">
+          <SciFiInput
+            id="new-employment-type-name"
+            label="雇用形態名"
+            placeholder="例: 正職員、非常勤、特別雇用"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={isSubmitting}
+          />
+        </div>
+        <SciFiButton type="submit" loading={isSubmitting} disabled={!name.trim()}>
+          追加
+        </SciFiButton>
       </div>
-      <SciFiButton type="submit" loading={isSubmitting} disabled={!name.trim()}>
-        追加
-      </SciFiButton>
+      <label className="flex items-center gap-2 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={isDefault}
+          onChange={(e) => setIsDefault(e.target.checked)}
+          disabled={isSubmitting}
+          className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+        />
+        <span className="text-sm text-gray-600">デフォルトとして設定（正職員など）</span>
+      </label>
     </form>
   );
 }
@@ -51,15 +65,18 @@ function AddEmploymentTypeForm({
 function EmploymentTypeRow({
   employmentType,
   onUpdate,
+  onSetDefault,
   onDelete,
 }: {
   employmentType: EmploymentType;
   onUpdate: (id: string, name: string) => Promise<void>;
+  onSetDefault: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(employmentType.name);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSettingDefault, setIsSettingDefault] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleSave = async () => {
@@ -70,6 +87,15 @@ function EmploymentTypeRow({
       setIsEditing(false);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSetDefault = async () => {
+    setIsSettingDefault(true);
+    try {
+      await onSetDefault(employmentType.id);
+    } finally {
+      setIsSettingDefault(false);
     }
   };
 
@@ -110,7 +136,25 @@ function EmploymentTypeRow({
 
   return (
     <li className="flex items-center gap-3 py-2 border-b border-gray-200">
-      <span className="flex-1 text-sm text-gray-800">{employmentType.name}</span>
+      <span className="flex-1 text-sm text-gray-800 flex items-center gap-2">
+        {employmentType.name}
+        {employmentType.is_default && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-700 border border-indigo-200">
+            デフォルト
+          </span>
+        )}
+      </span>
+      {!employmentType.is_default && (
+        <SciFiButton
+          size="sm"
+          variant="ghost"
+          loading={isSettingDefault}
+          onClick={() => void handleSetDefault()}
+          title="デフォルトに設定"
+        >
+          デフォルトに設定
+        </SciFiButton>
+      )}
       <SciFiButton
         size="sm"
         variant="secondary"
@@ -154,6 +198,15 @@ export function EmploymentTypeSettingsForm() {
       toast.success(`"${name}" を更新しました`);
     } catch {
       toast.error("雇用形態の更新に失敗しました");
+    }
+  };
+
+  const handleSetDefault = async (id: string) => {
+    try {
+      await updateEmploymentType(id, { is_default: true });
+      toast.success("デフォルト雇用形態を変更しました");
+    } catch {
+      toast.error("デフォルト設定の変更に失敗しました");
     }
   };
 
@@ -203,6 +256,7 @@ export function EmploymentTypeSettingsForm() {
                 key={et.id}
                 employmentType={et}
                 onUpdate={handleUpdate}
+                onSetDefault={handleSetDefault}
                 onDelete={handleDelete}
               />
             ))}

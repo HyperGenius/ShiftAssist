@@ -33,7 +33,6 @@ def _make_worker(
     name: str = "田中 太郎",
     department_id: uuid.UUID | None = None,
     skill_rank_id: uuid.UUID | None = None,
-    is_special: bool = False,
 ) -> Worker:
     """テスト用Workerオブジェクトを生成するヘルパー."""
     w = Worker()
@@ -42,7 +41,6 @@ def _make_worker(
     w.name = name
     w.department_id = department_id or DEPT_ID
     w.skill_rank_id = skill_rank_id or SKILL_RANK_ID
-    w.is_special = is_special
     w.created_at = datetime(2026, 1, 1)
     w.updated_at = datetime(2026, 1, 1)
     return w
@@ -89,7 +87,6 @@ class TestCreateWorker:
             name="田中 太郎",
             department_id=DEPT_ID,
             skill_rank_id=SKILL_RANK_ID,
-            is_special=False,
         )
 
         with patch.object(
@@ -106,7 +103,6 @@ class TestCreateWorker:
                 obj.name = "田中 太郎"
                 obj.department_id = DEPT_ID
                 obj.skill_rank_id = SKILL_RANK_ID
-                obj.is_special = False
                 obj.created_at = datetime(2026, 1, 1)
                 obj.updated_at = datetime(2026, 1, 1)
 

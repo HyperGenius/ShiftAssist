@@ -494,7 +494,9 @@ def upsert_monthly_slot_stats(
         )
 
     if not upsert_values:
-        return True  # プランは存在するがアサインメントがない場合もupsert実行済みとみなす
+        return (
+            True  # プランは存在するがアサインメントがない場合もupsert実行済みとみなす
+        )
 
     # ON CONFLICT DO UPDATE (Upsert)
     stmt = pg_insert(WorkerMonthlySlotStats).values(upsert_values)

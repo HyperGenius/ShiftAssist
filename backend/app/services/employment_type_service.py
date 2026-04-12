@@ -17,6 +17,30 @@ from app.models.schemas import (
 )
 
 
+def _clear_default_flag(
+    session: Session,
+    tenant_id: str,
+    exclude_id: uuid.UUID | None = None,
+) -> None:
+    """テナント内の既存デフォルトフラグを解除する.
+
+    Args:
+        session: SQLModelセッション。
+        tenant_id: 対象テナントID。
+        exclude_id: 解除から除外するEmploymentTypeID（更新対象自身を除く場合に使用）。
+    """
+    query = select(EmploymentType).where(
+        EmploymentType.tenant_id == tenant_id,
+        EmploymentType.is_default.is_(True),  # type: ignore[union-attr]
+    )
+    if exclude_id is not None:
+        query = query.where(EmploymentType.id != exclude_id)  # type: ignore[arg-type]
+    existing_default = session.exec(query).first()
+    if existing_default is not None:
+        existing_default.is_default = False  # type: ignore[assignment]
+        session.add(existing_default)
+
+
 def create_employment_type(
     session: Session, tenant_id: str, data: EmploymentTypeCreate
 ) -> EmploymentTypeResponse:
@@ -45,9 +69,14 @@ def create_employment_type(
             detail=f"EmploymentType '{data.name}' already exists.",
         )
 
+    # is_default=True の場合、既存のデフォルトフラグを解除する（アトミック処理）
+    if data.is_default is True:
+        _clear_default_flag(session, tenant_id)
+
     employment_type = EmploymentType(
         tenant_id=tenant_id,
         name=data.name,
+        is_default=data.is_default if data.is_default is not None else False,
     )
     session.add(employment_type)
     session.commit()
@@ -150,6 +179,10 @@ def update_employment_type(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"EmploymentType '{data.name}' already exists.",
             )
+
+    # is_default=True に更新する場合、他のレコードのデフォルトフラグを解除する（アトミック処理）
+    if data.is_default is True:
+        _clear_default_flag(session, tenant_id, exclude_id=employment_type_id)
 
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(employment_type, field, value)

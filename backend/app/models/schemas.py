@@ -256,6 +256,7 @@ class EmploymentTypeCreate(BaseModel):
     """EmploymentType作成リクエストスキーマ."""
 
     name: str
+    is_default: bool = False
 
 
 class EmploymentTypeUpdate(BaseModel):
@@ -265,6 +266,7 @@ class EmploymentTypeUpdate(BaseModel):
     """
 
     name: str | None = None
+    is_default: bool | None = None
 
 
 class EmploymentTypeResponse(BaseModel):
@@ -278,6 +280,7 @@ class EmploymentTypeResponse(BaseModel):
     id: uuid.UUID
     tenant_id: str
     name: str
+    is_default: bool
     created_at: datetime
     updated_at: datetime
 
@@ -340,7 +343,7 @@ class WorkerResponse(BaseModel):
     skill_rank_id: uuid.UUID | None = None
     position_id: uuid.UUID | None = None
     employment_type_id: uuid.UUID | None = None
-    is_special: bool
+    is_special: bool | None = None  # 非推奨。後方互換性のため残存。
     birth_date: date | None = None
     skill_acquired_at: date | None = None
     transfer_type: TransferTypeEnum | None = None
@@ -360,7 +363,7 @@ class WorkerBulkItem(BaseModel):
     department_code: str
     department_name: str | None = None
     skill_rank_id: uuid.UUID
-    is_special: bool = False
+    employment_type_name: str | None = None
     joined_at: date | None = None
 
 
@@ -411,6 +414,7 @@ class WorkerUploadRowValues(BaseModel):
     transfer_type: str | None = None
     transfer_scheduled_month: str | None = None
     is_cross_division_transfer: bool | None = None
+    employment_type_name: str | None = None
 
 
 class WorkerUploadDiffItem(BaseModel):

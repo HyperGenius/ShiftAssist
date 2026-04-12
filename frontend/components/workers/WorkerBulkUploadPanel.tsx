@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { SciFiButton } from "@/components/ui/SciFiButton";
 import { SciFiHeading } from "@/components/ui/SciFiHeading";
 import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { useEmploymentTypes } from "@/hooks/useEmploymentTypes";
 import { useSkillRanks } from "@/hooks/useSkillRanks";
 import { useWorkers } from "@/hooks/useWorkers";
 import type {
@@ -16,6 +17,7 @@ import type {
   WorkerBulkPreviewResponse,
 } from "@/types/worker";
 import { ApiError } from "@/utils/apiClient";
+import { CheckIcon, CountBadge, UploadIcon } from "./WorkerUploadShared";
 
 const ACTION_LABELS: Record<WorkerBulkPreviewItem["action"], string> = {
   create: "新規追加",
@@ -75,26 +77,6 @@ function PreviewTable({
   );
 }
 
-/** 件数バッジ */
-function CountBadge({
-  label,
-  count,
-  colorClass,
-}: {
-  label: string;
-  count: number;
-  colorClass: string;
-}) {
-  if (count === 0) return null;
-  return (
-    <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${colorClass}`}
-    >
-      {label}: {count}件
-    </span>
-  );
-}
-
 interface WorkerBulkUploadPanelProps {
   /** パネルを閉じるコールバック */
   onClose?: () => void;
@@ -104,6 +86,7 @@ interface WorkerBulkUploadPanelProps {
 export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
   const { previewBulkUpload, bulkUploadWorkers } = useWorkers();
   const { skillRanks } = useSkillRanks();
+  const { employmentTypes } = useEmploymentTypes();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isDragging, setIsDragging] = useState(false);
@@ -117,6 +100,12 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
   const validSkillRankIds = useMemo(
     () => new Set(skillRanks.map((r) => r.id)),
     [skillRanks],
+  );
+
+  /** 雇用形態名のセット（バリデーション用） */
+  const validEmploymentTypeNames = useMemo(
+    () => new Set(employmentTypes.map((et) => et.name)),
+    [employmentTypes],
   );
 
   /** JSON文字列をパースして検証する */
@@ -175,6 +164,15 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
           );
           return null;
         }
+        // employment_type_name の検証（指定された場合のみ）
+        const etName =
+          typeof item.employment_type_name === "string" ? item.employment_type_name.trim() : "";
+        if (etName !== "" && validEmploymentTypeNames.size > 0 && !validEmploymentTypeNames.has(etName)) {
+          setParseError(
+            `配列の${i + 1}番目の要素の "employment_type_name"（${item.employment_type_name}）が見つかりません。`,
+          );
+          return null;
+        }
         items.push({
           employee_no: item.employee_no.trim(),
           name: item.name.trim(),
@@ -182,7 +180,7 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
           department_name:
             typeof item.department_name === "string" ? item.department_name.trim() || null : null,
           skill_rank_id: item.skill_rank_id,
-          is_special: typeof item.is_special === "boolean" ? item.is_special : false,
+          employment_type_name: etName || null,
           joined_at:
             typeof item.joined_at === "string" ? item.joined_at : null,
         });
@@ -195,7 +193,7 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
 
       return items;
     },
-    [validSkillRankIds],
+    [validSkillRankIds, validEmploymentTypeNames],
   );
 
   /** ファイルを読み込んでパースする */
@@ -329,7 +327,7 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
     "department_code": "dept_1",
     "department_name": "1課",
     "skill_rank_id": "<UUID>",
-    "is_special": false
+    "employment_type_name": "正職員（任意）"
   }
 ]`}
       </pre>
@@ -354,20 +352,7 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
             if (e.key === "Enter" || e.key === " ") fileInputRef.current?.click();
           }}
         >
-          <svg
-            className="w-10 h-10 mx-auto mb-3 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
-            />
-          </svg>
+          <UploadIcon />
           <p className="text-sm text-gray-500">
             JSONファイルをここにドラッグ＆ドロップ
           </p>
@@ -399,20 +384,7 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
       {parsedItems && !parseError && (
         <div className="mt-4 space-y-4">
           <div className="flex items-center gap-3 text-sm text-gray-700">
-            <svg
-              className="w-5 h-5 text-blue-600 flex-shrink-0"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
+            <CheckIcon />
             <span>{parsedItems.length}件のデータが読み込まれました。</span>
             <SciFiButton variant="ghost" size="sm" onClick={handleReset}>
               やり直す

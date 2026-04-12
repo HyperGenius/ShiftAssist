@@ -12,6 +12,7 @@ from typing import cast
 from sqlmodel import Session, select
 
 from app.models.models import (
+    EmploymentType,
     LongHolidayPeriod,
     LongHolidayTypeEnum,
     PlanStatusEnum,
@@ -35,6 +36,31 @@ from app.services.long_holiday_period_service import (
     get_period_for_date,
     is_holiday_type_excluded_by_position,
 )
+
+
+def _load_non_default_employment_type_ids(
+    session: Session,
+    tenant_id: str,
+) -> set[uuid.UUID]:
+    """テナント内の非デフォルト雇用形態IDセットを取得する.
+
+    ``is_default=False`` の雇用形態は「特別雇用」扱いとみなされ、
+    シフト枠の制限チェックに使用する。
+
+    Args:
+        session: SQLModelセッション。
+        tenant_id: 対象テナントID。
+
+    Returns:
+        非デフォルト雇用形態IDのセット。
+    """
+    non_default_types = session.exec(
+        select(EmploymentType).where(
+            EmploymentType.tenant_id == tenant_id,
+            EmploymentType.is_default.is_(False),  # type: ignore[union-attr]
+        )
+    ).all()
+    return {cast(uuid.UUID, et.id) for et in non_default_types if et.id is not None}
 
 
 def _check_daily_duplicate(
@@ -247,15 +273,24 @@ def _check_special_employment(
     requirement: ShiftRequirement,
     workers: list[Worker],
     rules: ShiftRulesConfig,
+    non_default_employment_type_ids: set[uuid.UUID],
 ) -> list[ValidationViolationItem]:
-    """ルール5: 特別雇用者の枠制限チェック."""
+    """ルール5: 特別雇用者の枠制限チェック.
+
+    非デフォルト雇用形態（``is_default=False``）に紐付くワーカーは、
+    ``special_employment_shifts`` で許可された枠以外にはアサインできない。
+    """
     allowed_slots = set(rules.special_employment_shifts)
     if str(requirement.slot_type) in allowed_slots:
         return []
     allowed_slots_str = "、".join(rules.special_employment_shifts)
     violations: list[ValidationViolationItem] = []
     for worker in workers:
-        if worker.is_special:
+        is_special = (
+            worker.employment_type_id is not None
+            and worker.employment_type_id in non_default_employment_type_ids
+        )
+        if is_special:
             violations.append(
                 ValidationViolationItem(
                     code="SPECIAL_EMPLOYMENT",
@@ -703,12 +738,14 @@ def validate_shift_assignments(
     shift_date: date = requirement.shift_date  # type: ignore[assignment]
     limits = annual_limits if annual_limits is not None else AnnualShiftLimitsConfig()
 
+    non_default_et_ids = _load_non_default_employment_type_ids(session, tenant_id)
+
     return [
         *_check_daily_duplicate(session, tenant_id, requirement, workers),
         *_check_same_department(workers, rules),
         *_check_skill_rank(session, requirement, workers, rules),
         *_check_work_interval(session, tenant_id, requirement, workers, rules),
-        *_check_special_employment(requirement, workers, rules),
+        *_check_special_employment(requirement, workers, rules, non_default_et_ids),
         *_check_age_restriction(workers, shift_date),
         *_check_position_exclusion(session, tenant_id, requirement, workers),
         *_check_tenure_restriction(workers, shift_date, rules),

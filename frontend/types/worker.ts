@@ -13,7 +13,7 @@ export interface Worker {
   skill_rank_id: string;
   position_id: string | null;
   employment_type_id: string | null;
-  is_special: boolean;
+  is_special: boolean | null;  // 非推奨。後方互換性のため残存。
   birth_date: string | null;
   skill_acquired_at: string | null;
   transfer_type: TransferType | null;
@@ -65,7 +65,7 @@ export interface WorkerBulkItem {
   department_code: string;
   department_name?: string | null;
   skill_rank_id: string;
-  is_special: boolean;
+  employment_type_name?: string | null;
   joined_at?: string | null;
 }
 
@@ -108,6 +108,7 @@ export interface WorkerUploadRowValues {
   transfer_type: string | null;
   transfer_scheduled_month: string | null;
   is_cross_division_transfer: boolean | null;
+  employment_type_name: string | null;
 }
 
 export interface WorkerUploadDiffItem {

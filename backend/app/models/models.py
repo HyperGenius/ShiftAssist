@@ -15,6 +15,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase
@@ -227,11 +228,14 @@ class EmploymentType(Base):
 
     テナント管理者が任意の名称で雇用形態を定義できる。
     Worker の ``employment_type_id`` FK により雇用形態を紐付ける。
+    ``is_default=True`` の雇用形態はテナント内のデフォルト（正職員等）として扱われ、
+    1テナントにつき最大1件まで設定可能。
 
     Attributes:
         id: UUIDによるプライマリキー。
         tenant_id: Clerk OrganizationのID。テナント分離に使用。
         name: 雇用形態の表示名（例: "正職員", "非常勤", "特別雇用"）。
+        is_default: テナント内のデフォルト雇用形態フラグ。テナントごとに最大1件。
         created_at: レコード作成日時。
         updated_at: レコード最終更新日時。更新時に自動更新される。
     """
@@ -240,11 +244,18 @@ class EmploymentType(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(String, index=True, nullable=False)
     name = Column(String, nullable=False)
+    is_default = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "name", name="uq_employment_type_tenant_name"),
+        Index(
+            "uix_tenant_default_employment_type",
+            "tenant_id",
+            unique=True,
+            postgresql_where=text("is_default IS TRUE"),
+        ),
     )
 
 
@@ -265,7 +276,7 @@ class Worker(Base):
         skill_rank_id: スキルランクのID（tenant_skill_ranksテーブルへのFK）。
         position_id: 役職のID（positionsテーブルへのFK）。任意。
         employment_type_id: 雇用形態のID（employment_typesテーブルへのFK）。任意。
-        is_special: 特別雇用者フラグ（後方互換性のため残存。新規は employment_type_id を使用）。
+        is_special: 特別雇用者フラグ（非推奨。employment_type.is_default による判定に移行済み）。
         birth_date: 生年月日（年齢計算用）。
         skill_acquired_at: 現在のスキルランクの取得日。
         transfer_type: 異動種別。
