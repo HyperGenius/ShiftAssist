@@ -70,6 +70,12 @@ export function WorkerListPanel({
   minIntervalDays,
   prevMonthDatesByWorker,
 }: WorkerListPanelProps) {
+  // 雇用形態マップ（employment_type_id → EmploymentType）
+  const employmentTypeMap = useMemo(
+    () => new Map(employmentTypes.map((et) => [et.id, et])),
+    [employmentTypes],
+  );
+
   const { availableWorkers, totalWorkerCount, isFiltered } =
     useAvailableWorkers({
       workers,
@@ -84,6 +90,7 @@ export function WorkerListPanel({
       currentDateStr,
       minIntervalDays,
       prevMonthDatesByWorker,
+      employmentTypeMap,
     });
 
   // 全Workerのうちフィルタで除外されているIDセット（全表示時はdisabledにしない）
@@ -98,10 +105,10 @@ export function WorkerListPanel({
     [aggregateStats],
   );
 
-  // 雇用形態IDから名称へのマップ
+  // 雇用形態IDから名称へのマップ（employmentTypeMap から派生）
   const employmentTypeNameById = useMemo(
-    () => new Map(employmentTypes.map((et) => [et.id, et.name])),
-    [employmentTypes],
+    () => new Map([...employmentTypeMap.entries()].map(([id, et]) => [id, et.name])),
+    [employmentTypeMap],
   );
 
   // 集計データが存在しない場合に警告を表示するか

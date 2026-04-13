@@ -123,12 +123,21 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
   // シフト最小間隔（日数）
   const minIntervalDays = rules.shift_rules?.min_interval_days ?? 10;
 
+  // 雇用形態マップ（employment_type_id → EmploymentType）
+  const employmentTypeMap = useMemo(
+    () => new Map(employmentTypes.map((et) => [et.id, et])),
+    [employmentTypes],
+  );
+
   const validationMap = useShiftValidation(
     calendarState,
     workers,
     rules.shift_rules,
     skillRanks,
     validationContext?.worker_stats ?? [],
+    /* annualWorkerStats= */ undefined,
+    /* annualLimits= */ undefined,
+    employmentTypes,
   );
 
   const holidayMap = useMemo(() => getHolidayMap(year, month), [year, month]);
@@ -161,6 +170,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
     currentDateStr: activeSlot?.dateStr,
     minIntervalDays,
     prevMonthDatesByWorker,
+    employmentTypeMap,
   });
 
   // DnDセンサー設定

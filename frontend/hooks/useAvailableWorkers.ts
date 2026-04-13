@@ -4,6 +4,7 @@
 
 import { useMemo } from "react";
 
+import type { EmploymentType } from "@/types/employmentType";
 import type { CalendarState, SlotType } from "@/types/shiftRequirement";
 import type { AnnualShiftLimitsConfig, ShiftRulesConfig } from "@/types/shiftRules";
 import type { TenantSkillRank } from "@/types/skillRank";
@@ -68,6 +69,8 @@ interface UseAvailableWorkersOptions {
   minIntervalDays?: number;
   /** 前月の直近シフト日付マップ（workerId → last_shift_date）。月跨ぎ間隔チェックに使用 */
   prevMonthDatesByWorker?: Record<string, string | null>;
+  /** 雇用形態マップ（employment_type_id → EmploymentType）。allowed_slot_types フィルタリングに使用 */
+  employmentTypeMap?: Map<string, EmploymentType>;
 }
 
 /**
@@ -87,6 +90,7 @@ export function useAvailableWorkers({
   currentDateStr,
   minIntervalDays,
   prevMonthDatesByWorker,
+  employmentTypeMap,
 }: UseAvailableWorkersOptions): AvailableWorkersResult {
   const skillRankMap = useMemo(
     () => new Map(skillRanks.map((r) => [r.id, r])),
@@ -173,8 +177,23 @@ export function useAvailableWorkers({
         if (assignedDepts.has(w.department_id)) return false;
       }
 
-      // 例3: 休日スロットの場合、特別雇用者を除外
-      if (HOLIDAY_SLOT_TYPES.has(slotType) && w.is_special) {
+      // 例3: 雇用形態の allowed_slot_types チェック（新ロジック）
+      // 雇用形態が非デフォルトで allowed_slot_types が設定されている場合、
+      // そのスロット種別以外は除外する。
+      if (employmentTypeMap && w.employment_type_id) {
+        const et = employmentTypeMap.get(w.employment_type_id);
+        if (et && !et.is_default) {
+          const globalAllowedSlots = rules?.special_employment_shifts ?? ["weekday_night"];
+          const allowedSlots =
+            et.rule?.allowed_slot_types && et.rule.allowed_slot_types.length > 0
+              ? et.rule.allowed_slot_types
+              : globalAllowedSlots;
+          if (!(allowedSlots as string[]).includes(slotType)) {
+            return false;
+          }
+        }
+      } else if (HOLIDAY_SLOT_TYPES.has(slotType) && w.is_special) {
+        // 後方互換: employmentTypeMap がない場合は is_special フラグで判定
         return false;
       }
 
@@ -321,7 +340,7 @@ export function useAvailableWorkers({
 
       return true;
     });
-  }, [workers, skillRankMap, assignedSet, allowSameDepartment, slotType, showAll, workerStatsMap, annualLimits, currentDateStr, minIntervalDays, prevMonthDatesByWorker, inProgressDataByWorker, rules, calendarState]);
+  }, [workers, skillRankMap, assignedSet, allowSameDepartment, slotType, showAll, workerStatsMap, annualLimits, currentDateStr, minIntervalDays, prevMonthDatesByWorker, inProgressDataByWorker, rules, calendarState, employmentTypeMap]);
 
   const isWorkerAvailable = useMemo(() => {
     const availableSet = new Set(availableWorkers.map((w) => w.id));
