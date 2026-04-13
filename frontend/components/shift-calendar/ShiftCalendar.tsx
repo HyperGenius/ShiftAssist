@@ -30,6 +30,7 @@ import { useShiftRules } from "@/hooks/useShiftRules";
 import { useValidationContext } from "@/hooks/useValidationContext";
 import { useAggregateStats } from "@/hooks/useAggregateStats";
 import { useEmploymentTypes } from "@/hooks/useEmploymentTypes";
+import { useWorkerStats } from "@/hooks/useWorkerStats";
 import type {
   CalendarState,
   SlotState,
@@ -98,6 +99,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
   // 集計データ（スマートサジェストのソートと集計情報表示に使用）
   const { aggregateStats, isLoading: isAggregateStatsLoading } = useAggregateStats(targetYearMonth);
   const { employmentTypes } = useEmploymentTypes();
+  const { stats: workerStatsData } = useWorkerStats();
   const validationStartDate = useMemo(() => {
     const minIntervalDays = rules.shift_rules?.min_interval_days ?? 10;
     const monthStart = new Date(year, month - 1, 1);
@@ -107,6 +109,19 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
   }, [year, month, rules.shift_rules?.min_interval_days]);
 
   const { validationContext } = useValidationContext(targetYearMonth, validationStartDate);
+
+  // 前月の直近シフト日付マップ（workerId → last_shift_date）
+  const prevMonthDatesByWorker = useMemo<Record<string, string | null>>(() => {
+    const stats = validationContext?.worker_stats;
+    if (!stats || stats.length === 0) return {};
+    return Object.fromEntries(stats.map((s) => [s.worker_id, s.last_shift_date]));
+  }, [validationContext?.worker_stats]);
+
+  // 年間シフト回数上限設定
+  const annualLimits = rules.warnings?.annual_shift_limits;
+
+  // シフト最小間隔（日数）
+  const minIntervalDays = rules.shift_rules?.min_interval_days ?? 10;
 
   const validationMap = useShiftValidation(
     calendarState,
@@ -140,6 +155,12 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
     slotType: activeSlot?.slotType ?? null,
     assignedWorkerIds: activeAssignedWorkerIds,
     showAll,
+    workerStats: workerStatsData?.items,
+    annualLimits,
+    calendarState,
+    currentDateStr: activeSlot?.dateStr,
+    minIntervalDays,
+    prevMonthDatesByWorker,
   });
 
   // DnDセンサー設定
@@ -546,6 +567,12 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
               onShowAllChange={setShowAll}
               aggregateStats={aggregateStats}
               isAggregateStatsLoading={isAggregateStatsLoading}
+              workerStats={workerStatsData?.items}
+              annualLimits={annualLimits}
+              calendarState={calendarState}
+              currentDateStr={activeSlot?.dateStr}
+              minIntervalDays={minIntervalDays}
+              prevMonthDatesByWorker={prevMonthDatesByWorker}
             />
           </div>
         </div>

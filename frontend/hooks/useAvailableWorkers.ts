@@ -4,7 +4,7 @@
 
 import { useMemo } from "react";
 
-import type { SlotType } from "@/types/shiftRequirement";
+import type { CalendarState, SlotType } from "@/types/shiftRequirement";
 import type { AnnualShiftLimitsConfig, ShiftRulesConfig } from "@/types/shiftRules";
 import type { TenantSkillRank } from "@/types/skillRank";
 import type { WorkerStatsResponse } from "@/types/workerStats";
@@ -47,6 +47,14 @@ interface UseAvailableWorkersOptions {
   workerStats?: WorkerStatsResponse[];
   /** 年間シフト回数上限設定 */
   annualLimits?: AnnualShiftLimitsConfig;
+  /** 作成中カレンダーステート（進行中アサインのカウント・間隔チェックに使用） */
+  calendarState?: CalendarState;
+  /** 選択中スロットの日付（YYYY-MM-DD）。interval チェックと進行中カウント除外に使用 */
+  currentDateStr?: string;
+  /** シフト最小間隔（日数）。WORK_INTERVAL フィルタリングに使用 */
+  minIntervalDays?: number;
+  /** 前月の直近シフト日付マップ（workerId → last_shift_date）。月跨ぎ間隔チェックに使用 */
+  prevMonthDatesByWorker?: Record<string, string | null>;
 }
 
 /**
@@ -62,6 +70,10 @@ export function useAvailableWorkers({
   showAll,
   workerStats,
   annualLimits,
+  calendarState,
+  currentDateStr,
+  minIntervalDays,
+  prevMonthDatesByWorker,
 }: UseAvailableWorkersOptions): AvailableWorkersResult {
   const skillRankMap = useMemo(
     () => new Map(skillRanks.map((r) => [r.id, r])),
@@ -78,6 +90,40 @@ export function useAvailableWorkers({
     () => workerStats ? new Map(workerStats.map((s) => [s.worker_id, s])) : undefined,
     [workerStats],
   );
+
+  /**
+   * 進行中アサインの集計（現在スロットを除く）。
+   * workerID → { total: 総アサイン数, counts: スロット種別ごとカウント, dates: アサイン日付セット }
+   */
+  const inProgressDataByWorker = useMemo(() => {
+    const result = new Map<string, { total: number; counts: Record<string, number>; dates: Set<string> }>();
+    if (!calendarState) return result;
+
+    for (const [dateStr, dayState] of Object.entries(calendarState)) {
+      for (const [st, slotState] of Object.entries(dayState)) {
+        // 現在選択中のスロットはスキップ（+1 カウントは後で別途加算）
+        if (dateStr === currentDateStr && st === (slotType as string)) continue;
+
+        // long_hol_day / long_hol_night は年間上限集計で sun_hol 系に合算する（仕様通り）
+        const countKey =
+          st === "long_hol_day" ? "sun_hol_day" :
+          st === "long_hol_night" ? "sun_hol_night" : st;
+
+        for (const workerId of slotState.workerSelections) {
+          if (!workerId) continue;
+          if (!result.has(workerId)) {
+            result.set(workerId, { total: 0, counts: {}, dates: new Set() });
+          }
+          const entry = result.get(workerId)!;
+          entry.total += 1;
+          entry.counts[countKey] = (entry.counts[countKey] ?? 0) + 1;
+          entry.dates.add(dateStr);
+        }
+      }
+    }
+
+    return result;
+  }, [calendarState, currentDateStr, slotType]);
 
   // ルール由来の設定（未設定時はデフォルト値を適用）
   const allowSameDepartment = rules?.allow_same_department ?? false;
@@ -119,7 +165,31 @@ export function useAvailableWorkers({
         return false;
       }
 
-      // 例4: 年間上限超過チェック（showAll=false の場合のみ）
+      // 例4: シフト間隔チェック（WORK_INTERVAL）
+      // minIntervalDays === 0 は制限なし（ルール設定でのデフォルト回避値）のためスキップ
+      if (currentDateStr && minIntervalDays !== undefined && minIntervalDays > 0) {
+        const currentDateMs = new Date(currentDateStr).getTime();
+        /** 1日をミリ秒で表した定数 */
+        const MS_PER_DAY = 86_400_000;
+
+        // 前月の直近シフト日付チェック（月跨ぎ）
+        const prevDate = prevMonthDatesByWorker?.[w.id];
+        if (prevDate) {
+          const diffDays = Math.abs(currentDateMs - new Date(prevDate).getTime()) / MS_PER_DAY;
+          if (diffDays < minIntervalDays) return false;
+        }
+
+        // 進行中アサインの日付との間隔チェック
+        const inProgress = inProgressDataByWorker.get(w.id);
+        if (inProgress) {
+          for (const dateStr of inProgress.dates) {
+            const diffDays = Math.abs(currentDateMs - new Date(dateStr).getTime()) / MS_PER_DAY;
+            if (diffDays < minIntervalDays) return false;
+          }
+        }
+      }
+
+      // 例5: 年間上限超過チェック（showAll=false の場合のみ）
       if (workerStatsMap && annualLimits) {
         const stats = workerStatsMap.get(w.id);
         const counts: Record<string, number> = {
@@ -142,6 +212,17 @@ export function useAvailableWorkers({
               counts["sun_hol_night"] += s.count;
             } else if (st in counts) {
               counts[st] += s.count;
+            }
+          }
+        }
+
+        // 進行中アサインのカウントを上乗せ
+        const inProgress = inProgressDataByWorker.get(w.id);
+        if (inProgress) {
+          total += inProgress.total;
+          for (const [key, val] of Object.entries(inProgress.counts)) {
+            if (key in counts) {
+              counts[key] += val;
             }
           }
         }
@@ -181,7 +262,7 @@ export function useAvailableWorkers({
 
       return true;
     });
-  }, [workers, skillRankMap, assignedSet, allowSameDepartment, slotType, showAll, workerStatsMap, annualLimits]);
+  }, [workers, skillRankMap, assignedSet, allowSameDepartment, slotType, showAll, workerStatsMap, annualLimits, currentDateStr, minIntervalDays, prevMonthDatesByWorker, inProgressDataByWorker]);
 
   const isWorkerAvailable = useMemo(() => {
     const availableSet = new Set(availableWorkers.map((w) => w.id));
