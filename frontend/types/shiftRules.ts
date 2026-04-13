@@ -21,6 +21,10 @@ export interface ShiftRulesConfig {
   hired_tenure_months: number;
   /** 事業部間転入（transfer_type=transfer_in かつ is_cross_division_transfer=true）のアサイン可能開始までの月数。0 で制限なし。 */
   cross_division_transfer_tenure_months: number;
+  /** スロット内ワーカーの合計年齢上限。0 で制限なし。 */
+  max_total_age: number;
+  /** 1シフト計画期間内の平日夜間以外スロットへのアサイン上限回数。0 で制限なし。 */
+  max_non_weekday_night_per_period: number;
 }
 
 /** 年間シフト回数上限設定 */
@@ -67,6 +71,8 @@ export const DEFAULT_SHIFT_RULES: ShiftRules = {
     target_all_departments: true,
     hired_tenure_months: 6,
     cross_division_transfer_tenure_months: 3,
+    max_total_age: 120,
+    max_non_weekday_night_per_period: 1,
   },
   warnings: {
     avoid_consecutive_holidays: true,

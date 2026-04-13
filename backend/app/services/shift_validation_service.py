@@ -711,6 +711,123 @@ def _check_annual_shift_limits(
     return violations
 
 
+_NON_WEEKDAY_NIGHT_SLOT_TYPES: frozenset[str] = frozenset(
+    [
+        SlotTypeEnum.sat_day,
+        SlotTypeEnum.sat_night,
+        SlotTypeEnum.sun_hol_day,
+        SlotTypeEnum.sun_hol_night,
+        SlotTypeEnum.long_hol_day,
+        SlotTypeEnum.long_hol_night,
+        SlotTypeEnum.sat_pre_hol_night,
+    ]
+)
+
+
+def _check_total_age_limit(
+    workers: list[Worker],
+    rules: ShiftRulesConfig,
+    shift_date: date,
+) -> list[ValidationViolationItem]:
+    """合計年齢上限チェック.
+
+    スロット内にアサインされるワーカーの年齢合計が ``rules.max_total_age`` を超える場合にエラーを返す。
+    ``max_total_age`` が 0 の場合は制限なし。
+    ``birth_date`` が null のワーカーは計算から除外（0歳扱い）。
+    ワーカーが0人の場合はスキップ。
+    """
+    if rules.max_total_age == 0:
+        return []
+    if not workers:
+        return []
+
+    reference_date = shift_date.replace(day=1)
+    workers_with_birth_date = [w for w in workers if w.birth_date is not None]
+    age_sum = sum(
+        calculate_age_at(cast(date, w.birth_date), reference_date)
+        for w in workers_with_birth_date
+    )
+
+    if age_sum <= rules.max_total_age:
+        return []
+
+    return [
+        ValidationViolationItem(
+            code="TOTAL_AGE_LIMIT",
+            severity="error",
+            message=(
+                f"スロット内ワーカーの年齢合計が上限（{rules.max_total_age}歳）を超えています"
+                f"（合計: {age_sum}歳）"
+            ),
+            worker_ids=[str(w.id) for w in workers_with_birth_date],
+        )
+    ]
+
+
+def _check_non_weekday_night_limit(
+    session: Session,
+    tenant_id: str,
+    requirement: ShiftRequirement,
+    workers: list[Worker],
+    rules: ShiftRulesConfig,
+) -> list[ValidationViolationItem]:
+    """平日夜間以外シフト回数上限チェック.
+
+    対象スロットが平日夜間以外（``weekday_night`` 以外）のとき、
+    同一シフト計画（``ShiftPlan``）内で各ワーカーがすでに
+    ``max_non_weekday_night_per_period`` 回以上の平日夜間以外スロットに
+    アサインされている場合にエラーを返す。
+    ``max_non_weekday_night_per_period`` が 0 の場合は制限なし。
+    """
+    if rules.max_non_weekday_night_per_period == 0:
+        return []
+
+    slot_type_str = str(requirement.slot_type)
+    if slot_type_str not in _NON_WEEKDAY_NIGHT_SLOT_TYPES:
+        return []
+
+    # ShiftRequirement に紐づく ShiftPlan の ID を取得
+    plan_id = getattr(requirement, "plan_id", None)
+    if plan_id is None:
+        return []
+
+    violations: list[ValidationViolationItem] = []
+    for worker in workers:
+        count = len(
+            session.exec(
+                select(ShiftRequirementAssignment)
+                .join(
+                    ShiftRequirement,
+                    ShiftRequirementAssignment.requirement_id == ShiftRequirement.id,  # type: ignore[arg-type]
+                )
+                .where(
+                    ShiftRequirementAssignment.worker_id == worker.id,
+                    ShiftRequirementAssignment.tenant_id == tenant_id,
+                    ShiftRequirement.plan_id == plan_id,
+                    ShiftRequirement.slot_type.in_(  # type: ignore[union-attr]
+                        list(_NON_WEEKDAY_NIGHT_SLOT_TYPES)
+                    ),
+                    ShiftRequirementAssignment.requirement_id != requirement.id,  # type: ignore[arg-type]
+                )
+            ).all()
+        )
+        # 今回のアサイン分を含めてカウント
+        if count + 1 > rules.max_non_weekday_night_per_period:
+            violations.append(
+                ValidationViolationItem(
+                    code="NON_WEEKDAY_NIGHT_LIMIT",
+                    severity="error",
+                    message=(
+                        f"{worker.name} は今月の平日夜間以外シフト回数が"
+                        f"上限（{rules.max_non_weekday_night_per_period}回）を超えています"
+                        f"（現在: {count + 1}回）"
+                    ),
+                    worker_ids=[str(worker.id)],
+                )
+            )
+    return violations
+
+
 def validate_shift_assignments(
     session: Session,
     tenant_id: str,
@@ -754,4 +871,8 @@ def validate_shift_assignments(
             session, tenant_id, requirement, workers
         ),
         *_check_annual_shift_limits(session, tenant_id, requirement, workers, limits),
+        *_check_total_age_limit(workers, rules, shift_date),
+        *_check_non_weekday_night_limit(
+            session, tenant_id, requirement, workers, rules
+        ),
     ]
