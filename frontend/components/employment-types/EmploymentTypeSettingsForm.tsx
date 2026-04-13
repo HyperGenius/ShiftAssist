@@ -8,6 +8,7 @@ import { SciFiButton } from "@/components/ui/SciFiButton";
 import { SciFiHeading } from "@/components/ui/SciFiHeading";
 import { SciFiInput } from "@/components/ui/SciFiInput";
 import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { EmploymentTypeRuleEditor } from "@/components/employment-types/EmploymentTypeRuleEditor";
 import { useEmploymentTypes } from "@/hooks/useEmploymentTypes";
 import type { EmploymentType, EmploymentTypeCreate } from "@/types/employmentType";
 
@@ -67,11 +68,13 @@ function EmploymentTypeRow({
   onUpdate,
   onSetDefault,
   onDelete,
+  onEditRules,
 }: {
   employmentType: EmploymentType;
   onUpdate: (id: string, name: string) => Promise<void>;
   onSetDefault: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onEditRules: (id: string) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(employmentType.name);
@@ -158,6 +161,13 @@ function EmploymentTypeRow({
       <SciFiButton
         size="sm"
         variant="secondary"
+        onClick={() => onEditRules(employmentType.id)}
+      >
+        ルール設定
+      </SciFiButton>
+      <SciFiButton
+        size="sm"
+        variant="secondary"
         onClick={() => setIsEditing(true)}
       >
         編集
@@ -179,6 +189,7 @@ export function EmploymentTypeSettingsForm() {
   const { employmentTypes, isLoading, isError, createEmploymentType, updateEmploymentType, deleteEmploymentType } =
     useEmploymentTypes();
   const [isAdding, setIsAdding] = useState(false);
+  const [editingRulesFor, setEditingRulesFor] = useState<EmploymentType | null>(null);
 
   const handleAdd = async (data: EmploymentTypeCreate) => {
     setIsAdding(true);
@@ -219,6 +230,11 @@ export function EmploymentTypeSettingsForm() {
     }
   };
 
+  const handleEditRules = (id: string) => {
+    const et = employmentTypes.find((e) => e.id === id);
+    if (et) setEditingRulesFor(et);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -239,6 +255,17 @@ export function EmploymentTypeSettingsForm() {
 
   return (
     <div className="space-y-6">
+      {/* ルールエディタモーダル */}
+      {editingRulesFor && (
+        <SciFiPanel className="p-6 space-y-4 border-2 border-indigo-400/40">
+          <EmploymentTypeRuleEditor
+            employmentTypeId={editingRulesFor.id}
+            employmentTypeName={editingRulesFor.name}
+            onClose={() => setEditingRulesFor(null)}
+          />
+        </SciFiPanel>
+      )}
+
       <SciFiPanel className="p-6 space-y-4">
         <SciFiHeading level="h3">雇用形態一覧</SciFiHeading>
         <p className="text-xs text-gray-500">
@@ -258,6 +285,7 @@ export function EmploymentTypeSettingsForm() {
                 onUpdate={handleUpdate}
                 onSetDefault={handleSetDefault}
                 onDelete={handleDelete}
+                onEditRules={handleEditRules}
               />
             ))}
           </ul>

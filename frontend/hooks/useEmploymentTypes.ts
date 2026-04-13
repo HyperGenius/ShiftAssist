@@ -9,6 +9,8 @@ import { fetcher } from "@/utils/fetcher";
 import type {
   EmploymentType,
   EmploymentTypeCreate,
+  EmploymentTypeRuleConfig,
+  EmploymentTypeRuleUpdate,
   EmploymentTypeUpdate,
 } from "@/types/employmentType";
 
@@ -76,6 +78,29 @@ export function useEmploymentTypes() {
     [getApiClient, swrKey],
   );
 
+  /** 雇用形態別ルールを取得する */
+  const fetchEmploymentTypeRules = useCallback(
+    async (id: string): Promise<EmploymentTypeRuleConfig> => {
+      const api = await getApiClient();
+      return api.get<EmploymentTypeRuleConfig>(`/api/employment-types/${id}/rules`);
+    },
+    [getApiClient],
+  );
+
+  /** 雇用形態別ルールを更新する */
+  const updateEmploymentTypeRules = useCallback(
+    async (id: string, payload: EmploymentTypeRuleUpdate): Promise<EmploymentTypeRuleConfig> => {
+      const api = await getApiClient();
+      const updated = await api.put<EmploymentTypeRuleConfig>(
+        `/api/employment-types/${id}/rules`,
+        payload,
+      );
+      await globalMutate(swrKey);
+      return updated;
+    },
+    [getApiClient, swrKey],
+  );
+
   /** IDから雇用形態名にマッピングするユーティリティ */
   const employmentTypeNameById = useMemo(
     () =>
@@ -92,5 +117,7 @@ export function useEmploymentTypes() {
     createEmploymentType,
     updateEmploymentType,
     deleteEmploymentType,
+    fetchEmploymentTypeRules,
+    updateEmploymentTypeRules,
   };
 }

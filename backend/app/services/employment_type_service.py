@@ -9,10 +9,12 @@ import uuid
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
-from app.models.models import EmploymentType
+from app.models.models import EmploymentType, EmploymentTypeRule
+from app.models.rule_schemas import AnnualPartialLimitsConfig, EmploymentTypeRuleConfig
 from app.models.schemas import (
     EmploymentTypeCreate,
     EmploymentTypeResponse,
+    EmploymentTypeRuleUpdate,
     EmploymentTypeUpdate,
 )
 
@@ -81,7 +83,51 @@ def create_employment_type(
     session.add(employment_type)
     session.commit()
     session.refresh(employment_type)
-    return EmploymentTypeResponse.model_validate(employment_type)
+    return _build_response(session, employment_type)
+
+
+def _load_rule(
+    session: Session, employment_type_id: uuid.UUID
+) -> EmploymentTypeRuleConfig | None:
+    """雇用形態IDに対応するルール設定を読み込む.
+
+    Args:
+        session: SQLModelセッション。
+        employment_type_id: 対象の雇用形態ID。
+
+    Returns:
+        EmploymentTypeRuleConfig（ルールが設定されている場合）、または None（ルールが未設定の場合）。
+        呼び出し側で None の場合のデフォルト値処理を行うこと。
+    """
+    rule_row = session.exec(
+        select(EmploymentTypeRule).where(
+            EmploymentTypeRule.employment_type_id == employment_type_id,  # type: ignore[arg-type]
+        )
+    ).first()
+    if rule_row is None:
+        return None
+    overrides_raw = rule_row.annual_limit_overrides
+    annual_limit_overrides = (
+        AnnualPartialLimitsConfig(**overrides_raw)
+        if isinstance(overrides_raw, dict)
+        else None
+    )
+    return EmploymentTypeRuleConfig(
+        require_default_pair=bool(rule_row.require_default_pair),
+        allowed_slot_types=rule_row.allowed_slot_types
+        if isinstance(rule_row.allowed_slot_types, list)
+        else None,
+        annual_limit_overrides=annual_limit_overrides,
+    )
+
+
+def _build_response(
+    session: Session, employment_type: EmploymentType
+) -> EmploymentTypeResponse:
+    """EmploymentType ORM オブジェクトからレスポンスモデルを構築する（ルールを含む）."""
+    resp = EmploymentTypeResponse.model_validate(employment_type)
+    resp.rule = _load_rule(session, employment_type.id)  # type: ignore[arg-type]
+    return resp
 
 
 def list_employment_types(
@@ -101,7 +147,7 @@ def list_employment_types(
         .where(EmploymentType.tenant_id == tenant_id)
         .order_by(EmploymentType.name)  # type: ignore[arg-type]
     ).all()
-    return [EmploymentTypeResponse.model_validate(et) for et in employment_types]
+    return [_build_response(session, et) for et in employment_types]
 
 
 def get_employment_type(
@@ -131,7 +177,7 @@ def get_employment_type(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"EmploymentType '{employment_type_id}' not found.",
         )
-    return EmploymentTypeResponse.model_validate(employment_type)
+    return _build_response(session, employment_type)
 
 
 def update_employment_type(
@@ -190,7 +236,7 @@ def update_employment_type(
     session.add(employment_type)
     session.commit()
     session.refresh(employment_type)
-    return EmploymentTypeResponse.model_validate(employment_type)
+    return _build_response(session, employment_type)
 
 
 def delete_employment_type(
@@ -219,3 +265,93 @@ def delete_employment_type(
         )
     session.delete(employment_type)
     session.commit()
+
+
+def get_employment_type_rule(
+    session: Session, tenant_id: str, employment_type_id: uuid.UUID
+) -> EmploymentTypeRuleConfig:
+    """指定した雇用形態のルール設定を取得する.
+
+    ルールが未設定の場合はデフォルト値（制限なし）を返す。
+
+    Args:
+        session: SQLModelセッション。
+        tenant_id: 対象テナントID。
+        employment_type_id: 対象の雇用形態ID。
+
+    Returns:
+        EmploymentTypeRuleConfig（未設定の場合はデフォルト値）。
+
+    Raises:
+        HTTPException: 雇用形態が存在しない、または異なるテナントに属する場合。
+    """
+    employment_type = session.exec(
+        select(EmploymentType).where(
+            EmploymentType.id == employment_type_id,  # type: ignore[arg-type]
+            EmploymentType.tenant_id == tenant_id,
+        )
+    ).first()
+    if employment_type is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"EmploymentType '{employment_type_id}' not found.",
+        )
+    return _load_rule(session, employment_type_id) or EmploymentTypeRuleConfig()
+
+
+def upsert_employment_type_rule(
+    session: Session,
+    tenant_id: str,
+    employment_type_id: uuid.UUID,
+    data: EmploymentTypeRuleUpdate,
+) -> EmploymentTypeRuleConfig:
+    """指定した雇用形態のルール設定をupsertする.
+
+    Args:
+        session: SQLModelセッション。
+        tenant_id: 対象テナントID。
+        employment_type_id: 対象の雇用形態ID。
+        data: 更新データ。
+
+    Returns:
+        更新後の EmploymentTypeRuleConfig。
+
+    Raises:
+        HTTPException: 雇用形態が存在しない、または異なるテナントに属する場合。
+    """
+    employment_type = session.exec(
+        select(EmploymentType).where(
+            EmploymentType.id == employment_type_id,  # type: ignore[arg-type]
+            EmploymentType.tenant_id == tenant_id,
+        )
+    ).first()
+    if employment_type is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"EmploymentType '{employment_type_id}' not found.",
+        )
+
+    rule_row = session.exec(
+        select(EmploymentTypeRule).where(
+            EmploymentTypeRule.employment_type_id == employment_type_id,  # type: ignore[arg-type]
+        )
+    ).first()
+
+    if rule_row is None:
+        rule_row = EmploymentTypeRule(
+            employment_type_id=employment_type_id,
+            tenant_id=tenant_id,
+            require_default_pair=data.require_default_pair,
+            allowed_slot_types=data.allowed_slot_types,
+            annual_limit_overrides=data.annual_limit_overrides,
+        )
+    else:
+        rule_row.require_default_pair = data.require_default_pair  # type: ignore[assignment]
+        rule_row.allowed_slot_types = data.allowed_slot_types  # type: ignore[assignment]
+        rule_row.annual_limit_overrides = data.annual_limit_overrides  # type: ignore[assignment]
+
+    session.add(rule_row)
+    session.commit()
+    session.refresh(rule_row)
+
+    return _load_rule(session, employment_type_id) or EmploymentTypeRuleConfig()
