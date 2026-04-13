@@ -4,6 +4,7 @@
 
 import { useMemo } from "react";
 
+import type { EmploymentType } from "@/types/employmentType";
 import type { CalendarState, SlotType } from "@/types/shiftRequirement";
 import type { AnnualShiftLimitsConfig, ShiftRulesConfig } from "@/types/shiftRules";
 import type { TenantSkillRank } from "@/types/skillRank";
@@ -40,6 +41,7 @@ export function useShiftValidation(
   workerStats?: ValidationContextWorkerStats[],
   annualWorkerStats?: WorkerStatsResponse[],
   annualLimits?: AnnualShiftLimitsConfig,
+  employmentTypes?: EmploymentType[],
 ): ValidationMap {
   const workerMap = useMemo(
     () => new Map(workers.map((w) => [w.id, w])),
@@ -68,6 +70,12 @@ export function useShiftValidation(
     return new Map(annualWorkerStats.map((s) => [s.worker_id, s]));
   }, [annualWorkerStats]);
 
+  /** 雇用形態マップ（employment_type_id → EmploymentType）。 */
+  const employmentTypeMap = useMemo(
+    () => employmentTypes ? new Map(employmentTypes.map((et) => [et.id, et])) : undefined,
+    [employmentTypes],
+  );
+
   const validationMap = useMemo(() => {
     const result: ValidationMap = {};
 
@@ -85,6 +93,7 @@ export function useShiftValidation(
           prevMonthDatesByWorker,
           workerStatsMap,
           annualLimits,
+          employmentTypeMap,
         );
         if (violations.length > 0) {
           result[buildSlotKey(dateStr, slotType as SlotType)] = violations;
@@ -93,7 +102,7 @@ export function useShiftValidation(
     }
 
     return result;
-  }, [calendarState, workerMap, rules, skillRankMap, prevMonthDatesByWorker, workerStatsMap, annualLimits]);
+  }, [calendarState, workerMap, rules, skillRankMap, prevMonthDatesByWorker, workerStatsMap, annualLimits, employmentTypeMap]);
 
   return validationMap;
 }

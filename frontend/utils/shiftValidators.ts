@@ -1,6 +1,7 @@
 // frontend/utils/shiftValidators.ts
 // シフトバリデーションのための純粋関数群
 
+import type { EmploymentType } from "@/types/employmentType";
 import type { CalendarState, SlotType } from "@/types/shiftRequirement";
 import type { AnnualShiftLimitsConfig, ShiftRulesConfig } from "@/types/shiftRules";
 import type { TenantSkillRank } from "@/types/skillRank";
@@ -274,16 +275,18 @@ export function validateWorkInterval(
 
 /**
  * ルール5: 特別雇用者の枠制限
- * 特別雇用者（is_special=true）は special_employment_shifts 以外の枠にはアサイン不可。
+ * 非デフォルト雇用形態に紐付くWorker（または is_special=true のWorker）は
+ * 許可された枠以外にはアサイン不可。
+ * 雇用形態別 allowed_slot_types が設定されている場合はそちらを優先する。
  */
 export function validateSpecialEmployment(
   slotType: SlotType,
   workers: readonly (string | null)[],
   workerMap: Map<string, Worker>,
   rules?: Pick<ShiftRulesConfig, "special_employment_shifts">,
+  employmentTypeMap?: Map<string, EmploymentType>,
 ): ValidationViolation[] {
-  const allowedSlots = rules?.special_employment_shifts ?? ["weekday_night"];
-  if (allowedSlots.includes(slotType)) return [];
+  const globalAllowedSlots = rules?.special_employment_shifts ?? ["weekday_night"];
 
   const violations: ValidationViolation[] = [];
   const assignedWorkers = workers
@@ -292,13 +295,38 @@ export function validateSpecialEmployment(
     .filter((w): w is Worker => w !== undefined);
 
   for (const worker of assignedWorkers) {
+    // 雇用形態別ルールチェック（新ロジック）
+    if (employmentTypeMap && worker.employment_type_id) {
+      const et = employmentTypeMap.get(worker.employment_type_id);
+      if (et && !et.is_default) {
+        // 非デフォルト雇用形態: allowed_slot_types または global にフォールバック
+        const allowedSlots =
+          et.rule?.allowed_slot_types && et.rule.allowed_slot_types.length > 0
+            ? et.rule.allowed_slot_types
+            : globalAllowedSlots;
+        if (!(allowedSlots as string[]).includes(slotType)) {
+          const allowedStr = allowedSlots.join("、");
+          violations.push({
+            code: "SPECIAL_EMPLOYMENT",
+            severity: "error",
+            message: `${worker.name} の雇用形態では、許可された枠（${allowedStr}）以外にはアサインできません`,
+            workerIds: [worker.id],
+          });
+        }
+        continue;
+      }
+    }
+
+    // 後方互換: is_special フラグによる旧ロジック
     if (worker.is_special) {
-      violations.push({
-        code: "SPECIAL_EMPLOYMENT",
-        severity: "error",
-        message: `${worker.name} は特別雇用者のため、平日夜間以外の枠にはアサインできません`,
-        workerIds: [worker.id],
-      });
+      if (!(globalAllowedSlots as string[]).includes(slotType)) {
+        violations.push({
+          code: "SPECIAL_EMPLOYMENT",
+          severity: "error",
+          message: `${worker.name} は特別雇用者のため、平日夜間以外の枠にはアサインできません`,
+          workerIds: [worker.id],
+        });
+      }
     }
   }
 
@@ -675,6 +703,7 @@ export function validateSlot(
   prevMonthDatesByWorker?: Record<string, string | null>,
   workerStatsMap?: Map<string, WorkerStatsResponse>,
   annualLimits?: AnnualShiftLimitsConfig,
+  employmentTypeMap?: Map<string, EmploymentType>,
 ): ValidationViolation[] {
   const assignedCount = workers.filter((id) => id !== null).length;
   if (assignedCount === 0) return [];
@@ -684,7 +713,7 @@ export function validateSlot(
     ...validateSameDepartment(workers, workerMap, rules),
     ...validateSkillRankA(workers, requiredHeadcount, workerMap, rules, skillRankMap),
     ...validateWorkInterval(dateStr, slotType, workers, calendarState, workerMap, rules, prevMonthDatesByWorker),
-    ...validateSpecialEmployment(slotType, workers, workerMap, rules),
+    ...validateSpecialEmployment(slotType, workers, workerMap, rules, employmentTypeMap),
     ...validateTenureRestriction(dateStr, workers, workerMap, rules),
     ...validateConsecutiveHolidays(dateStr, slotType, workers, calendarState, workerMap),
     ...(workerStatsMap && annualLimits

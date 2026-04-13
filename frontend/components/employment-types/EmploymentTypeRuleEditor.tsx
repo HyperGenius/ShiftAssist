@@ -14,18 +14,7 @@ import type {
   EmploymentTypeRuleConfig,
   EmploymentTypeRuleUpdate,
 } from "@/types/employmentType";
-
-/** SlotTypeEnum の全値と日本語ラベル */
-const SLOT_TYPE_OPTIONS: { value: string; label: string }[] = [
-  { value: "weekday_night", label: "平日夜間" },
-  { value: "sat_day", label: "土曜昼間" },
-  { value: "sat_night", label: "土曜夜間" },
-  { value: "sun_hol_day", label: "日曜・祝日昼間" },
-  { value: "sun_hol_night", label: "日曜・祝日夜間" },
-  { value: "long_hol_day", label: "長期連休昼間" },
-  { value: "long_hol_night", label: "長期連休夜間" },
-  { value: "sat_pre_hol_night", label: "土曜・祝前日夜間" },
-];
+import { SLOT_TYPE_OPTIONS } from "@/utils/labels";
 
 /** 年間上限フィールドの定義 */
 const ANNUAL_LIMIT_FIELDS: { key: keyof AnnualPartialLimitsConfig; label: string }[] = [
@@ -33,8 +22,8 @@ const ANNUAL_LIMIT_FIELDS: { key: keyof AnnualPartialLimitsConfig; label: string
   { key: "weekday_night", label: "平日夜間" },
   { key: "sat_day", label: "土曜昼間" },
   { key: "sat_night", label: "土曜夜間" },
-  { key: "sun_hol_day", label: "日祝昼間" },
-  { key: "sun_hol_night", label: "日祝夜間" },
+  { key: "sun_hol_day", label: "日曜・祝日昼間" },
+  { key: "sun_hol_night", label: "日曜・祝日夜間" },
   { key: "sat_pre_hol_night", label: "土曜・祝前日夜間" },
 ];
 
