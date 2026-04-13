@@ -94,7 +94,9 @@ def _load_employment_type_rules(
         )
         config = EmploymentTypeRuleConfig(
             require_default_pair=bool(row.require_default_pair),
-            allowed_slot_types=row.allowed_slot_types if isinstance(row.allowed_slot_types, list) else None,
+            allowed_slot_types=row.allowed_slot_types
+            if isinstance(row.allowed_slot_types, list)
+            else None,
             annual_limit_overrides=annual_limit_overrides,
         )
         et_id = cast(uuid.UUID, row.employment_type_id)
@@ -818,16 +820,32 @@ def _check_annual_shift_limits(
             if et_rule is not None and et_rule.annual_limit_overrides is not None:
                 overrides = et_rule.annual_limit_overrides
                 effective_limits = AnnualShiftLimitsConfig(
-                    annual_total=overrides.annual_total if overrides.annual_total is not None else limits.annual_total,
-                    weekday_night=overrides.weekday_night if overrides.weekday_night is not None else limits.weekday_night,
-                    sat_day=overrides.sat_day if overrides.sat_day is not None else limits.sat_day,
-                    sat_night=overrides.sat_night if overrides.sat_night is not None else limits.sat_night,
-                    sun_hol_day=overrides.sun_hol_day if overrides.sun_hol_day is not None else limits.sun_hol_day,
-                    sun_hol_night=overrides.sun_hol_night if overrides.sun_hol_night is not None else limits.sun_hol_night,
-                    sat_pre_hol_night=overrides.sat_pre_hol_night if overrides.sat_pre_hol_night is not None else limits.sat_pre_hol_night,
+                    annual_total=overrides.annual_total
+                    if overrides.annual_total is not None
+                    else limits.annual_total,
+                    weekday_night=overrides.weekday_night
+                    if overrides.weekday_night is not None
+                    else limits.weekday_night,
+                    sat_day=overrides.sat_day
+                    if overrides.sat_day is not None
+                    else limits.sat_day,
+                    sat_night=overrides.sat_night
+                    if overrides.sat_night is not None
+                    else limits.sat_night,
+                    sun_hol_day=overrides.sun_hol_day
+                    if overrides.sun_hol_day is not None
+                    else limits.sun_hol_day,
+                    sun_hol_night=overrides.sun_hol_night
+                    if overrides.sun_hol_night is not None
+                    else limits.sun_hol_night,
+                    sat_pre_hol_night=overrides.sat_pre_hol_night
+                    if overrides.sat_pre_hol_night is not None
+                    else limits.sat_pre_hol_night,
                 )
 
-        violations.extend(_annual_slot_violations(worker, total, counts, effective_limits))
+        violations.extend(
+            _annual_slot_violations(worker, total, counts, effective_limits)
+        )
 
     return violations
 
@@ -907,10 +925,12 @@ def _check_non_weekday_night_limit(
     if slot_type_str not in _NON_WEEKDAY_NIGHT_SLOT_TYPES:
         return []
 
-    # ShiftRequirement に紐づく ShiftPlan の ID を取得
-    plan_id = getattr(requirement, "plan_id", None)
-    if plan_id is None:
-        return []
+    shift_date: date = requirement.shift_date  # type: ignore[assignment]
+    import calendar
+
+    month_start = shift_date.replace(day=1)
+    last_day = calendar.monthrange(shift_date.year, shift_date.month)[1]
+    month_end = shift_date.replace(day=last_day)
 
     violations: list[ValidationViolationItem] = []
     for worker in workers:
@@ -924,7 +944,8 @@ def _check_non_weekday_night_limit(
                 .where(
                     ShiftRequirementAssignment.worker_id == worker.id,
                     ShiftRequirementAssignment.tenant_id == tenant_id,
-                    ShiftRequirement.plan_id == plan_id,
+                    ShiftRequirement.shift_date >= month_start,
+                    ShiftRequirement.shift_date <= month_end,
                     ShiftRequirement.slot_type.in_(  # type: ignore[union-attr]
                         list(_NON_WEEKDAY_NIGHT_SLOT_TYPES)
                     ),
@@ -984,8 +1005,12 @@ def validate_shift_assignments(
         *_check_same_department(workers, rules),
         *_check_skill_rank(session, requirement, workers, rules),
         *_check_work_interval(session, tenant_id, requirement, workers, rules),
-        *_check_special_employment(requirement, workers, rules, non_default_et_ids, et_rules),
-        *_check_employment_pair_restriction(requirement, workers, rules, non_default_et_ids, et_rules),
+        *_check_special_employment(
+            requirement, workers, rules, non_default_et_ids, et_rules
+        ),
+        *_check_employment_pair_restriction(
+            requirement, workers, rules, non_default_et_ids, et_rules
+        ),
         *_check_age_restriction(workers, shift_date),
         *_check_position_exclusion(session, tenant_id, requirement, workers),
         *_check_tenure_restriction(workers, shift_date, rules),
@@ -993,7 +1018,9 @@ def validate_shift_assignments(
         *_check_long_holiday_prev_year_exclusion(
             session, tenant_id, requirement, workers
         ),
-        *_check_annual_shift_limits(session, tenant_id, requirement, workers, limits, et_rules),
+        *_check_annual_shift_limits(
+            session, tenant_id, requirement, workers, limits, et_rules
+        ),
         *_check_total_age_limit(workers, rules, shift_date),
         *_check_non_weekday_night_limit(
             session, tenant_id, requirement, workers, rules

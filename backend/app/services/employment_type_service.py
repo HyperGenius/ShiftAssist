@@ -114,7 +114,9 @@ def _load_rule(
     )
     return EmploymentTypeRuleConfig(
         require_default_pair=bool(rule_row.require_default_pair),
-        allowed_slot_types=rule_row.allowed_slot_types if isinstance(rule_row.allowed_slot_types, list) else None,
+        allowed_slot_types=rule_row.allowed_slot_types
+        if isinstance(rule_row.allowed_slot_types, list)
+        else None,
         annual_limit_overrides=annual_limit_overrides,
     )
 
