@@ -16,6 +16,8 @@ export type ValidationCode =
   | "SPECIAL_EMPLOYMENT" // 特別雇用者の枠制限違反
   | "NEW_HIRE_TENURE" // 採用後の期間制限
   | "TRANSFER_TENURE" // 事業本部間転入後の期間制限
+  | "TOTAL_AGE_LIMIT" // スロット内ワーカーの合計年齢上限超過
+  | "NON_WEEKDAY_NIGHT_LIMIT" // 平日夜間以外シフト回数上限超過
   | "CONSECUTIVE_HOLIDAYS" // 休日の連続アサイン (Warning)
   | "ANNUAL_TOTAL_SHIFTS" // 年間総シフト回数上限 (Warning)
   | "ANNUAL_WEEKDAY_NIGHT" // 年間平日夜間上限 (Warning)
@@ -531,6 +533,135 @@ export function validateAnnualShiftLimits(
   return violations;
 }
 
+/**
+ * シフト日文字列（YYYY-MM-DD）から、その月の初日を表す Date を返す。
+ */
+function firstDayOfMonth(dateStr: string): Date {
+  const d = parseDateStr(dateStr);
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+/**
+ * 生年月日文字列（YYYY-MM-DD）と基準日から年齢を計算する。
+ */
+function calculateAgeAt(birthDateStr: string, referenceDate: Date): number {
+  const birth = parseDateStr(birthDateStr);
+  let age =
+    referenceDate.getFullYear() - birth.getFullYear();
+  const hasBirthdayPassed =
+    referenceDate.getMonth() > birth.getMonth() ||
+    (referenceDate.getMonth() === birth.getMonth() &&
+      referenceDate.getDate() >= birth.getDate());
+  if (!hasBirthdayPassed) age -= 1;
+  return Math.max(0, age);
+}
+
+/**
+ * ルール: 合計年齢上限チェック（TOTAL_AGE_LIMIT）
+ * スロット内のワーカーの年齢合計が max_total_age を超えた場合にエラー。
+ * max_total_age が 0 の場合は制限なし。
+ * birth_date が null のワーカーは計算から除外（0歳扱い）。
+ */
+export function validateTotalAgeLimit(
+  workers: readonly (string | null)[],
+  workerMap: Map<string, Worker>,
+  rules: Pick<ShiftRulesConfig, "max_total_age">,
+  shiftDateStr: string,
+): ValidationViolation[] {
+  const maxTotalAge = rules.max_total_age ?? 120;
+  if (maxTotalAge === 0) return [];
+
+  const assignedWorkers = workers
+    .filter((id): id is string => id !== null)
+    .map((id) => workerMap.get(id))
+    .filter((w): w is Worker => w !== undefined);
+
+  if (assignedWorkers.length === 0) return [];
+
+  const referenceDate = firstDayOfMonth(shiftDateStr);
+  const workersWithBirthDate = assignedWorkers.filter(
+    (w) => w.birth_date != null,
+  );
+  const ageSum = workersWithBirthDate.reduce(
+    (sum, w) => sum + calculateAgeAt(w.birth_date!, referenceDate),
+    0,
+  );
+
+  if (ageSum <= maxTotalAge) return [];
+
+  return [
+    {
+      code: "TOTAL_AGE_LIMIT",
+      severity: "error",
+      message: `スロット内ワーカーの年齢合計が上限（${maxTotalAge}歳）を超えています（合計: ${ageSum}歳）`,
+      workerIds: workersWithBirthDate.map((w) => w.id),
+    },
+  ];
+}
+
+/** 平日夜間以外スロット種別セット */
+const NON_WEEKDAY_NIGHT_SLOT_TYPES = new Set<SlotType>([
+  "sat_day",
+  "sat_night",
+  "sun_hol_day",
+  "sun_hol_night",
+  "long_hol_day",
+  "long_hol_night",
+  "sat_pre_hol_night",
+]);
+
+/**
+ * ルール: 平日夜間以外シフト回数上限チェック（NON_WEEKDAY_NIGHT_LIMIT）
+ * 対象スロットが平日夜間以外のとき、calendarState 内で同一ワーカーが
+ * max_non_weekday_night_per_period 回以上の平日夜間以外スロットにアサインされていれば
+ * エラーを返す。max_non_weekday_night_per_period が 0 の場合は制限なし。
+ * 対象スロットが weekday_night の場合はルールを適用しない。
+ */
+export function validateNonWeekdayNightLimit(
+  dateStr: string,
+  slotType: SlotType,
+  workers: readonly (string | null)[],
+  calendarState: CalendarState,
+  workerMap: Map<string, Worker>,
+  rules: Pick<ShiftRulesConfig, "max_non_weekday_night_per_period">,
+): ValidationViolation[] {
+  const limit = rules.max_non_weekday_night_per_period ?? 1;
+  if (limit === 0) return [];
+  if (!NON_WEEKDAY_NIGHT_SLOT_TYPES.has(slotType)) return [];
+
+  const assignedWorkers = workers.filter((id): id is string => id !== null);
+  const violations: ValidationViolation[] = [];
+
+  for (const workerId of assignedWorkers) {
+    const worker = workerMap.get(workerId);
+    if (!worker) continue;
+
+    // 現在スロットを除く、カレンダー内の平日夜間以外スロットへのアサイン数をカウント
+    let count = 0;
+    for (const [calDateStr, dayState] of Object.entries(calendarState)) {
+      for (const [calSlotType, slotState] of Object.entries(dayState)) {
+        if (calDateStr === dateStr && calSlotType === slotType) continue;
+        if (!NON_WEEKDAY_NIGHT_SLOT_TYPES.has(calSlotType as SlotType)) continue;
+        if (slotState.workerSelections.includes(workerId)) {
+          count += 1;
+        }
+      }
+    }
+
+    // 今回のアサイン分を加算して上限チェック
+    if (count + 1 > limit) {
+      violations.push({
+        code: "NON_WEEKDAY_NIGHT_LIMIT",
+        severity: "error",
+        message: `${worker.name} は今月の平日夜間以外シフト回数が上限（${limit}回）を超えています（現在: ${count + 1}回）`,
+        workerIds: [workerId],
+      });
+    }
+  }
+
+  return violations;
+}
+
 /** 1スロットの全バリデーションを実行して違反リストを返す */
 export function validateSlot(
   dateStr: string,
@@ -558,6 +689,10 @@ export function validateSlot(
     ...validateConsecutiveHolidays(dateStr, slotType, workers, calendarState, workerMap),
     ...(workerStatsMap && annualLimits
       ? validateAnnualShiftLimits(slotType, workers, workerMap, workerStatsMap, annualLimits)
+      : []),
+    ...(rules ? validateTotalAgeLimit(workers, workerMap, rules, dateStr) : []),
+    ...(rules
+      ? validateNonWeekdayNightLimit(dateStr, slotType, workers, calendarState, workerMap, rules)
       : []),
   ];
 }

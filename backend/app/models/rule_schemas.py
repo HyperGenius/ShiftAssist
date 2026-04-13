@@ -39,6 +39,20 @@ class ShiftRulesConfig(BaseModel):
     """事業部間転入（transfer_type=transfer_in かつ is_cross_division_transfer=True）の
     アサイン可能開始までの月数。0 を指定すると制限なし。"""
 
+    max_total_age: int = 120
+    """スロット内ワーカーの合計年齢上限。0 で制限なし。"""
+
+    max_non_weekday_night_per_period: int = 1
+    """1シフト計画期間内の平日夜間以外スロットへのアサイン上限回数。0 で制限なし。"""
+
+    @field_validator("max_total_age", "max_non_weekday_night_per_period")
+    @classmethod
+    def new_rules_non_negative(cls, v: int) -> int:
+        """合計年齢上限・平日夜間以外回数上限は0以上でなければならない."""
+        if v < 0:
+            raise ValueError("値は0以上の値を指定してください")
+        return v
+
     @field_validator("hired_tenure_months", "cross_division_transfer_tenure_months")
     @classmethod
     def tenure_months_non_negative(cls, v: int) -> int:

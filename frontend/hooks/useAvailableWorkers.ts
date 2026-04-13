@@ -10,14 +10,27 @@ import type { TenantSkillRank } from "@/types/skillRank";
 import type { WorkerStatsResponse } from "@/types/workerStats";
 import type { Worker } from "@/types/worker";
 
-/** 休日系スロットタイプ */
+/** 平日夜間以外スロットタイプ（sat_day / sat_night 含む全休日系） */
 const HOLIDAY_SLOT_TYPES = new Set<SlotType>([
+  "sat_day",
+  "sat_night",
   "sun_hol_day",
   "sun_hol_night",
   "long_hol_day",
   "long_hol_night",
   "sat_pre_hol_night",
 ]);
+
+/** 生年月日文字列（YYYY-MM-DD）と基準日から年齢を計算する */
+function calcAgeAt(birthDateStr: string, referenceDate: Date): number {
+  const [by, bm, bd] = birthDateStr.split("-").map(Number);
+  let age = referenceDate.getFullYear() - by;
+  const hasBirthdayPassed =
+    referenceDate.getMonth() + 1 > bm ||
+    (referenceDate.getMonth() + 1 === bm && referenceDate.getDate() >= bd);
+  if (!hasBirthdayPassed) age -= 1;
+  return Math.max(0, age);
+}
 
 export interface AvailableWorkersResult {
   /** フィルタリング後のWorkerリスト */
@@ -55,6 +68,8 @@ interface UseAvailableWorkersOptions {
   minIntervalDays?: number;
   /** 前月の直近シフト日付マップ（workerId → last_shift_date）。月跨ぎ間隔チェックに使用 */
   prevMonthDatesByWorker?: Record<string, string | null>;
+  /** 選択中スロットの日付（YYYY-MM-DD）。合計年齢計算の基準日として使用 */
+  shiftDateStr?: string;
 }
 
 /**
@@ -74,6 +89,7 @@ export function useAvailableWorkers({
   currentDateStr,
   minIntervalDays,
   prevMonthDatesByWorker,
+  shiftDateStr,
 }: UseAvailableWorkersOptions): AvailableWorkersResult {
   const skillRankMap = useMemo(
     () => new Map(skillRanks.map((r) => [r.id, r])),
@@ -260,9 +276,55 @@ export function useAvailableWorkers({
         }
       }
 
+      // 例6: 合計年齢上限フィルタ
+      if (rules && shiftDateStr) {
+        const maxTotalAge = rules.max_total_age ?? 120;
+        if (maxTotalAge > 0) {
+          const [refYear, refMonth] = shiftDateStr.split("-").map(Number);
+          const referenceDate = new Date(refYear, refMonth - 1, 1);
+
+          // 既にアサイン済みワーカーの年齢合計を計算
+          const assignedAgeSum = [...assignedSet].reduce((sum, id) => {
+            const aw = workers.find((wk) => wk.id === id);
+            if (!aw || !aw.birth_date) return sum;
+            return sum + calcAgeAt(aw.birth_date, referenceDate);
+          }, 0);
+
+          // 候補ワーカーの年齢を加算して上限チェック
+          const candidateAge = w.birth_date
+            ? calcAgeAt(w.birth_date, referenceDate)
+            : 0;
+          if (assignedAgeSum + candidateAge > maxTotalAge) {
+            return false;
+          }
+        }
+      }
+
+      // 例7: 平日夜間以外シフト回数上限フィルタ
+      if (rules && calendarState && slotType && HOLIDAY_SLOT_TYPES.has(slotType)) {
+        const limit = rules.max_non_weekday_night_per_period ?? 1;
+        if (limit > 0) {
+          // 進行中アサインの平日夜間以外スロットカウント（現在スロットを除く）
+          let nonWeekdayNightCount = 0;
+          for (const [calDateStr, dayState] of Object.entries(calendarState)) {
+            for (const [calSt, slotState] of Object.entries(dayState)) {
+              if (calDateStr === currentDateStr && calSt === (slotType as string)) continue;
+              if (!HOLIDAY_SLOT_TYPES.has(calSt as SlotType)) continue;
+              if (slotState.workerSelections.includes(w.id)) {
+                nonWeekdayNightCount += 1;
+              }
+            }
+          }
+          // 今回のアサイン分を含めて上限チェック
+          if (nonWeekdayNightCount + 1 > limit) {
+            return false;
+          }
+        }
+      }
+
       return true;
     });
-  }, [workers, skillRankMap, assignedSet, allowSameDepartment, slotType, showAll, workerStatsMap, annualLimits, currentDateStr, minIntervalDays, prevMonthDatesByWorker, inProgressDataByWorker]);
+  }, [workers, skillRankMap, assignedSet, allowSameDepartment, slotType, showAll, workerStatsMap, annualLimits, currentDateStr, minIntervalDays, prevMonthDatesByWorker, inProgressDataByWorker, rules, shiftDateStr, calendarState]);
 
   const isWorkerAvailable = useMemo(() => {
     const availableSet = new Set(availableWorkers.map((w) => w.id));
