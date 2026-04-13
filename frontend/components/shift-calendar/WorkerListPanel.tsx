@@ -5,11 +5,11 @@ import Link from "next/link";
 
 import type { Department } from "@/types/department";
 import type { EmploymentType } from "@/types/employmentType";
-import type { SlotType } from "@/types/shiftRequirement";
-import type { ShiftRulesConfig } from "@/types/shiftRules";
+import type { CalendarState, SlotType } from "@/types/shiftRequirement";
+import type { AnnualShiftLimitsConfig, ShiftRulesConfig } from "@/types/shiftRules";
 import type { TenantSkillRank } from "@/types/skillRank";
 import type { Worker } from "@/types/worker";
-import type { AggregateStatsResponse } from "@/types/workerStats";
+import type { AggregateStatsResponse, WorkerStatsResponse } from "@/types/workerStats";
 import { useAvailableWorkers } from "@/hooks/useAvailableWorkers";
 import { WorkerCard } from "./WorkerCard";
 import { SmartSuggestRow, SMART_SUGGEST_GRID_COLS } from "./SmartSuggestRow";
@@ -32,6 +32,18 @@ interface WorkerListPanelProps {
   aggregateStats?: AggregateStatsResponse | null;
   /** 集計データ読み込み中フラグ */
   isAggregateStatsLoading?: boolean;
+  /** ワーカー年間統計（年間上限フィルタリングに使用） */
+  workerStats?: WorkerStatsResponse[];
+  /** 年間シフト回数上限設定（年間上限フィルタリングに使用） */
+  annualLimits?: AnnualShiftLimitsConfig;
+  /** 作成中カレンダーステート（進行中アサインのカウント・間隔チェックに使用） */
+  calendarState?: CalendarState;
+  /** 選択中スロットの日付（YYYY-MM-DD）。interval チェックと進行中カウント除外に使用 */
+  currentDateStr?: string;
+  /** シフト最小間隔（日数）。WORK_INTERVAL フィルタリングに使用 */
+  minIntervalDays?: number;
+  /** 前月の直近シフト日付マップ（workerId → last_shift_date）。月跨ぎ間隔チェックに使用 */
+  prevMonthDatesByWorker?: Record<string, string | null>;
 }
 
 /**
@@ -51,6 +63,12 @@ export function WorkerListPanel({
   onShowAllChange,
   aggregateStats,
   isAggregateStatsLoading = false,
+  workerStats,
+  annualLimits,
+  calendarState,
+  currentDateStr,
+  minIntervalDays,
+  prevMonthDatesByWorker,
 }: WorkerListPanelProps) {
   const { availableWorkers, totalWorkerCount, isFiltered } =
     useAvailableWorkers({
@@ -60,6 +78,12 @@ export function WorkerListPanel({
       slotType: activeSlotType,
       assignedWorkerIds: activeAssignedWorkerIds,
       showAll,
+      workerStats,
+      annualLimits,
+      calendarState,
+      currentDateStr,
+      minIntervalDays,
+      prevMonthDatesByWorker,
     });
 
   // 全Workerのうちフィルタで除外されているIDセット（全表示時はdisabledにしない）
