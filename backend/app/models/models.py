@@ -259,6 +259,44 @@ class EmploymentType(Base):
     )
 
 
+class EmploymentTypeRule(Base):
+    """雇用形態別シフトルールを表すSQLAlchemyモデル.
+
+    雇用形態（EmploymentType）ごとにアサイン制約を上書き設定するためのテーブル。
+    ``employment_type_id`` に対して1対1の関係を持つ。
+
+    Attributes:
+        id: UUIDによるプライマリキー。
+        employment_type_id: 対象の雇用形態ID（employment_typesテーブルへのFK、1対1）。
+        tenant_id: Clerk OrganizationのID。テナント分離・インデックス用。
+        require_default_pair: True の場合、同一枠のペアにデフォルト雇用形態のWorkerが必須。
+        allowed_slot_types: アサイン可能なSlotTypeEnumのリスト（空/nullは制限なし）。
+        annual_limit_overrides: AnnualShiftLimitsConfig の部分的な上書き設定（各キーはnull許容）。
+        created_at: レコード作成日時。
+        updated_at: レコード最終更新日時。更新時に自動更新される。
+    """
+
+    __tablename__ = "employment_type_rules"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    employment_type_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("employment_types.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    tenant_id = Column(String, index=True, nullable=False)
+    require_default_pair = Column(Boolean, default=False, nullable=False)
+    allowed_slot_types = Column(JSON, nullable=True)
+    annual_limit_overrides = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "employment_type_id", name="uq_employment_type_rule_employment_type_id"
+        ),
+    )
+
+
 class Worker(Base):
     """シフトにアサインされる対応者を表すSQLAlchemyモデル.
 

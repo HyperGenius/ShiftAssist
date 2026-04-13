@@ -112,6 +112,11 @@ def mock_load_non_default_et_ids(monkeypatch: pytest.MonkeyPatch) -> None:
         "_load_non_default_employment_type_ids",
         lambda session, tenant_id: set(),
     )
+    monkeypatch.setattr(
+        shift_validation_service,
+        "_load_employment_type_rules",
+        lambda session, tenant_id: {},
+    )
 
 
 class TestValidateShiftAssignments:
@@ -1242,3 +1247,336 @@ class TestCheckAnnualShiftLimits:
         assert "ANNUAL_SAT_PRE_HOL_NIGHT" in codes
         annual_violations = [v for v in result if v.code == "ANNUAL_SAT_PRE_HOL_NIGHT"]
         assert all(v.severity == "warning" for v in annual_violations)
+
+
+# ---------------------------------------------------------------------------
+# 雇用形態別ルールエンジンのテスト
+# ---------------------------------------------------------------------------
+
+ET_RULE_ID = uuid.uuid4()
+DEFAULT_ET_ID = uuid.uuid4()
+NON_DEFAULT_ET_ID_2 = uuid.uuid4()
+
+
+class TestEmploymentPairRestriction:
+    """ペア制限ルール（require_default_pair）のテスト."""
+
+    def test_pair_restriction_violation_when_no_default_worker(self) -> None:
+        """異常系: require_default_pair=True の雇用形態のWorkerをアサインする際、
+        ペア相手がデフォルト雇用形態でない場合に EMPLOYMENT_PAIR_RESTRICTION を返す."""
+        from app.models.rule_schemas import EmploymentTypeRuleConfig
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+
+        req = _make_requirement(slot_type="weekday_night")
+        # Worker1: require_default_pair=True の非デフォルト雇用形態
+        w1 = _make_worker(
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            employment_type_id=NON_DEFAULT_ET_ID,
+        )
+        # Worker2: 同じく非デフォルト雇用形態（デフォルトではない）
+        w2 = _make_worker(
+            worker_id=WORKER_ID_2,
+            department_id=DEPT_B_ID,
+            employment_type_id=NON_DEFAULT_ET_ID_2,
+        )
+
+        et_rules = {
+            NON_DEFAULT_ET_ID: EmploymentTypeRuleConfig(require_default_pair=True),
+        }
+
+        with patch(
+            "app.services.shift_validation_service._load_non_default_employment_type_ids",
+            return_value={NON_DEFAULT_ET_ID, NON_DEFAULT_ET_ID_2},
+        ), patch(
+            "app.services.shift_validation_service._load_employment_type_rules",
+            return_value=et_rules,
+        ):
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [w1, w2], DEFAULT_RULES
+            )
+
+        codes = [v.code for v in result]
+        assert "EMPLOYMENT_PAIR_RESTRICTION" in codes
+
+    def test_pair_restriction_no_violation_when_default_worker_present(self) -> None:
+        """正常系: require_default_pair=True の雇用形態のWorkerをアサインする際、
+        ペア相手がデフォルト雇用形態の場合は違反なし."""
+        from app.models.rule_schemas import EmploymentTypeRuleConfig
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+
+        req = _make_requirement(slot_type="weekday_night")
+        # Worker1: require_default_pair=True の非デフォルト雇用形態
+        w1 = _make_worker(
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            employment_type_id=NON_DEFAULT_ET_ID,
+        )
+        # Worker2: デフォルト雇用形態
+        w2 = _make_worker(
+            worker_id=WORKER_ID_2,
+            department_id=DEPT_B_ID,
+            employment_type_id=DEFAULT_ET_ID,
+        )
+
+        et_rules = {
+            NON_DEFAULT_ET_ID: EmploymentTypeRuleConfig(require_default_pair=True),
+        }
+
+        with patch(
+            "app.services.shift_validation_service._load_non_default_employment_type_ids",
+            return_value={NON_DEFAULT_ET_ID},  # DEFAULT_ET_ID はデフォルト
+        ), patch(
+            "app.services.shift_validation_service._load_employment_type_rules",
+            return_value=et_rules,
+        ):
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [w1, w2], DEFAULT_RULES
+            )
+
+        codes = [v.code for v in result]
+        assert "EMPLOYMENT_PAIR_RESTRICTION" not in codes
+
+    def test_pair_restriction_skipped_for_single_worker_slot(self) -> None:
+        """正常系: workers_per_slot=1 の場合、ペア制限チェックをスキップする."""
+        from app.models.rule_schemas import EmploymentTypeRuleConfig
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+
+        rules_single = ShiftRulesConfig(**{**DEFAULT_RULES.model_dump(), "workers_per_slot": 1})
+        req = _make_requirement(slot_type="weekday_night")
+        w1 = _make_worker(
+            worker_id=WORKER_ID_1,
+            department_id=DEPT_A_ID,
+            employment_type_id=NON_DEFAULT_ET_ID,
+        )
+
+        et_rules = {
+            NON_DEFAULT_ET_ID: EmploymentTypeRuleConfig(require_default_pair=True),
+        }
+
+        with patch(
+            "app.services.shift_validation_service._load_non_default_employment_type_ids",
+            return_value={NON_DEFAULT_ET_ID},
+        ), patch(
+            "app.services.shift_validation_service._load_employment_type_rules",
+            return_value=et_rules,
+        ):
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [w1], rules_single
+            )
+
+        codes = [v.code for v in result]
+        assert "EMPLOYMENT_PAIR_RESTRICTION" not in codes
+
+
+class TestAllowedSlotTypesPerEmploymentType:
+    """アサイン可能枠の制限（allowed_slot_types）のテスト."""
+
+    def test_allowed_slot_types_violation_when_slot_not_in_list(self) -> None:
+        """異常系: allowed_slot_types が設定されており、リスト外の枠へのアサインで SPECIAL_EMPLOYMENT を返す."""
+        from app.models.rule_schemas import EmploymentTypeRuleConfig
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+
+        req = _make_requirement(slot_type="sat_day")
+        worker = _make_worker(
+            worker_id=WORKER_ID_1,
+            employment_type_id=NON_DEFAULT_ET_ID,
+        )
+
+        # allowed_slot_types に sat_day を含まない
+        et_rules = {
+            NON_DEFAULT_ET_ID: EmploymentTypeRuleConfig(
+                allowed_slot_types=["weekday_night"]
+            ),
+        }
+
+        with patch(
+            "app.services.shift_validation_service._load_non_default_employment_type_ids",
+            return_value={NON_DEFAULT_ET_ID},
+        ), patch(
+            "app.services.shift_validation_service._load_employment_type_rules",
+            return_value=et_rules,
+        ):
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [worker], DEFAULT_RULES
+            )
+
+        codes = [v.code for v in result]
+        assert "SPECIAL_EMPLOYMENT" in codes
+
+    def test_allowed_slot_types_no_violation_when_slot_in_list(self) -> None:
+        """正常系: allowed_slot_types が設定されており、リスト内の枠へのアサインは違反なし."""
+        from app.models.rule_schemas import EmploymentTypeRuleConfig
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+
+        req = _make_requirement(slot_type="sat_day")
+        worker = _make_worker(
+            worker_id=WORKER_ID_1,
+            employment_type_id=NON_DEFAULT_ET_ID,
+        )
+
+        # allowed_slot_types に sat_day を含む
+        et_rules = {
+            NON_DEFAULT_ET_ID: EmploymentTypeRuleConfig(
+                allowed_slot_types=["weekday_night", "sat_day"]
+            ),
+        }
+
+        with patch(
+            "app.services.shift_validation_service._load_non_default_employment_type_ids",
+            return_value={NON_DEFAULT_ET_ID},
+        ), patch(
+            "app.services.shift_validation_service._load_employment_type_rules",
+            return_value=et_rules,
+        ):
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [worker], DEFAULT_RULES
+            )
+
+        codes = [v.code for v in result]
+        assert "SPECIAL_EMPLOYMENT" not in codes
+
+    def test_allowed_slot_types_fallback_to_global_when_not_set(self) -> None:
+        """正常系: allowed_slot_types が未設定の場合、グローバルの special_employment_shifts にフォールバックする."""
+        from app.models.rule_schemas import EmploymentTypeRuleConfig
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+
+        # グローバルルール: weekday_night のみ許可
+        req = _make_requirement(slot_type="sat_day")
+        worker = _make_worker(
+            worker_id=WORKER_ID_1,
+            employment_type_id=NON_DEFAULT_ET_ID,
+        )
+
+        # allowed_slot_types が None = グローバル設定にフォールバック
+        et_rules = {
+            NON_DEFAULT_ET_ID: EmploymentTypeRuleConfig(allowed_slot_types=None),
+        }
+
+        with patch(
+            "app.services.shift_validation_service._load_non_default_employment_type_ids",
+            return_value={NON_DEFAULT_ET_ID},
+        ), patch(
+            "app.services.shift_validation_service._load_employment_type_rules",
+            return_value=et_rules,
+        ):
+            # DEFAULT_RULES.special_employment_shifts = ["weekday_night"] なので sat_day は違反
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [worker], DEFAULT_RULES
+            )
+
+        codes = [v.code for v in result]
+        assert "SPECIAL_EMPLOYMENT" in codes
+
+
+class TestAnnualLimitOverrides:
+    """年間シフト回数上限の上書き（annual_limit_overrides）のテスト."""
+
+    def test_annual_limit_override_applies_lower_limit(self) -> None:
+        """異常系: annual_limit_overrides を設定した雇用形態のWorkerに対して、上書き後の上限値でワーニングが発生する."""
+        from app.models.rule_schemas import (
+            AnnualPartialLimitsConfig,
+            AnnualShiftLimitsConfig,
+            EmploymentTypeRuleConfig,
+        )
+
+        session = MagicMock()
+
+        req = _make_requirement(slot_type="weekday_night", shift_date_str="2026-04-01")
+        worker = _make_worker(
+            worker_id=WORKER_ID_1,
+            employment_type_id=NON_DEFAULT_ET_ID,
+        )
+
+        # 雇用形態別に weekday_night の上限を 2 回に設定（グローバルは10）
+        et_rules = {
+            NON_DEFAULT_ET_ID: EmploymentTypeRuleConfig(
+                annual_limit_overrides=AnnualPartialLimitsConfig(weekday_night=2),
+            ),
+        }
+
+        # 既存の weekday_night 実績 = 2 回（合計3回になり上限2超過）
+        slot_mock1 = MagicMock()
+        slot_mock1.__str__ = lambda s: "weekday_night"  # type: ignore[method-assign]
+        slot_mock2 = MagicMock()
+        slot_mock2.__str__ = lambda s: "weekday_night"  # type: ignore[method-assign]
+
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": [slot_mock1, slot_mock2]}
+        )
+
+        # _check_annual_shift_limits を直接テスト
+        global_limits = AnnualShiftLimitsConfig(weekday_night=10)
+        result = shift_validation_service._check_annual_shift_limits(
+            session, TENANT_ID, req, [worker], global_limits, et_rules
+        )
+
+        warning_codes = [v.code for v in result if v.severity == "warning"]
+        assert "ANNUAL_WEEKDAY_NIGHT" in warning_codes
+
+    def test_annual_limit_override_null_field_uses_global(self) -> None:
+        """正常系: annual_limit_overrides の null フィールドはグローバル設定を使用する."""
+        from app.models.rule_schemas import (
+            AnnualPartialLimitsConfig,
+            AnnualShiftLimitsConfig,
+            EmploymentTypeRuleConfig,
+        )
+
+        session = MagicMock()
+
+        req = _make_requirement(slot_type="weekday_night", shift_date_str="2026-04-01")
+        worker = _make_worker(
+            worker_id=WORKER_ID_1,
+            employment_type_id=NON_DEFAULT_ET_ID,
+        )
+
+        # weekday_night の上書きなし（None = グローバルの10回を使用）
+        et_rules = {
+            NON_DEFAULT_ET_ID: EmploymentTypeRuleConfig(
+                annual_limit_overrides=AnnualPartialLimitsConfig(weekday_night=None),
+            ),
+        }
+
+        # 既存の weekday_night 実績 = 9 回（グローバル上限10回: 9+1=10 → 違反なし）
+        slot_mocks = []
+        for _ in range(9):
+            s = MagicMock()
+            s.__str__ = lambda self: "weekday_night"  # type: ignore[method-assign]
+            slot_mocks.append(s)
+
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": slot_mocks}
+        )
+
+        global_limits = AnnualShiftLimitsConfig(weekday_night=10)
+        result = shift_validation_service._check_annual_shift_limits(
+            session, TENANT_ID, req, [worker], global_limits, et_rules
+        )
+
+        warning_codes = [v.code for v in result if v.severity == "warning"]
+        # 9+1=10 = 上限 → 違反なし
+        assert "ANNUAL_WEEKDAY_NIGHT" not in warning_codes

@@ -12,6 +12,7 @@ from app.models.models import (
     SlotTypeEnum,
     TransferTypeEnum,
 )
+from app.models.rule_schemas import EmploymentTypeRuleConfig
 
 
 class BranchCreate(BaseModel):
@@ -283,6 +284,15 @@ class EmploymentTypeResponse(BaseModel):
     is_default: bool
     created_at: datetime
     updated_at: datetime
+    rule: EmploymentTypeRuleConfig | None = None
+
+
+class EmploymentTypeRuleUpdate(BaseModel):
+    """EmploymentTypeRule更新（upsert）リクエストスキーマ."""
+
+    require_default_pair: bool = False
+    allowed_slot_types: list[str] | None = None
+    annual_limit_overrides: dict | None = None
 
 
 class WorkerCreate(BaseModel):

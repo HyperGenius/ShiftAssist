@@ -12,9 +12,11 @@ from sqlmodel import Session
 
 from app.db import get_session
 from app.dependencies import get_tenant_id
+from app.models.rule_schemas import EmploymentTypeRuleConfig
 from app.models.schemas import (
     EmploymentTypeCreate,
     EmploymentTypeResponse,
+    EmploymentTypeRuleUpdate,
     EmploymentTypeUpdate,
 )
 from app.services import employment_type_service
@@ -119,4 +121,48 @@ def delete_employment_type(
     """
     employment_type_service.delete_employment_type(
         session, tenant_id, employment_type_id
+    )
+
+
+@router.get("/{employment_type_id}/rules", response_model=EmploymentTypeRuleConfig)
+def get_employment_type_rules(
+    employment_type_id: uuid.UUID,
+    tenant_id: str = Depends(get_tenant_id),
+    session: Session = Depends(get_session),
+) -> EmploymentTypeRuleConfig:
+    """指定した雇用形態のルール設定を取得する.
+
+    Args:
+        employment_type_id: 取得対象の雇用形態ID。
+        tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
+        session: DBセッション。
+
+    Returns:
+        雇用形態別ルール設定（未設定の場合はデフォルト値）。
+    """
+    return employment_type_service.get_employment_type_rule(
+        session, tenant_id, employment_type_id
+    )
+
+
+@router.put("/{employment_type_id}/rules", response_model=EmploymentTypeRuleConfig)
+def update_employment_type_rules(
+    employment_type_id: uuid.UUID,
+    data: EmploymentTypeRuleUpdate,
+    tenant_id: str = Depends(get_tenant_id),
+    session: Session = Depends(get_session),
+) -> EmploymentTypeRuleConfig:
+    """指定した雇用形態のルール設定を更新（upsert）する.
+
+    Args:
+        employment_type_id: 更新対象の雇用形態ID。
+        data: ルール設定の更新データ。
+        tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
+        session: DBセッション。
+
+    Returns:
+        更新後の雇用形態別ルール設定。
+    """
+    return employment_type_service.upsert_employment_type_rule(
+        session, tenant_id, employment_type_id, data
     )

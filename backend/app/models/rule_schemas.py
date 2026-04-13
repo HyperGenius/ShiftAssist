@@ -146,3 +146,50 @@ class ValidationViolationItem(BaseModel):
 
     worker_ids: list[str]
     """違反に関連するワーカーIDリスト。"""
+
+
+class AnnualPartialLimitsConfig(BaseModel):
+    """年間シフト回数上限の部分的な上書き設定スキーマ.
+
+    雇用形態ごとに ``AnnualShiftLimitsConfig`` の各フィールドを個別に上書きできる。
+    ``None`` の場合はグローバルの ``AnnualShiftLimitsConfig`` の値を使用する。
+    ``0`` を指定した場合は制限なし（``AnnualShiftLimitsConfig`` の挙動に準拠）。
+    """
+
+    annual_total: int | None = None
+    """全スロット合計の年間上限の上書き値。None でグローバル設定に従う。"""
+
+    weekday_night: int | None = None
+    """weekday_night の年間上限の上書き値。"""
+
+    sat_day: int | None = None
+    """sat_day の年間上限の上書き値。"""
+
+    sat_night: int | None = None
+    """sat_night の年間上限の上書き値。"""
+
+    sun_hol_day: int | None = None
+    """sun_hol_day の年間上限の上書き値。"""
+
+    sun_hol_night: int | None = None
+    """sun_hol_night の年間上限の上書き値。"""
+
+    sat_pre_hol_night: int | None = None
+    """sat_pre_hol_night の年間上限の上書き値。"""
+
+
+class EmploymentTypeRuleConfig(BaseModel):
+    """雇用形態別シフトルール設定スキーマ.
+
+    雇用形態ごとのアサイン制約を管理する。
+    未設定（None）の場合はグローバル設定にフォールバックする。
+    """
+
+    require_default_pair: bool = False
+    """True の場合、ペアにデフォルト雇用形態のWorkerが必須。"""
+
+    allowed_slot_types: list[str] | None = None
+    """アサイン可能な SlotTypeEnum の一覧。空/null は制限なし（グローバル設定にフォールバック）。"""
+
+    annual_limit_overrides: AnnualPartialLimitsConfig | None = None
+    """年間シフト回数上限の雇用形態ごとの上書き設定。"""

@@ -13,6 +13,7 @@ from sqlmodel import Session, select
 
 from app.models.models import (
     EmploymentType,
+    EmploymentTypeRule,
     LongHolidayPeriod,
     LongHolidayTypeEnum,
     PlanStatusEnum,
@@ -27,7 +28,9 @@ from app.models.models import (
     Worker,
 )
 from app.models.rule_schemas import (
+    AnnualPartialLimitsConfig,
     AnnualShiftLimitsConfig,
+    EmploymentTypeRuleConfig,
     ShiftRulesConfig,
     ValidationViolationItem,
 )
@@ -61,6 +64,42 @@ def _load_non_default_employment_type_ids(
         )
     ).all()
     return {cast(uuid.UUID, et.id) for et in non_default_types if et.id is not None}
+
+
+def _load_employment_type_rules(
+    session: Session,
+    tenant_id: str,
+) -> dict[uuid.UUID, EmploymentTypeRuleConfig]:
+    """テナント内の雇用形態別ルールをまとめて取得する.
+
+    Args:
+        session: SQLModelセッション。
+        tenant_id: 対象テナントID。
+
+    Returns:
+        雇用形態ID -> EmploymentTypeRuleConfig のマッピング。
+    """
+    rule_rows = session.exec(
+        select(EmploymentTypeRule).where(
+            EmploymentTypeRule.tenant_id == tenant_id,
+        )
+    ).all()
+    result: dict[uuid.UUID, EmploymentTypeRuleConfig] = {}
+    for row in rule_rows:
+        overrides_raw = row.annual_limit_overrides
+        annual_limit_overrides = (
+            AnnualPartialLimitsConfig(**overrides_raw)
+            if isinstance(overrides_raw, dict)
+            else None
+        )
+        config = EmploymentTypeRuleConfig(
+            require_default_pair=bool(row.require_default_pair),
+            allowed_slot_types=row.allowed_slot_types if isinstance(row.allowed_slot_types, list) else None,
+            annual_limit_overrides=annual_limit_overrides,
+        )
+        et_id = cast(uuid.UUID, row.employment_type_id)
+        result[et_id] = config
+    return result
 
 
 def _check_daily_duplicate(
@@ -274,23 +313,34 @@ def _check_special_employment(
     workers: list[Worker],
     rules: ShiftRulesConfig,
     non_default_employment_type_ids: set[uuid.UUID],
+    employment_type_rules: dict[uuid.UUID, EmploymentTypeRuleConfig] | None = None,
 ) -> list[ValidationViolationItem]:
     """ルール5: 特別雇用者の枠制限チェック.
 
     非デフォルト雇用形態（``is_default=False``）に紐付くワーカーは、
     ``special_employment_shifts`` で許可された枠以外にはアサインできない。
+    雇用形態ごとに ``allowed_slot_types`` が設定されている場合はそちらを優先する。
     """
-    allowed_slots = set(rules.special_employment_shifts)
-    if str(requirement.slot_type) in allowed_slots:
-        return []
-    allowed_slots_str = "、".join(rules.special_employment_shifts)
+    slot_type_str = str(requirement.slot_type)
     violations: list[ValidationViolationItem] = []
     for worker in workers:
-        is_special = (
-            worker.employment_type_id is not None
-            and worker.employment_type_id in non_default_employment_type_ids
-        )
-        if is_special:
+        if worker.employment_type_id is None:
+            continue
+        et_id = cast(uuid.UUID, worker.employment_type_id)
+        if et_id not in non_default_employment_type_ids:
+            continue
+
+        # 雇用形態別ルールの allowed_slot_types を優先的に使用
+        et_rule = (employment_type_rules or {}).get(et_id)
+        if et_rule is not None and et_rule.allowed_slot_types is not None:
+            allowed_slots = set(et_rule.allowed_slot_types)
+            allowed_slots_str = "、".join(et_rule.allowed_slot_types)
+        else:
+            # グローバル設定にフォールバック
+            allowed_slots = set(rules.special_employment_shifts)
+            allowed_slots_str = "、".join(rules.special_employment_shifts)
+
+        if slot_type_str not in allowed_slots:
             violations.append(
                 ValidationViolationItem(
                     code="SPECIAL_EMPLOYMENT",
@@ -302,6 +352,58 @@ def _check_special_employment(
                     worker_ids=[str(worker.id)],
                 )
             )
+    return violations
+
+
+def _check_employment_pair_restriction(
+    requirement: ShiftRequirement,
+    workers: list[Worker],
+    rules: ShiftRulesConfig,
+    non_default_employment_type_ids: set[uuid.UUID],
+    employment_type_rules: dict[uuid.UUID, EmploymentTypeRuleConfig] | None = None,
+) -> list[ValidationViolationItem]:
+    """ペア制限チェック（require_default_pair）.
+
+    ``require_default_pair=True`` の雇用形態を持つWorkerをアサインする際、
+    ペア相手にデフォルト雇用形態（``is_default=True``）のWorkerが含まれていなければならない。
+
+    ``workers_per_slot=1`` の場合はこのチェックをスキップする。
+    """
+    if rules.workers_per_slot <= 1:
+        return []
+    if len(workers) < 2:
+        return []
+
+    et_rules = employment_type_rules or {}
+    violations: list[ValidationViolationItem] = []
+
+    # デフォルト雇用形態のWorkerが存在するか確認
+    has_default_et_worker = any(
+        worker.employment_type_id is not None
+        and worker.employment_type_id not in non_default_employment_type_ids
+        for worker in workers
+    )
+
+    for worker in workers:
+        if worker.employment_type_id is None:
+            continue
+        et_id = cast(uuid.UUID, worker.employment_type_id)
+        et_rule = et_rules.get(et_id)
+        if et_rule is None or not et_rule.require_default_pair:
+            continue
+
+        if not has_default_et_worker:
+            violations.append(
+                ValidationViolationItem(
+                    code="EMPLOYMENT_PAIR_RESTRICTION",
+                    severity="error",
+                    message=(
+                        f"{worker.name} の雇用形態はペア相手にデフォルト雇用形態のスタッフが必須です"
+                    ),
+                    worker_ids=[str(worker.id)],
+                )
+            )
+
     return violations
 
 
@@ -663,6 +765,7 @@ def _check_annual_shift_limits(
     requirement: ShiftRequirement,
     workers: list[Worker],
     limits: AnnualShiftLimitsConfig,
+    employment_type_rules: dict[uuid.UUID, EmploymentTypeRuleConfig] | None = None,
 ) -> list[ValidationViolationItem]:
     """年間シフト回数上限超過チェック.
 
@@ -706,7 +809,25 @@ def _check_annual_shift_limits(
 
         slot_types = [str(r) for r in rows] + [str(slot_type)]
         total, counts = _count_annual_slots(slot_types)
-        violations.extend(_annual_slot_violations(worker, total, counts, limits))
+
+        # 雇用形態別の年間上限上書きを適用
+        effective_limits = limits
+        if employment_type_rules and worker.employment_type_id is not None:
+            et_id = cast(uuid.UUID, worker.employment_type_id)
+            et_rule = employment_type_rules.get(et_id)
+            if et_rule is not None and et_rule.annual_limit_overrides is not None:
+                overrides = et_rule.annual_limit_overrides
+                effective_limits = AnnualShiftLimitsConfig(
+                    annual_total=overrides.annual_total if overrides.annual_total is not None else limits.annual_total,
+                    weekday_night=overrides.weekday_night if overrides.weekday_night is not None else limits.weekday_night,
+                    sat_day=overrides.sat_day if overrides.sat_day is not None else limits.sat_day,
+                    sat_night=overrides.sat_night if overrides.sat_night is not None else limits.sat_night,
+                    sun_hol_day=overrides.sun_hol_day if overrides.sun_hol_day is not None else limits.sun_hol_day,
+                    sun_hol_night=overrides.sun_hol_night if overrides.sun_hol_night is not None else limits.sun_hol_night,
+                    sat_pre_hol_night=overrides.sat_pre_hol_night if overrides.sat_pre_hol_night is not None else limits.sat_pre_hol_night,
+                )
+
+        violations.extend(_annual_slot_violations(worker, total, counts, effective_limits))
 
     return violations
 
@@ -856,13 +977,15 @@ def validate_shift_assignments(
     limits = annual_limits if annual_limits is not None else AnnualShiftLimitsConfig()
 
     non_default_et_ids = _load_non_default_employment_type_ids(session, tenant_id)
+    et_rules = _load_employment_type_rules(session, tenant_id)
 
     return [
         *_check_daily_duplicate(session, tenant_id, requirement, workers),
         *_check_same_department(workers, rules),
         *_check_skill_rank(session, requirement, workers, rules),
         *_check_work_interval(session, tenant_id, requirement, workers, rules),
-        *_check_special_employment(requirement, workers, rules, non_default_et_ids),
+        *_check_special_employment(requirement, workers, rules, non_default_et_ids, et_rules),
+        *_check_employment_pair_restriction(requirement, workers, rules, non_default_et_ids, et_rules),
         *_check_age_restriction(workers, shift_date),
         *_check_position_exclusion(session, tenant_id, requirement, workers),
         *_check_tenure_restriction(workers, shift_date, rules),
@@ -870,7 +993,7 @@ def validate_shift_assignments(
         *_check_long_holiday_prev_year_exclusion(
             session, tenant_id, requirement, workers
         ),
-        *_check_annual_shift_limits(session, tenant_id, requirement, workers, limits),
+        *_check_annual_shift_limits(session, tenant_id, requirement, workers, limits, et_rules),
         *_check_total_age_limit(workers, rules, shift_date),
         *_check_non_weekday_night_limit(
             session, tenant_id, requirement, workers, rules
