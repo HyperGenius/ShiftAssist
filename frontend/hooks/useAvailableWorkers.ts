@@ -68,8 +68,6 @@ interface UseAvailableWorkersOptions {
   minIntervalDays?: number;
   /** 前月の直近シフト日付マップ（workerId → last_shift_date）。月跨ぎ間隔チェックに使用 */
   prevMonthDatesByWorker?: Record<string, string | null>;
-  /** 選択中スロットの日付（YYYY-MM-DD）。合計年齢計算の基準日として使用 */
-  shiftDateStr?: string;
 }
 
 /**
@@ -89,7 +87,6 @@ export function useAvailableWorkers({
   currentDateStr,
   minIntervalDays,
   prevMonthDatesByWorker,
-  shiftDateStr,
 }: UseAvailableWorkersOptions): AvailableWorkersResult {
   const skillRankMap = useMemo(
     () => new Map(skillRanks.map((r) => [r.id, r])),
@@ -277,10 +274,10 @@ export function useAvailableWorkers({
       }
 
       // 例6: 合計年齢上限フィルタ
-      if (rules && shiftDateStr) {
+      if (rules && currentDateStr) {
         const maxTotalAge = rules.max_total_age ?? 120;
         if (maxTotalAge > 0) {
-          const [refYear, refMonth] = shiftDateStr.split("-").map(Number);
+          const [refYear, refMonth] = currentDateStr.split("-").map(Number);
           const referenceDate = new Date(refYear, refMonth - 1, 1);
 
           // 既にアサイン済みワーカーの年齢合計を計算
@@ -324,7 +321,7 @@ export function useAvailableWorkers({
 
       return true;
     });
-  }, [workers, skillRankMap, assignedSet, allowSameDepartment, slotType, showAll, workerStatsMap, annualLimits, currentDateStr, minIntervalDays, prevMonthDatesByWorker, inProgressDataByWorker, rules, shiftDateStr, calendarState]);
+  }, [workers, skillRankMap, assignedSet, allowSameDepartment, slotType, showAll, workerStatsMap, annualLimits, currentDateStr, minIntervalDays, prevMonthDatesByWorker, inProgressDataByWorker, rules, calendarState]);
 
   const isWorkerAvailable = useMemo(() => {
     const availableSet = new Set(availableWorkers.map((w) => w.id));
