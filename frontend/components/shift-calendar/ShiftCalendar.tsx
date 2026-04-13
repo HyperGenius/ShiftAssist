@@ -561,6 +561,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
               departments={departments}
               skillRanks={skillRanks}
               employmentTypes={employmentTypes}
+              rules={rules.shift_rules}
               activeSlotType={activeSlot?.slotType ?? null}
               activeAssignedWorkerIds={activeAssignedWorkerIds}
               showAll={showAll}
