@@ -279,6 +279,8 @@ export function RulesSettingsForm() {
             </label>
           </div>
 
+          {/* 特別雇用者(is_special)は廃止 */}
+          {/*
           <div className="flex flex-col gap-1">
             <label
               htmlFor="special_employment_shifts"
@@ -308,6 +310,7 @@ export function RulesSettingsForm() {
               </p>
             )}
           </div>
+          */}
 
           <SciFiInput
             id="workers_per_slot"
