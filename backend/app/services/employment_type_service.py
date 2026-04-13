@@ -96,7 +96,8 @@ def _load_rule(
         employment_type_id: 対象の雇用形態ID。
 
     Returns:
-        EmploymentTypeRuleConfig または None（ルールが未設定の場合）。
+        EmploymentTypeRuleConfig（ルールが設定されている場合）、または None（ルールが未設定の場合）。
+        呼び出し側で None の場合のデフォルト値処理を行うこと。
     """
     rule_row = session.exec(
         select(EmploymentTypeRule).where(
