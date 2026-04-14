@@ -166,7 +166,7 @@ function ShiftRequirementsContent() {
               onClick={() => setShowDeleteConfirm(true)}
               className="mb-1"
             >
-              🗑 過去シフトを削除
+              シフト表削除
             </SciFiButton>
           </div>
         )}
