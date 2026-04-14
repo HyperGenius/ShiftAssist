@@ -518,3 +518,69 @@ class TestImportShiftPlan:
         )
 
         assert result.target_year_month == "2026-03"
+
+
+# ---------------------------------------------------------------------------
+# delete_shift_plan
+# ---------------------------------------------------------------------------
+
+PLAN_ID = uuid.uuid4()
+
+
+def _make_shift_plan() -> ShiftPlan:
+    """テスト用ShiftPlanオブジェクトを生成するヘルパー."""
+    plan = ShiftPlan()
+    plan.id = PLAN_ID
+    plan.tenant_id = TENANT_ID
+    plan.title = f"{TARGET_YM} インポート"
+    plan.target_year_month = TARGET_YM
+    plan.status = PlanStatusEnum.published
+    plan.created_by = "import"
+    plan.created_at = datetime(2026, 1, 1)
+    return plan
+
+
+def _make_delete_session(plan: ShiftPlan | None) -> MagicMock:
+    """delete_shift_plan テスト用Sessionモックを生成するヘルパー."""
+    session = MagicMock()
+    exec_result = MagicMock()
+    exec_result.first.return_value = plan
+    session.exec.return_value = exec_result
+    return session
+
+
+class TestDeleteShiftPlan:
+    """delete_shift_plan の正常系・異常系テスト."""
+
+    def test_delete_shift_plan_success(self) -> None:
+        """正常系: プランが存在する場合、物理削除を実行する."""
+        plan = _make_shift_plan()
+        session = _make_delete_session(plan)
+
+        shift_plan_import_service.delete_shift_plan(session, TENANT_ID, PLAN_ID)
+
+        session.delete.assert_called_once_with(plan)
+        session.commit.assert_called_once()
+
+    def test_delete_shift_plan_not_found(self) -> None:
+        """異常系: プランが存在しない場合、404例外を送出する."""
+        session = _make_delete_session(None)
+
+        with pytest.raises(HTTPException) as exc_info:
+            shift_plan_import_service.delete_shift_plan(session, TENANT_ID, PLAN_ID)
+
+        assert exc_info.value.status_code == 404
+        session.delete.assert_not_called()
+        session.commit.assert_not_called()
+
+    def test_delete_shift_plan_other_tenant(self) -> None:
+        """異常系: 別テナントのプランIDを指定した場合、404例外を送出する."""
+        session = _make_delete_session(None)
+
+        with pytest.raises(HTTPException) as exc_info:
+            shift_plan_import_service.delete_shift_plan(
+                session, "org_other_tenant", PLAN_ID
+            )
+
+        assert exc_info.value.status_code == 404
+        session.delete.assert_not_called()

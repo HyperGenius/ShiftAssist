@@ -14,11 +14,11 @@ interface SciFiButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<Variant, string> = {
   primary:
-    "bg-blue-600 text-white border border-blue-600 hover:bg-blue-700 hover:border-blue-700 shadow-sm",
+    "text-white border border-blue-600 hover:bg-blue-700 hover:border-blue-700 shadow-sm",
   secondary:
     "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 shadow-sm",
   danger:
-    "bg-red-600 text-white border border-red-600 hover:bg-red-700 hover:border-red-700 shadow-sm",
+    "bg-red-600 text-white font-lg font-semibold antialiased tracking-wide hover:bg-red-700 active:bg-red-800 transition-colors shadow-sm",
   ghost:
     "bg-transparent text-gray-600 border border-transparent hover:bg-gray-100 hover:text-gray-800",
 };

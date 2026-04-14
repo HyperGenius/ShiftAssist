@@ -69,6 +69,30 @@ null
 
 ---
 
+### 過去シフトプラン削除
+
+```
+DELETE /api/shift-plans/{plan_id}
+Header: X-Tenant-Id: <tenant_id>
+```
+
+**パスパラメータ:**
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `plan_id` | UUID | ✅ | 削除対象のシフトプランID |
+
+**レスポンス:**
+
+| ステータスコード | 説明 |
+|----------------|------|
+| `204 No Content` | 削除成功 |
+| `404 Not Found` | 指定された `plan_id` が存在しない、またはリクエストユーザーのテナントに属さない場合 |
+
+削除時、紐づく `ShiftSlot` および `ShiftAssignment` は外部キーの `ondelete="CASCADE"` 設定により自動削除されます。
+
+---
+
 ## フロントエンド動作仕様
 
 ### 表示モードの自動切り替え
@@ -98,8 +122,8 @@ null
 | ファイル | 変更内容 |
 |---------|---------|
 | `backend/app/models/schemas.py` | `ShiftAssignmentDetail`, `ShiftSlotDetail`, `ShiftPlanDetailResponse` スキーマを追加 |
-| `backend/app/services/shift_plan_import_service.py` | `get_shift_plan_by_year_month()` 関数を追加 |
-| `backend/app/routers/shift_plans.py` | `GET /api/shift-plans/` エンドポイントを追加 |
+| `backend/app/services/shift_plan_import_service.py` | `get_shift_plan_by_year_month()`, `delete_shift_plan()` 関数を追加 |
+| `backend/app/routers/shift_plans.py` | `GET /api/shift-plans/`, `DELETE /api/shift-plans/{plan_id}` エンドポイントを追加 |
 
 ### フロントエンド
 
@@ -107,10 +131,11 @@ null
 |---------|---------|
 | `frontend/types/shiftPlan.ts` | `ShiftPlanDetail`, `ShiftSlotDetail`, `ShiftAssignmentDetail` 型を追加 |
 | `frontend/hooks/useShiftPlan.ts` | 新規作成。指定年月の過去プランを SWR で取得 |
+| `frontend/hooks/useDeleteShiftPlan.ts` | 新規作成。シフトプラン削除 API を呼び出す Mutation フック |
 | `frontend/components/shift-calendar/ShiftSlot.tsx` | `readOnly` プロップを追加。true 時はドロップゾーンの代わりにワーカー名を表示 |
 | `frontend/components/shift-calendar/CalendarCell.tsx` | `readOnly` プロップを追加し `ShiftSlot` へ伝播 |
 | `frontend/components/shift-calendar/ShiftCalendar.tsx` | `pastPlan`, `readOnly`, `onYearMonthChange` プロップを追加 |
-| `frontend/app/shift-requirements/page.tsx` | `useShiftPlan` フックを統合し、モード切り替えタブ UI を追加 |
+| `frontend/app/shift-requirements/page.tsx` | `useShiftPlan`, `useDeleteShiftPlan` フックを統合し、モード切り替えタブ・削除ボタン・確認ダイアログ UI を追加 |
 
 ---
 

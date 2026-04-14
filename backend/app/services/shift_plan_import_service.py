@@ -504,6 +504,35 @@ def _normalize_json_rows(
     return result
 
 
+def delete_shift_plan(session: Session, tenant_id: str, plan_id: uuid.UUID) -> None:
+    """指定したShiftPlanを物理削除する.
+
+    紐づく ``ShiftSlot`` / ``ShiftAssignment`` は外部キーの
+    ``ondelete="CASCADE"`` 設定により自動削除される。
+
+    Args:
+        session: SQLModelセッション。
+        tenant_id: 対象テナントID。
+        plan_id: 削除対象のShiftPlan ID。
+
+    Raises:
+        HTTPException: ShiftPlanが存在しない、または異なるテナントに属する場合。
+    """
+    plan = session.exec(
+        select(ShiftPlan).where(
+            ShiftPlan.id == plan_id,  # type: ignore[arg-type]
+            ShiftPlan.tenant_id == tenant_id,
+        )
+    ).first()
+    if plan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"ShiftPlan '{plan_id}' not found.",
+        )
+    session.delete(plan)
+    session.commit()
+
+
 def get_shift_plan_by_year_month(
     session: Session,
     tenant_id: str,
