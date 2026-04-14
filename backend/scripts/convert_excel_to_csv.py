@@ -13,8 +13,8 @@
     以降:  データ行（1列目=日、2列目=曜、以降=各シフト担当者情報）
 
     「氏名」列の左からの出現順によりシフト種別を判定する:
-    - 1回目・2回目: 平日=宿直, 土曜=昼間, 日祝=昼間
-    - 3回目・4回目: 平日=対象外, 土曜=夜間, 日祝=夜間
+    - 1回目・2回目: 平日=宿直, 土曜=夜間, 日祝=夜間
+    - 3回目・4回目: 平日=対象外, 土曜=昼間, 日祝=昼間
 
 出力ファイルの形式（ShiftAssistインポート形式）::
 
@@ -120,14 +120,14 @@ def determine_slot_type(
     氏名列の左からの出現順（0-indexed）によってシフト種別を判定する。
 
     - 0回目・1回目（1回目・2回目）の氏名列:
-        - 長期連休 -> long_hol_day
-        - 土曜 -> sat_day
-        - 日曜または祝日 -> sun_hol_day
-        - 平日 -> weekday_night
-    - 2回目・3回目（3回目・4回目）の氏名列:
         - 長期連休 -> long_hol_night
         - 土曜 -> sat_night
         - 日曜または祝日 -> sun_hol_night
+        - 平日 -> weekday_night
+    - 2回目・3回目（3回目・4回目）の氏名列:
+        - 長期連休 -> long_hol_day
+        - 土曜 -> sat_day
+        - 日曜または祝日 -> sun_hol_day
         - 平日 -> None（対象外）
 
     Args:
@@ -144,22 +144,22 @@ def determine_slot_type(
     is_sunday = weekday == 6
 
     if occurrence_idx <= 1:
-        # 1回目・2回目: 昼間枠または宿直
+        # 1回目・2回目: 夜間枠または宿直
         if is_long_holiday:
-            return SlotTypeEnum.long_hol_day
+            return SlotTypeEnum.long_hol_night
         if is_saturday:
-            return SlotTypeEnum.sat_day
+            return SlotTypeEnum.sat_night
         if is_sunday or is_holiday:
-            return SlotTypeEnum.sun_hol_day
+            return SlotTypeEnum.sun_hol_night
         return SlotTypeEnum.weekday_night
 
-    # 3回目・4回目: 夜間枠
+    # 3回目・4回目: 昼間枠
     if is_long_holiday:
-        return SlotTypeEnum.long_hol_night
+        return SlotTypeEnum.long_hol_day
     if is_saturday:
-        return SlotTypeEnum.sat_night
+        return SlotTypeEnum.sat_day
     if is_sunday or is_holiday:
-        return SlotTypeEnum.sun_hol_night
+        return SlotTypeEnum.sun_hol_day
     # 平日の3回目・4回目は対象外
     return None
 
