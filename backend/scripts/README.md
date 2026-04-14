@@ -21,9 +21,9 @@ pip install -r requirements.txt
 ### 使い方
 
 ```bash
-python scripts/convert_excel_to_csv.py \
-  --input  <入力ファイルパス>   \
-  --output <出力CSVパス>        \
+python ./convert_excel_to_csv.py \
+  --input  ./data/<入力ファイル名>   \
+  --output ./data/<出力ファイル名>        \
   --year-month <YYYY-MM>       \
   [--tenant-id <テナントID>]
 ```
@@ -43,14 +43,15 @@ python scripts/convert_excel_to_csv.py \
 2 行ヘッダー + データ行の構造を想定しています。
 
 ```
-行 1: 日 | 曜 | 宿　　直 |  |  |  |  |  |  |  |  | 土曜当番 |  |  | 休・祝日直 |  |
-行 2:    |    | 回数 | 氏名 | 交替者名 | 回数 | 氏名 | 交替者名 | ... | 回数 | 氏名 | 交替者名 | ...
-行 3以降: 1 | 水 | ① | 保安１課　山田　太郎 | ... | ... | ...
+行 1: 日 | 曜日 | 回数 | 氏名 | 交替者名 | 回数 | 氏名 | 交替者名 | ... | 回数 | 氏名 | 交替者名 | ...
+行 2 以降: 1 | 水 | ① | 保安１課　山田　太郎 | ... | ... | ...
 ```
 
 * 1 列目: 日（1〜31）
 * 2 列目: 曜日（省略可）
 * 3 列目〜: カテゴリ（宿直 / 土曜当番 / 休・祝日直）のグループが繰り返す
+   * 土曜・祝日・日曜日: ["夜間", "夜間", "昼間", "昼間"] の順で対応者氏名が記載される
+   * 平日: ["夜間"]の順で対応者氏名が記載される
 
 ### 出力ファイルの形式
 
@@ -59,21 +60,23 @@ python scripts/convert_excel_to_csv.py \
 ```csv
 date,slot_type,worker_id_1,worker_id_2,...
 2026-04-01,weekday_night,1234567,2468013
+2026-04-04,sat_night,9876543,
 2026-04-04,sat_day,9876543,
 2026-04-05,sun_hol_night,1234567,2468013
+2026-04-05,sun_hol_day,1234567,2468013
 ```
 
 ### SlotType マッピング
 
-| カテゴリ列 | 対象日の条件 | SlotType |
+| 氏名列の出現順（左から） | 対象日の条件 | SlotType |
 |---|---|---|
-| 宿直 | 平日（非祝日） | `weekday_night` |
-| 宿直 | 土曜 | `sat_night` |
-| 宿直 | 日曜・祝日 | `sun_hol_night` |
-| 宿直 | 長期連休（GW 等） | `long_hol_night` |
-| 土曜当番 | 土曜 | `sat_day` |
-| 休・祝日直 | 日曜・祝日 | `sun_hol_day` |
-| 休・祝日直 | 長期連休 | `long_hol_day` |
+| 1回目・2回目 | 平日（非祝日） | `weekday_night` |
+| 1回目・2回目 | 土曜 | `sat_night` |
+| 1回目・2回目 | 日曜・祝日 | `sun_hol_night` |
+| 1回目・2回目 | 長期連休（GW 等） | `long_hol_night` |
+| 3回目・4回目 | 土曜 | `sat_day` |
+| 3回目・4回目 | 日曜・祝日 | `sun_hol_day` |
+| 3回目・4回目 | 長期連休 | `long_hol_day` |
 
 祝日情報は DB の `tenant_holidays` テーブルを優先し、未登録の場合は
 [jpholiday](https://pypi.org/project/jpholiday/) による日本標準祝日でフォールバックします。
