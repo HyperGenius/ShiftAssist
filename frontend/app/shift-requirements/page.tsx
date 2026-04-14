@@ -70,7 +70,8 @@ function ShiftRequirementsContent() {
       setShowDeleteConfirm(false);
       setViewMode(null);
       toast.success(`シフトプラン（${shiftPlan.target_year_month}）を削除しました`);
-    } catch {
+    } catch (err) {
+      console.error("シフトプランの削除に失敗しました", err);
       toast.error("シフトプランの削除に失敗しました");
     }
   }, [shiftPlan, deleteShiftPlan]);
