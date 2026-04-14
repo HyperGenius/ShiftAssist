@@ -21,9 +21,9 @@ pip install -r requirements.txt
 ### 使い方
 
 ```bash
-python scripts/convert_excel_to_csv.py \
-  --input  <入力ファイルパス>   \
-  --output <出力CSVパス>        \
+python ./convert_excel_to_csv.py \
+  --input  ./data/<入力ファイル名>   \
+  --output ./data/<出力ファイル名>        \
   --year-month <YYYY-MM>       \
   [--tenant-id <テナントID>]
 ```
