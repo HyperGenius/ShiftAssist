@@ -5,6 +5,8 @@
 過去シフトデータの一括インポートエンドポイントを提供する。
 """
 
+import uuid
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile, status
 from sqlmodel import Session
 
@@ -121,6 +123,29 @@ def get_shift_plan(
     return shift_plan_import_service.get_shift_plan_by_year_month(
         session, tenant_id, year_month
     )
+
+
+@router.delete("/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_shift_plan(
+    plan_id: uuid.UUID,
+    tenant_id: str = Depends(get_tenant_id),
+    session: Session = Depends(get_session),
+) -> None:
+    """指定したシフトプランを物理削除する.
+
+    紐づく ``ShiftSlot`` / ``ShiftAssignment`` もカスケード削除される。
+    リクエストユーザーのテナントに属するプランのみ削除可能。
+
+    Args:
+        plan_id: 削除対象のShiftPlan ID。
+        tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
+        session: DBセッション。
+
+    Raises:
+        HTTPException 404: 指定された ``plan_id`` が存在しない、または
+            リクエストユーザーのテナントに属さない場合。
+    """
+    shift_plan_import_service.delete_shift_plan(session, tenant_id, plan_id)
 
 
 def _detect_content_type(filename: str, mime: str) -> str:

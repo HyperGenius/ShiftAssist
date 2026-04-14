@@ -3,6 +3,8 @@
 import { Suspense, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
+import { mutate as globalMutate } from "swr";
+import { toast } from "sonner";
 
 import { SciFiButton } from "@/components/ui/SciFiButton";
 import { SciFiHeading } from "@/components/ui/SciFiHeading";
@@ -11,6 +13,7 @@ import { ShiftCalendar } from "@/components/shift-calendar/ShiftCalendar";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useShiftRules } from "@/hooks/useShiftRules";
 import { useShiftPlan } from "@/hooks/useShiftPlan";
+import { useDeleteShiftPlan } from "@/hooks/useDeleteShiftPlan";
 import type { Department } from "@/types/department";
 
 type ViewMode = "past" | "edit";
@@ -39,6 +42,10 @@ function ShiftRequirementsContent() {
   // 表示モード: null = 未選択（pastPlan の有無で自動決定）、それ以外はユーザーが手動選択済み
   const [viewMode, setViewMode] = useState<ViewMode | null>(null);
 
+  const { shiftPlan, isLoading: planLoading } = useShiftPlan({ year: calYear, month: calMonth });
+  const { deleteShiftPlan, isLoading: deleteLoading } = useDeleteShiftPlan();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   /** 年月変更：URL クエリパラメータを更新して状態を永続化する */
   const handleYearMonthChange = useCallback((y: number, m: number) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -49,8 +56,24 @@ function ShiftRequirementsContent() {
     setViewMode(null);
   }, [router, searchParams]);
 
-  // 現在表示中の年月の過去プランを取得
-  const { shiftPlan, isLoading: planLoading } = useShiftPlan({ year: calYear, month: calMonth });
+  /** 過去シフトプランを削除する */
+  const handleDeletePlan = useCallback(async () => {
+    if (!shiftPlan) return;
+    try {
+      await deleteShiftPlan(shiftPlan.id);
+      await globalMutate(
+        (key) =>
+          Array.isArray(key) &&
+          typeof key[0] === "string" &&
+          key[0].startsWith("/api/shift-plans"),
+      );
+      setShowDeleteConfirm(false);
+      setViewMode(null);
+      toast.success(`シフトプラン（${shiftPlan.target_year_month}）を削除しました`);
+    } catch {
+      toast.error("シフトプランの削除に失敗しました");
+    }
+  }, [shiftPlan, deleteShiftPlan]);
 
   // 実際に使うモード: ユーザーが選択していれば従う、未選択なら pastPlan があれば "past"、なければ "edit"
   const effectiveMode: ViewMode = viewMode ?? (shiftPlan ? "past" : "edit");
@@ -111,29 +134,39 @@ function ShiftRequirementsContent() {
 
         {/* 表示モード切り替えタブ（過去データが存在するときのみ表示） */}
         {!isLoading && !planLoading && shiftPlan && (
-          <div className="flex gap-1 mb-4 border-b border-gray-200">
-            <button
-              onClick={() => setViewMode("past")}
-              className={[
-                "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
-                effectiveMode === "past"
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700",
-              ].join(" ")}
+          <div className="flex items-center justify-between mb-4 border-b border-gray-200">
+            <div className="flex gap-1">
+              <button
+                onClick={() => setViewMode("past")}
+                className={[
+                  "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                  effectiveMode === "past"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700",
+                ].join(" ")}
+              >
+                📋 過去シフト（{shiftPlan.target_year_month}）
+              </button>
+              <button
+                onClick={() => setViewMode("edit")}
+                className={[
+                  "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                  effectiveMode === "edit"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700",
+                ].join(" ")}
+              >
+                ✏️ シフト枠編集
+              </button>
+            </div>
+            <SciFiButton
+              variant="danger"
+              size="sm"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="mb-1"
             >
-              📋 過去シフト（{shiftPlan.target_year_month}）
-            </button>
-            <button
-              onClick={() => setViewMode("edit")}
-              className={[
-                "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
-                effectiveMode === "edit"
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700",
-              ].join(" ")}
-            >
-              ✏️ シフト枠編集
-            </button>
+              🗑 過去シフトを削除
+            </SciFiButton>
           </div>
         )}
 
@@ -170,6 +203,51 @@ function ShiftRequirementsContent() {
           onClose={() => setShowImportModal(false)}
           onSuccess={() => setShowImportModal(false)}
         />
+      )}
+
+      {/* 削除確認ダイアログ */}
+      {showDeleteConfirm && shiftPlan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="relative w-full max-w-sm rounded-lg bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <h2 className="text-base font-semibold text-gray-900">
+                過去シフトの削除
+              </h2>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="閉じる"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-gray-700">
+                <strong>{shiftPlan.target_year_month}</strong>{" "}
+                の過去シフトプランを削除します。
+                <br />
+                紐づくシフト枠・アサイン情報もすべて削除されます。この操作は取り消せません。
+              </p>
+              <div className="flex items-center justify-end gap-3">
+                <SciFiButton
+                  variant="secondary"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={deleteLoading}
+                >
+                  キャンセル
+                </SciFiButton>
+                <SciFiButton
+                  variant="danger"
+                  onClick={handleDeletePlan}
+                  loading={deleteLoading}
+                  disabled={deleteLoading}
+                >
+                  削除する
+                </SciFiButton>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
