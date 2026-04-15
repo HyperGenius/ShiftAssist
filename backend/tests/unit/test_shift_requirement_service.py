@@ -633,10 +633,10 @@ class TestGenerateRequirementsForMonth:
         # weekday_night ではないことを確認
         assert (date(2025, 1, 31), SlotTypeEnum.weekday_night) not in dates_slots
 
-    def test_month_end_next_day_not_holiday_weekday_night(self) -> None:
-        """境界値テスト: 月末日（金曜）の翌日が祝日でない場合、weekday_night として生成される.
+    def test_month_end_next_day_saturday_sat_pre_hol_night(self) -> None:
+        """境界値テスト: 月末日（金曜）の翌日が土曜の場合、sat_pre_hol_night として生成される.
 
-        月末の翌日が祝日でない通常ケース。2025-01-31（金曜）で翌日（2月1日）が平日の場合。
+        2025-01-31 は金曜日 → 翌日は 2025-02-01（土曜）→ 曜日判定により sat_pre_hol_night。
         """
         # 祝日なし（翌月1日も祝日でない）
         session = self._make_session_for_generate([], [])
@@ -645,18 +645,16 @@ class TestGenerateRequirementsForMonth:
             session, TENANT_ID, 2025, 1
         )
 
-        # 2025-01-31（金曜）が weekday_night として生成されることを確認（翌日は土曜だから sat_pre_hol_night）
-        # 2025-01-31 は金曜日 → 翌日は 2025-02-01（土曜）→ sat_pre_hol_night が正しい
-        # この日付では曜日による判定で sat_pre_hol_night になる
+        # 2025-01-31（金曜）は翌日が土曜なので sat_pre_hol_night として生成されることを確認
         dates_slots = [(r.shift_date, r.slot_type) for r in created]
         assert (date(2025, 1, 31), SlotTypeEnum.sat_pre_hol_night) in dates_slots
+        assert (date(2025, 1, 31), SlotTypeEnum.weekday_night) not in dates_slots
 
-    def test_month_end_thursday_next_day_holiday_sat_pre_hol_night(self) -> None:
-        """境界値テスト: 月末日（木曜）の翌日（翌月1日金曜）が祝日の場合、sat_pre_hol_night が生成される.
+    def test_month_end_wednesday_next_day_holiday_sat_pre_hol_night(self) -> None:
+        """境界値テスト: 月末日（水曜）の翌日（翌月1日）が祝日の場合、sat_pre_hol_night が生成される.
 
         2025-04-30（水曜）→ 翌日は 2025-05-01（木曜）
-        もし 5月1日が祝日なら、4月30日は sat_pre_hol_night になるはず。
-        2025-04-30 は水曜日、2025-05-01 はメーデー（祝日）。
+        2025-05-01 はメーデー（祝日）のため、4月30日は sat_pre_hol_night になるはず。
         """
         # 2025-05-01 を祝日として設定（翌月1日 = メーデー）
         next_month_holiday = _make_holiday_row(d=date(2025, 5, 1), is_long=False)
