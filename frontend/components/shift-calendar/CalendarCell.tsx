@@ -20,6 +20,7 @@ const NIGHTTIME_TYPES = new Set<SlotType>([
   "sun_hol_night",
   "long_hol_night",
   "weekday_night",
+  "sat_pre_hol_night",
 ]);
 
 interface CalendarCellProps {
@@ -64,20 +65,25 @@ export function CalendarCell({
 }: CalendarCellProps) {
   const dayOfWeek = date.getDay();
   const dayNum = date.getDate();
+  const isSatPreHolNight = dayState["sat_pre_hol_night"] !== undefined;
 
   const cellBg =
     dayType === "saturday"
       ? "bg-blue-50 border-blue-200"
       : dayType === "sunday_holiday"
         ? "bg-red-50 border-red-200"
-        : "bg-white border-gray-200";
+        : isSatPreHolNight
+          ? "bg-yellow-50 border-yellow-200"
+          : "bg-white border-gray-200";
 
   const dayColor =
     dayType === "saturday"
       ? "text-blue-600"
       : dayType === "sunday_holiday"
         ? "text-red-600"
-        : "text-gray-800";
+        : isSatPreHolNight
+          ? "text-yellow-700"
+          : "text-gray-800";
 
   const slotEntries = Object.entries(dayState) as [SlotType, DayState[string]][];
   const daytimeSlots = slotEntries.filter(([t]) => DAYTIME_TYPES.has(t));
