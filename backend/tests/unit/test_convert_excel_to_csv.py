@@ -189,6 +189,56 @@ class TestDetermineSlotType:
         result = script.determine_slot_type(2, d, False, False)
         assert result is None
 
+    # sat_pre_hol_night (翌日が土曜または祝日かつ当日が平日)
+    def test_first_occurrence_pre_saturday_returns_sat_pre_hol_night(self) -> None:
+        """1回目 + 金曜（翌日=土曜）-> sat_pre_hol_night."""
+        d = date(2026, 4, 3)  # 金曜（翌日 4/4 は土曜）
+        result = script.determine_slot_type(0, d, False, False)
+        assert result == SlotTypeEnum.sat_pre_hol_night
+
+    def test_second_occurrence_pre_saturday_returns_sat_pre_hol_night(self) -> None:
+        """2回目 + 金曜（翌日=土曜）-> sat_pre_hol_night."""
+        d = date(2026, 4, 3)  # 金曜
+        result = script.determine_slot_type(1, d, False, False)
+        assert result == SlotTypeEnum.sat_pre_hol_night
+
+    def test_first_occurrence_pre_holiday_weekday_returns_sat_pre_hol_night(self) -> None:
+        """1回目 + 平日（翌日=祝日）-> sat_pre_hol_night."""
+        # 2026-04-28 は火曜、翌日 4/29 は昭和の日（祝日）
+        d = date(2026, 4, 28)
+        next_day = date(2026, 4, 29)
+        holidays = {next_day}
+        result = script.determine_slot_type(0, d, False, False, holidays)
+        assert result == SlotTypeEnum.sat_pre_hol_night
+
+    def test_sat_pre_hol_night_not_returned_when_next_day_not_holiday_or_saturday(
+        self,
+    ) -> None:
+        """翌日が平日の場合は weekday_night を返す（sat_pre_hol_night にならない）."""
+        d = date(2026, 4, 1)  # 水曜（翌日=木曜）
+        result = script.determine_slot_type(0, d, False, False, set())
+        assert result == SlotTypeEnum.weekday_night
+
+    def test_sat_pre_hol_night_not_returned_when_day_is_holiday(self) -> None:
+        """当日が祝日の場合は sun_hol_night を返す（sat_pre_hol_night にならない）."""
+        # 当日が祝日かつ翌日が土曜でも、祝日判定が先
+        d = date(2026, 4, 3)  # 金曜だが祝日扱い
+        result = script.determine_slot_type(0, d, True, False)
+        assert result == SlotTypeEnum.sun_hol_night
+
+    def test_sat_pre_hol_night_not_returned_for_third_occurrence(self) -> None:
+        """3回目（昼間枠）では sat_pre_hol_night は返さない -> None（平日）."""
+        d = date(2026, 4, 3)  # 金曜（翌日=土曜）
+        result = script.determine_slot_type(2, d, False, False)
+        assert result is None
+
+    def test_sat_pre_hol_night_no_holidays_set_treats_as_weekday_night(self) -> None:
+        """holidays=None（未指定）の場合、翌日祝日は判定されず weekday_night を返す."""
+        # 2026-04-28 火曜、翌日は祝日だが holidays=None で判定されない
+        d = date(2026, 4, 28)
+        result = script.determine_slot_type(0, d, False, False, None)
+        assert result == SlotTypeEnum.weekday_night
+
 # ---------------------------------------------------------------------------
 # parse_header
 # ---------------------------------------------------------------------------
@@ -480,3 +530,31 @@ class TestConvertOutputFormat:
         day_rows = [r for r in rows if r["slot_type"] == "sun_hol_day"]
         assert day_rows, "sun_hol_day 行が出力 CSV に存在すること"
         assert day_rows[0]["worker_id_1"] == "田中三郎"
+
+    def test_friday_first_occurrence_outputs_sat_pre_hol_night(
+        self, tmp_path: "pathlib.Path"  # type: ignore[name-defined]
+    ) -> None:
+        """金曜（翌日=土曜）の1回目の氏名が sat_pre_hol_night として出力される."""
+        import csv
+
+        # 2026-04-03 は金曜（翌日 4/4 が土曜）
+        input_path = self._make_input_csv(tmp_path, "input6.csv", [
+            ["日", "曜", "回数", "氏名"],  # row0 (header)
+            ["3", "金", "1", "山田太郎"],  # row1 (data, 2026-04-03=金曜、翌日が土曜)
+        ])
+        output_path = str(tmp_path / "output6.csv")
+
+        script.convert(
+            input_path=input_path,
+            output_path=output_path,
+            year_month="2026-04",
+            tenant_id=None,
+            db_url=None,
+        )
+
+        with open(output_path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert any(r["slot_type"] == "sat_pre_hol_night" for r in rows), \
+            "sat_pre_hol_night 行が出力 CSV に存在すること"

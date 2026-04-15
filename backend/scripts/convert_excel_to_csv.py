@@ -36,7 +36,7 @@ import os
 import re
 import sys
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import jpholiday
@@ -114,6 +114,7 @@ def determine_slot_type(
     shift_date: date,
     is_holiday: bool,
     is_long_holiday: bool,
+    holidays: set[date] | None = None,
 ) -> SlotTypeEnum | None:
     """出現順と日付情報から SlotTypeEnum を決定する.
 
@@ -123,6 +124,7 @@ def determine_slot_type(
         - 長期連休 -> long_hol_night
         - 土曜 -> sat_night
         - 日曜または祝日 -> sun_hol_night
+        - 翌日が土曜または祝日かつ当日が平日 -> sat_pre_hol_night
         - 平日 -> weekday_night
     - 2回目・3回目（3回目・4回目）の氏名列:
         - 長期連休 -> long_hol_day
@@ -135,6 +137,7 @@ def determine_slot_type(
         shift_date: 対象日付。
         is_holiday: 祝日フラグ（土曜を除く）。
         is_long_holiday: 長期連休フラグ（GW・年末年始等）。
+        holidays: 祝日の日付セット（sat_pre_hol_night 判定に使用）。
 
     Returns:
         対応する SlotTypeEnum。対象外の場合は None。
@@ -151,6 +154,12 @@ def determine_slot_type(
             return SlotTypeEnum.sat_night
         if is_sunday or is_holiday:
             return SlotTypeEnum.sun_hol_night
+        # 翌日が土曜または祝日かつ当日が平日 -> sat_pre_hol_night
+        next_day = shift_date + timedelta(days=1)
+        next_day_is_saturday = next_day.weekday() == 5
+        next_day_is_holiday = (holidays is not None) and (next_day in holidays)
+        if next_day_is_saturday or next_day_is_holiday:
+            return SlotTypeEnum.sat_pre_hol_night
         return SlotTypeEnum.weekday_night
 
     # 3回目・4回目: 昼間枠
@@ -481,7 +490,7 @@ def convert(
             if not name_str:
                 continue
 
-            slot_type = determine_slot_type(occurrence_idx, shift_date, is_holiday, is_long)
+            slot_type = determine_slot_type(occurrence_idx, shift_date, is_holiday, is_long, holidays)
             if slot_type is None:
                 continue
 
