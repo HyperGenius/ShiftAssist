@@ -538,9 +538,7 @@ def upsert_monthly_slot_stats(
                 ShiftRequirement.slot_type != SlotTypeEnum.weekday_night,
                 ShiftRequirementAssignment.worker_id.isnot(None),  # type: ignore[union-attr]
             )
-            .group_by(
-                ShiftRequirementAssignment.worker_id, ShiftRequirement.slot_type
-            )
+            .group_by(ShiftRequirementAssignment.worker_id, ShiftRequirement.slot_type)
         ).all()
 
         for row in req_non_wn_rows:
@@ -575,9 +573,7 @@ def upsert_monthly_slot_stats(
                 ShiftRequirement.slot_type == SlotTypeEnum.weekday_night,
                 ShiftRequirementAssignment.worker_id.isnot(None),  # type: ignore[union-attr]
             )
-            .group_by(
-                ShiftRequirementAssignment.worker_id, ShiftRequirement.shift_date
-            )
+            .group_by(ShiftRequirementAssignment.worker_id, ShiftRequirement.shift_date)
         ).all()
 
         # worker × weekday_bucket に集約する
