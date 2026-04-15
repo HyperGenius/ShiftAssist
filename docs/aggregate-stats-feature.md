@@ -59,12 +59,36 @@ DBへの繰り返し集計クエリ負荷を回避する設計となっている
 
 ## 3. Upsert タイミング
 
-`ShiftPlan` のステータスが `published` に変更されるタイミングで
-`upsert_monthly_slot_stats(session, tenant_id, year_month)` が呼び出される。
+`upsert_monthly_slot_stats(session, tenant_id, year_month)` は以下のタイミングで呼び出される。
 
 現在は以下のエンドポイントから呼び出し:
 
 - `POST /api/shift-plans/import` (`shift_plan_import_service.import_shift_plan`)
+- `POST /api/tenants/{tenant_id}/worker-stats/aggregate/recalculate`（手動再計算ボタン）
+
+### データソースの優先順位
+
+`upsert_monthly_slot_stats` は以下の優先順位でデータソースを選択する:
+
+| 優先順位 | データソース | 対象フロー |
+|---------|------------|-----------|
+| 1       | `ShiftPlan` + `ShiftSlot` + `ShiftAssignment`（`published` ステータス） | インポートフロー |
+| 2       | `ShiftRequirement` + `ShiftRequirementAssignment` | 通常確定フロー（手動再計算が必要） |
+
+- `published` プランが存在する月は **ShiftPlan ベースのデータ** を優先する
+- `published` プランが存在しない月は **ShiftRequirementAssignment ベースのデータ** を使用する
+- どちらも存在しない月はスキップされる
+
+> **⚠️ 注意**: 通常の運用フロー（`ShiftRequirementAssignment` ベースの確定）では、
+> `upsert_monthly_slot_stats` は**自動的に呼ばれない**。
+> このため、通常フローで確定したシフトプランは `worker_monthly_slot_stats` テーブルに
+> 自動反映されない。
+>
+> 最新の集計データを得るには、集計ページの**「再計算」ボタン**を手動で実行すること。
+> 再計算を実行すると、インポートフローおよび通常フローの両方のデータが
+> `sat_pre_hol_night` を含む全スロット種別で正しく集計される。
+>
+> 通常確定フローへの自動呼び出し実装は別 Issue として管理する。
 
 ---
 

@@ -1098,12 +1098,29 @@ class TestCheckAnnualShiftLimits:
     """_check_annual_shift_limits の各種テスト."""
 
     def _make_session_with_slots(self, slot_types: list[str]) -> MagicMock:
-        """指定された slot_type のリストを返すセッションモック."""
+        """指定された slot_type のリストを返すセッションモック.
+
+        新実装では _check_annual_shift_limits が worker ごとに3回 exec を呼ぶ:
+          1回目: 当月の ShiftRequirementAssignment クエリ → slot_types を返す
+          2回目: WorkerMonthlySlotStats クエリ（過去月のpublishedデータ）→ 空リスト
+          3回目: 過去月の ShiftRequirementAssignment クエリ → 空リスト
+        """
         session = MagicMock()
-        exec_result = MagicMock()
-        exec_result.all.return_value = slot_types
-        exec_result.first.return_value = None
-        session.exec.return_value = exec_result
+        call_count = [0]
+
+        def exec_side_effect(*args: object, **kwargs: object) -> MagicMock:
+            call_count[0] += 1
+            result = MagicMock()
+            result.first.return_value = None
+            if call_count[0] % 3 == 1:
+                # 1回目: 当月 ShiftRequirementAssignment → slot_types を返す
+                result.all.return_value = slot_types
+            else:
+                # 2回目: WorkerMonthlySlotStats / 3回目: 過去月 ShiftRequirementAssignment → 空
+                result.all.return_value = []
+            return result
+
+        session.exec.side_effect = exec_side_effect
         return session
 
     def test_no_violation_when_under_limits(self) -> None:
@@ -1525,9 +1542,19 @@ class TestAnnualLimitOverrides:
         slot_mock2 = MagicMock()
         slot_mock2.__str__ = lambda s: "weekday_night"  # type: ignore[method-assign]
 
-        session.exec.return_value = MagicMock(
-            **{"first.return_value": None, "all.return_value": [slot_mock1, slot_mock2]}
-        )
+        call_count = [0]
+
+        def exec_side_effect(*args: object, **kwargs: object) -> MagicMock:
+            call_count[0] += 1
+            result = MagicMock()
+            result.first.return_value = None
+            if call_count[0] % 3 == 1:
+                result.all.return_value = [slot_mock1, slot_mock2]
+            else:
+                result.all.return_value = []
+            return result
+
+        session.exec.side_effect = exec_side_effect
 
         # _check_annual_shift_limits を直接テスト
         global_limits = AnnualShiftLimitsConfig(weekday_night=10)
@@ -1568,9 +1595,19 @@ class TestAnnualLimitOverrides:
             s.__str__ = lambda self: "weekday_night"  # type: ignore[method-assign]
             slot_mocks.append(s)
 
-        session.exec.return_value = MagicMock(
-            **{"first.return_value": None, "all.return_value": slot_mocks}
-        )
+        call_count2 = [0]
+
+        def exec_side_effect2(*args: object, **kwargs: object) -> MagicMock:
+            call_count2[0] += 1
+            result = MagicMock()
+            result.first.return_value = None
+            if call_count2[0] % 3 == 1:
+                result.all.return_value = slot_mocks
+            else:
+                result.all.return_value = []
+            return result
+
+        session.exec.side_effect = exec_side_effect2
 
         global_limits = AnnualShiftLimitsConfig(weekday_night=10)
         result = shift_validation_service._check_annual_shift_limits(

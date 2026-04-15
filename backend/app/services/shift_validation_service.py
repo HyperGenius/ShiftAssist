@@ -9,6 +9,7 @@ import uuid
 from datetime import date, timedelta
 from typing import cast
 
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.models.models import (
@@ -26,6 +27,7 @@ from app.models.models import (
     SlotTypeEnum,
     TenantSkillRank,
     Worker,
+    WorkerMonthlySlotStats,
 )
 from app.models.rule_schemas import (
     AnnualPartialLimitsConfig,
@@ -776,6 +778,10 @@ def _check_annual_shift_limits(
     severity: "warning" として返す（保存はブロックしない）。
 
     long_hol_day / long_hol_night はそれぞれ sun_hol_day / sun_hol_night に合算して集計する。
+
+    集計は2つのソースを組み合わせる:
+    - ShiftRequirementAssignment: 当月の作成中アサイン（計画フロー）
+    - WorkerMonthlySlotStats: 過去月の published プランデータ（インポートフロー）
     """
     import calendar as _calendar
 
@@ -792,10 +798,18 @@ def _check_annual_shift_limits(
     last_day = _calendar.monthrange(shift_date.year, shift_date.month)[1]
     period_end_inclusive = date(shift_date.year, shift_date.month, last_day)
 
+    # 集計期間の年月文字列（WorkerMonthlySlotStats クエリ用）
+    ym_start = f"{period_start.year:04d}-{period_start.month:02d}"
+    ym_current = f"{shift_date.year:04d}-{shift_date.month:02d}"
+
+    # 当月の開始日（ShiftRequirementAssignment は当月のみ対象）
+    current_month_start = date(shift_date.year, shift_date.month, 1)
+
     violations: list[ValidationViolationItem] = []
 
     for worker in workers:
-        rows = session.exec(
+        # --- 1. 当月のアサイン: ShiftRequirementAssignment を参照 ---
+        req_rows = session.exec(
             select(ShiftRequirement.slot_type)
             .join(
                 ShiftRequirementAssignment,
@@ -804,12 +818,68 @@ def _check_annual_shift_limits(
             .where(
                 ShiftRequirementAssignment.worker_id == worker.id,
                 ShiftRequirementAssignment.tenant_id == tenant_id,
-                ShiftRequirement.shift_date >= period_start,
+                ShiftRequirement.shift_date >= current_month_start,
                 ShiftRequirement.shift_date <= period_end_inclusive,
             )
         ).all()
 
-        slot_types = [str(r) for r in rows] + [str(slot_type)]
+        # --- 2. 過去月のアサイン: WorkerMonthlySlotStats（published プラン）を参照 ---
+        # WorkerMonthlySlotStats が存在する月を特定し、その月のカウントを取得する
+        stats_rows = session.exec(
+            select(
+                WorkerMonthlySlotStats.year_month,
+                WorkerMonthlySlotStats.slot_type,
+                func.sum(WorkerMonthlySlotStats.count).label("total"),
+            )
+            .where(
+                WorkerMonthlySlotStats.worker_id == worker.id,  # type: ignore[arg-type]
+                WorkerMonthlySlotStats.tenant_id == tenant_id,
+                WorkerMonthlySlotStats.year_month >= ym_start,
+                WorkerMonthlySlotStats.year_month < ym_current,
+            )
+            .group_by(
+                WorkerMonthlySlotStats.year_month,
+                WorkerMonthlySlotStats.slot_type,
+            )
+        ).all()
+
+        # published データが存在する年月セット（この月は ShiftRequirementAssignment を使わない）
+        months_with_published: set[str] = {str(row[0]) for row in stats_rows}
+
+        # --- 3. 過去月のアサイン（published がない月）: ShiftRequirementAssignment を参照 ---
+        past_req_rows = session.exec(
+            select(ShiftRequirement.shift_date, ShiftRequirement.slot_type)
+            .join(
+                ShiftRequirementAssignment,
+                ShiftRequirementAssignment.requirement_id == ShiftRequirement.id,  # type: ignore[arg-type]
+            )
+            .where(
+                ShiftRequirementAssignment.worker_id == worker.id,
+                ShiftRequirementAssignment.tenant_id == tenant_id,
+                ShiftRequirement.shift_date >= period_start,
+                ShiftRequirement.shift_date < current_month_start,
+            )
+        ).all()
+
+        # published データがある月は ShiftRequirementAssignment を除外（二重カウント防止）
+        past_req_slot_types = [
+            str(row[1])
+            for row in past_req_rows
+            if f"{cast(date, row[0]).year:04d}-{cast(date, row[0]).month:02d}"
+            not in months_with_published
+        ]
+
+        # published データを展開（count 分だけ slot_type を繰り返す）
+        published_slot_types: list[str] = []
+        for row in stats_rows:
+            published_slot_types.extend([str(row[1])] * int(row[2]))
+
+        slot_types = (
+            [str(r) for r in req_rows]
+            + past_req_slot_types
+            + published_slot_types
+            + [str(slot_type)]
+        )
         total, counts = _count_annual_slots(slot_types)
 
         # 雇用形態別の年間上限上書きを適用
