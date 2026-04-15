@@ -5,6 +5,7 @@
 在籍期間を考慮した月平均値を集計・提供する。
 """
 
+import calendar as _cal
 import uuid
 from datetime import UTC, date, datetime
 
@@ -415,8 +416,6 @@ def upsert_monthly_slot_stats(
     Returns:
         Upsert を実行した場合は ``True``、対象データが存在しない場合は ``False``。
     """
-    import calendar as _cal
-
     # 対象プランを取得
     plan = session.exec(
         select(ShiftPlan).where(
@@ -507,6 +506,10 @@ def upsert_monthly_slot_stats(
                     "updated_at": now,
                 }
             )
+
+        if not upsert_values:
+            # プランは存在するがアサインメントがない場合もupsert実行済みとみなす
+            return True
 
     else:
         # --- 2. published ShiftPlan が存在しない場合: ShiftRequirementAssignment から集計 ---
@@ -605,11 +608,6 @@ def upsert_monthly_slot_stats(
 
         if not upsert_values:
             return False
-
-    if not upsert_values:
-        return (
-            True  # プランは存在するがアサインメントがない場合もupsert実行済みとみなす
-        )
 
     # ON CONFLICT DO UPDATE (Upsert)
     stmt = pg_insert(WorkerMonthlySlotStats).values(upsert_values)
