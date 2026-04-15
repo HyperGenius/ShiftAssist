@@ -19,6 +19,8 @@ from app.models.models import (
     Position,
     ShiftAssignment,
     ShiftPlan,
+    ShiftRequirement,
+    ShiftRequirementAssignment,
     ShiftSlot,
     SlotTypeEnum,
     TenantSkillRank,
@@ -395,9 +397,15 @@ def upsert_monthly_slot_stats(
 ) -> bool:
     """指定年月の集計テーブルを Upsert する.
 
-    ``published`` ステータスのシフトプランを参照して
-    Worker × SlotType × weekday（weekday_nightのみ）ごとにシフト回数を集計し、
+    以下の優先順位でデータソースを選択して集計し、
     ``worker_monthly_slot_stats`` テーブルへ Upsert する。
+
+    1. ``published`` ステータスの ``ShiftPlan`` が存在する月:
+       ``ShiftSlot`` / ``ShiftAssignment`` から集計（インポートフロー）
+    2. ``published`` プランが存在しない月:
+       ``ShiftRequirementAssignment`` / ``ShiftRequirement`` から集計（通常確定フロー）
+
+    Worker × SlotType × weekday（weekday_nightのみ）ごとにシフト回数を集計する。
 
     Args:
         session: SQLModelセッション。
@@ -405,8 +413,10 @@ def upsert_monthly_slot_stats(
         year_month: 集計対象年月（YYYY-MM形式）。
 
     Returns:
-        Upsert を実行した場合は ``True``、published プランが存在しない場合は ``False``。
+        Upsert を実行した場合は ``True``、対象データが存在しない場合は ``False``。
     """
+    import calendar as _cal
+
     # 対象プランを取得
     plan = session.exec(
         select(ShiftPlan).where(
@@ -416,87 +426,185 @@ def upsert_monthly_slot_stats(
         )
     ).first()
 
-    if plan is None:
-        return False
-
     now = datetime.now(UTC)
     upsert_values = []
 
-    # --- 1. weekday_night 以外: 曜日不問で集計 (weekday=NULL) ---
-    non_weekday_rows = session.exec(
-        select(
-            ShiftAssignment.worker_id,
-            ShiftSlot.slot_type,
-            func.count(ShiftAssignment.id).label("cnt"),
-        )
-        .join(ShiftSlot, ShiftAssignment.slot_id == ShiftSlot.id)
-        .where(
-            ShiftSlot.plan_id == plan.id,
-            ShiftSlot.slot_type != SlotTypeEnum.weekday_night,
-            ShiftAssignment.worker_id.isnot(None),  # type: ignore[union-attr]
-        )
-        .group_by(ShiftAssignment.worker_id, ShiftSlot.slot_type)
-    ).all()
+    if plan is not None:
+        # --- 1. published ShiftPlan が存在する場合: ShiftSlot/ShiftAssignment から集計 ---
 
-    for row in non_weekday_rows:
-        upsert_values.append(
-            {
-                "id": uuid.uuid4(),
-                "tenant_id": tenant_id,
-                "worker_id": row[0],
-                "year_month": year_month,
-                "slot_type": str(row[1]),
-                "weekday": None,
-                "count": row[2],
-                "updated_at": now,
-            }
-        )
+        # --- 1a. weekday_night 以外: 曜日不問で集計 (weekday=NULL) ---
+        non_weekday_rows = session.exec(
+            select(
+                ShiftAssignment.worker_id,
+                ShiftSlot.slot_type,
+                func.count(ShiftAssignment.id).label("cnt"),
+            )
+            .join(ShiftSlot, ShiftAssignment.slot_id == ShiftSlot.id)
+            .where(
+                ShiftSlot.plan_id == plan.id,
+                ShiftSlot.slot_type != SlotTypeEnum.weekday_night,
+                ShiftAssignment.worker_id.isnot(None),  # type: ignore[union-attr]
+            )
+            .group_by(ShiftAssignment.worker_id, ShiftSlot.slot_type)
+        ).all()
 
-    # --- 2. weekday_night: isodow 単位で集計し、月〜木は 0〜3 に、金〜日は NULL に変換 ---
-    wn_rows = session.exec(
-        select(
-            ShiftAssignment.worker_id,
-            func.extract("isodow", ShiftSlot.date).label("isodow"),
-            func.count(ShiftAssignment.id).label("cnt"),
-        )
-        .join(ShiftSlot, ShiftAssignment.slot_id == ShiftSlot.id)
-        .where(
-            ShiftSlot.plan_id == plan.id,
-            ShiftSlot.slot_type == SlotTypeEnum.weekday_night,
-            ShiftAssignment.worker_id.isnot(None),  # type: ignore[union-attr]
-        )
-        .group_by(
-            ShiftAssignment.worker_id,
-            func.extract("isodow", ShiftSlot.date),
-        )
-    ).all()
+        for row in non_weekday_rows:
+            upsert_values.append(
+                {
+                    "id": uuid.uuid4(),
+                    "tenant_id": tenant_id,
+                    "worker_id": row[0],
+                    "year_month": year_month,
+                    "slot_type": str(row[1]),
+                    "weekday": None,
+                    "count": row[2],
+                    "updated_at": now,
+                }
+            )
 
-    # weekday_night を Python 側で worker × weekday_bucket に集約する
-    wn_map: dict[tuple[uuid.UUID, int | None], int] = {}
-    for row in wn_rows:
-        worker_id: uuid.UUID = row[0]
-        isodow = int(row[1]) if row[1] is not None else None
-        cnt = int(row[2])
-        # isodow 1〜4 → weekday 0〜3 (月〜木), 5〜7 → None
-        weekday: int | None = (
-            (isodow - 1) if (isodow is not None and 1 <= isodow <= 4) else None
-        )
-        key = (worker_id, weekday)
-        wn_map[key] = wn_map.get(key, 0) + cnt
+        # --- 1b. weekday_night: isodow 単位で集計し、月〜木は 0〜3 に、金〜日は NULL に変換 ---
+        wn_rows = session.exec(
+            select(
+                ShiftAssignment.worker_id,
+                func.extract("isodow", ShiftSlot.date).label("isodow"),
+                func.count(ShiftAssignment.id).label("cnt"),
+            )
+            .join(ShiftSlot, ShiftAssignment.slot_id == ShiftSlot.id)
+            .where(
+                ShiftSlot.plan_id == plan.id,
+                ShiftSlot.slot_type == SlotTypeEnum.weekday_night,
+                ShiftAssignment.worker_id.isnot(None),  # type: ignore[union-attr]
+            )
+            .group_by(
+                ShiftAssignment.worker_id,
+                func.extract("isodow", ShiftSlot.date),
+            )
+        ).all()
 
-    for (worker_id, weekday), cnt in wn_map.items():
-        upsert_values.append(
-            {
-                "id": uuid.uuid4(),
-                "tenant_id": tenant_id,
-                "worker_id": worker_id,
-                "year_month": year_month,
-                "slot_type": SlotTypeEnum.weekday_night.value,
-                "weekday": weekday,
-                "count": cnt,
-                "updated_at": now,
-            }
-        )
+        # weekday_night を Python 側で worker × weekday_bucket に集約する
+        wn_map: dict[tuple[uuid.UUID, int | None], int] = {}
+        for row in wn_rows:
+            worker_id: uuid.UUID = row[0]
+            isodow = int(row[1]) if row[1] is not None else None
+            cnt = int(row[2])
+            # isodow 1〜4 → weekday 0〜3 (月〜木), 5〜7 → None
+            weekday: int | None = (
+                (isodow - 1) if (isodow is not None and 1 <= isodow <= 4) else None
+            )
+            key = (worker_id, weekday)
+            wn_map[key] = wn_map.get(key, 0) + cnt
+
+        for (worker_id, weekday), cnt in wn_map.items():
+            upsert_values.append(
+                {
+                    "id": uuid.uuid4(),
+                    "tenant_id": tenant_id,
+                    "worker_id": worker_id,
+                    "year_month": year_month,
+                    "slot_type": SlotTypeEnum.weekday_night.value,
+                    "weekday": weekday,
+                    "count": cnt,
+                    "updated_at": now,
+                }
+            )
+
+    else:
+        # --- 2. published ShiftPlan が存在しない場合: ShiftRequirementAssignment から集計 ---
+        # 通常確定フロー（ShiftRequirementAssignment ベース）のデータを集計する
+
+        y, m = int(year_month[:4]), int(year_month[5:7])
+        month_start = date(y, m, 1)
+        _, last_day = _cal.monthrange(y, m)
+        month_end = date(y, m, last_day)
+
+        # --- 2a. weekday_night 以外: 曜日不問で集計 (weekday=NULL) ---
+        req_non_wn_rows = session.exec(
+            select(
+                ShiftRequirementAssignment.worker_id,
+                ShiftRequirement.slot_type,
+                func.count(ShiftRequirementAssignment.id).label("cnt"),
+            )
+            .join(
+                ShiftRequirement,
+                ShiftRequirementAssignment.requirement_id == ShiftRequirement.id,  # type: ignore[arg-type]
+            )
+            .where(
+                ShiftRequirementAssignment.tenant_id == tenant_id,
+                ShiftRequirement.shift_date >= month_start,  # type: ignore[operator]
+                ShiftRequirement.shift_date <= month_end,  # type: ignore[operator]
+                ShiftRequirement.slot_type != SlotTypeEnum.weekday_night,
+                ShiftRequirementAssignment.worker_id.isnot(None),  # type: ignore[union-attr]
+            )
+            .group_by(
+                ShiftRequirementAssignment.worker_id, ShiftRequirement.slot_type
+            )
+        ).all()
+
+        for row in req_non_wn_rows:
+            upsert_values.append(
+                {
+                    "id": uuid.uuid4(),
+                    "tenant_id": tenant_id,
+                    "worker_id": row[0],
+                    "year_month": year_month,
+                    "slot_type": str(row[1]),
+                    "weekday": None,
+                    "count": row[2],
+                    "updated_at": now,
+                }
+            )
+
+        # --- 2b. weekday_night: shift_date の曜日で月〜木(0〜3) / その他(NULL) に分類 ---
+        req_wn_rows = session.exec(
+            select(
+                ShiftRequirementAssignment.worker_id,
+                ShiftRequirement.shift_date,
+                func.count(ShiftRequirementAssignment.id).label("cnt"),
+            )
+            .join(
+                ShiftRequirement,
+                ShiftRequirementAssignment.requirement_id == ShiftRequirement.id,  # type: ignore[arg-type]
+            )
+            .where(
+                ShiftRequirementAssignment.tenant_id == tenant_id,
+                ShiftRequirement.shift_date >= month_start,  # type: ignore[operator]
+                ShiftRequirement.shift_date <= month_end,  # type: ignore[operator]
+                ShiftRequirement.slot_type == SlotTypeEnum.weekday_night,
+                ShiftRequirementAssignment.worker_id.isnot(None),  # type: ignore[union-attr]
+            )
+            .group_by(
+                ShiftRequirementAssignment.worker_id, ShiftRequirement.shift_date
+            )
+        ).all()
+
+        # worker × weekday_bucket に集約する
+        req_wn_map: dict[tuple[uuid.UUID, int | None], int] = {}
+        for row in req_wn_rows:
+            req_worker_id: uuid.UUID = row[0]
+            req_shift_date: date = row[1]
+            req_cnt = int(row[2])
+            # date.weekday(): 0=月, 1=火, 2=水, 3=木, 4=金, 5=土, 6=日
+            wd_idx = req_shift_date.weekday()
+            req_weekday: int | None = wd_idx if wd_idx <= 3 else None
+            req_key = (req_worker_id, req_weekday)
+            req_wn_map[req_key] = req_wn_map.get(req_key, 0) + req_cnt
+
+        for (req_worker_id, req_weekday), req_cnt in req_wn_map.items():
+            upsert_values.append(
+                {
+                    "id": uuid.uuid4(),
+                    "tenant_id": tenant_id,
+                    "worker_id": req_worker_id,
+                    "year_month": year_month,
+                    "slot_type": SlotTypeEnum.weekday_night.value,
+                    "weekday": req_weekday,
+                    "count": req_cnt,
+                    "updated_at": now,
+                }
+            )
+
+        if not upsert_values:
+            return False
 
     if not upsert_values:
         return (
