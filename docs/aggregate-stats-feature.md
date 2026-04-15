@@ -66,6 +66,16 @@ DBへの繰り返し集計クエリ負荷を回避する設計となっている
 
 - `POST /api/shift-plans/import` (`shift_plan_import_service.import_shift_plan`)
 
+> **⚠️ 注意**: 通常の運用フロー（`ShiftRequirementAssignment` ベースの確定）では、
+> `upsert_monthly_slot_stats` は**自動的に呼ばれない**。
+> このため、通常フローで確定したシフトプランは `worker_monthly_slot_stats` テーブルに
+> 自動反映されない。
+>
+> 最新の集計データを得るには、集計ページの**「再計算」ボタン**を手動で実行すること。
+>
+> 詳細実装（通常確定フローへの `upsert_monthly_slot_stats` 自動呼び出し追加）は
+> 別 Issue として管理する。
+
 ---
 
 ## 4. APIエンドポイント

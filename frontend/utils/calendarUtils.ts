@@ -20,6 +20,28 @@ export function getHolidaySet(year: number, month: number): Set<string> {
   return new Set(getHolidayMap(year, month).keys());
 }
 
+/**
+ * 月末の祝前日判定に使う拡張祝日セットを取得する。
+ * 当月の祝日に加え、翌月1日（月末の翌日）が祝日の場合もセットに含める。
+ * これにより isSatPreHolidayDate が月末日付の翌日（翌月初日）が祝日かを正しく判定できる。
+ */
+export function getExtendedHolidaySet(year: number, month: number): Set<string> {
+  const set = getHolidaySet(year, month);
+
+  // 翌月1日の祝日を追加取得する
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextMonthHolidays = getHolidaysOf(nextYear);
+  for (const h of nextMonthHolidays) {
+    if (h.month === nextMonth && h.date === 1) {
+      const m = String(h.month).padStart(2, "0");
+      const d = String(h.date).padStart(2, "0");
+      set.add(`${nextYear}-${m}-${d}`);
+    }
+  }
+  return set;
+}
+
 /** 日付が土曜日かどうか */
 export function isSaturday(date: Date): boolean {
   return date.getDay() === 6;

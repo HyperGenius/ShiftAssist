@@ -46,6 +46,7 @@ _HOLIDAY_SLOT_TYPES = {
     SlotTypeEnum.sun_hol_night,
     SlotTypeEnum.long_hol_day,
     SlotTypeEnum.long_hol_night,
+    SlotTypeEnum.sat_pre_hol_night,
 }
 
 _DEFAULT_STATS_PERIOD_MONTHS = 12

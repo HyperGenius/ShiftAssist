@@ -46,6 +46,8 @@ import {
   getDefaultSlotTypes,
   getCalendarGrid,
   getHolidayMap,
+  getExtendedHolidaySet,
+  isSatPreHolidayDate,
   toDateStr,
   isHoliday,
   type DayType,
@@ -135,13 +137,15 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
     rules.shift_rules,
     skillRanks,
     validationContext?.worker_stats ?? [],
-    /* annualWorkerStats= */ undefined,
-    /* annualLimits= */ undefined,
+    /* annualWorkerStats= */ workerStatsData?.items,
+    /* annualLimits= */ annualLimits,
     employmentTypes,
   );
 
   const holidayMap = useMemo(() => getHolidayMap(year, month), [year, month]);
   const holidaySet = useMemo(() => new Set(holidayMap.keys()), [holidayMap]);
+  // 月末祝前日判定のために翌月1日の祝日も含む拡張セット
+  const extendedHolidaySet = useMemo(() => getExtendedHolidaySet(year, month), [year, month]);
   const calendarGrid = useMemo(
     () => getCalendarGrid(year, month),
     [year, month],
@@ -188,7 +192,11 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
       if (!date) continue;
       const dateStr = toDateStr(date);
       const dayType: DayType = getDayType(date, dateStr, holidaySet);
-      const slotTypes = getDefaultSlotTypes(dayType);
+      // 平日の場合、翌日が土曜または祝日（月末跨ぎを含む）なら sat_pre_hol_night を使用する
+      const slotTypes: SlotType[] =
+        dayType === "weekday" && isSatPreHolidayDate(dateStr, extendedHolidaySet)
+          ? ["sat_pre_hol_night"]
+          : getDefaultSlotTypes(dayType);
       newState[dateStr] = {};
       for (const slotType of slotTypes) {
         newState[dateStr][slotType] = {
@@ -246,7 +254,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
     }
 
     setCalendarState(newState);
-  }, [shiftRequirements, pastPlan, calendarGrid, holidaySet, year, month, department.id]);
+  }, [shiftRequirements, pastPlan, calendarGrid, holidaySet, extendedHolidaySet, year, month, department.id]);
 
   /** ワーカー選択変更ハンドラ */
   const handleWorkerChange = useCallback(

@@ -343,11 +343,13 @@ def generate_requirements_for_month(
     _, last_day = calendar.monthrange(year, month)
     month_end = date(year, month, last_day)
 
+    # month_end + 1 まで取得することで、月末日の翌日（翌月1日）が祝日の場合に
+    # _determine_slot_types_for_date の next_day_is_holiday 判定が正しく機能する。
     holiday_rows = session.exec(
         select(TenantHoliday).where(
             TenantHoliday.tenant_id == tenant_id,
             TenantHoliday.date >= month_start,  # type: ignore[operator]
-            TenantHoliday.date <= month_end,  # type: ignore[operator]
+            TenantHoliday.date <= month_end + timedelta(days=1),  # type: ignore[operator]
         )
     ).all()
 
