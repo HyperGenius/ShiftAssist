@@ -6,14 +6,14 @@ import { redirect } from "next/navigation";
 const SETTINGS_LINKS = [
   {
     href: "/admin/settings/holidays",
-    label: "休日カレンダー設定",
-    description: "テナント固有の祝日・休日を管理します。",
+    label: "休日・長期休暇設定",
+    description: "テナント固有の祝日・休日と長期休暇期間（GW・シルバーウィーク・年末年始等）を管理します。",
     icon: "📅",
   },
   {
     href: "/admin/settings/rules",
-    label: "シフトルール設定",
-    description: "シフト作成時に適用されるルールと警告の設定を管理します。",
+    label: "基本ルール設定",
+    description: "シフト作成時に適用されるルール・警告の設定とシフト対象部門を管理します。",
     icon: "📋",
   },
   {

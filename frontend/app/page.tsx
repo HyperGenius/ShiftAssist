@@ -11,7 +11,6 @@ import { ROUTES } from "@/constants/routes";
 /** ダッシュボードに表示するルート（ヘッダーリンク＋設定系）*/
 const DASHBOARD_ROUTES = [
   ROUTES.SHIFTS,
-  ROUTES.TENANT_SETTINGS,
   ROUTES.ADMIN_SETTINGS,
 ] as const;
 

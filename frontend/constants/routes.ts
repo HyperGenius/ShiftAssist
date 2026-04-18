@@ -29,16 +29,10 @@ export const ROUTES = {
     allowedRoles: ALL_ROLES,
     description: "シフト枠の登録・管理",
   },
-  TENANT_SETTINGS: {
-    path: "/settings",
-    label: "テナント設定",
-    allowedRoles: ALL_ROLES,
-    description: "テナントの基本設定",
-  },
   ADMIN_SETTINGS: {
     path: "/admin/settings/",
     label: "管理者設定",
     allowedRoles: ["org:admin"] as UserRole[],
-    description: "スキルランク・シフトルール等の管理者専用設定",
+    description: "スキルランク・シフトルール・対象部門・休日設定等の管理者専用設定",
   },
 } as const satisfies Record<string, RouteConfig>;
