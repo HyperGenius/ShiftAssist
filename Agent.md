@@ -15,7 +15,7 @@
 * **Framework**: Next.js 15+ (App Router)
 * **Language**: TypeScript
 * **Styling**: Tailwind CSS
-* **UI Library**: カスタムSciFiデザインシステム (`src/components/ui/`)
+* **UI Library**: カスタムUIコンポーネント (`components/ui/`)
 * **3D Rendering**: React Three Fiber (@react-three/fiber, @react-three/drei)
 * **Data Fetching**: SWR
 * **Testing**: Playwright (E2E, 準備中)
@@ -79,10 +79,10 @@
 6. **Constants & Utils**:
    - 複数の場所で使用される定数や、3行以上の計算ロジック（色計算など）は `utils/` や `constants.ts` に移動し、純粋関数として定義する。
    - 実装例: `BattleViewer/utils.ts` - HPバー色計算、環境色取得
-7. **SciFi Design System**:
+7. **UI Design System**:
    - UIコンポーネントは `src/components/ui/` のカスタムコンポーネントを使用する。
-   - 利用可能: `SciFiButton`, `SciFiPanel`, `SciFiHeading`, `SciFiSelect`, `SciFiInput` 等
-   - 統一感のあるサイバーパンク風デザインを維持する。
+   - 利用可能: `Button`, `Panel`, `Heading`, `Select`, `Input` 等
+   - 統一感のあるモダンSaaS風フラットデザインを維持する。
 
 ### Database (Neon/PostgreSQL)
 

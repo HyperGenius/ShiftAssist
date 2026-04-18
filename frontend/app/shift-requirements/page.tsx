@@ -6,8 +6,8 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { mutate as globalMutate } from "swr";
 import { toast } from "sonner";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiHeading } from "@/components/ui/SciFiHeading";
+import { Button } from "@/components/ui/Button";
+import { Heading } from "@/components/ui/Heading";
 import { ImportShiftPlanModal } from "@/components/shift-import/ImportShiftPlanModal";
 import { ShiftCalendar } from "@/components/shift-calendar/ShiftCalendar";
 import { useDepartments } from "@/hooks/useDepartments";
@@ -103,14 +103,14 @@ function ShiftRequirementsContent() {
       {/* メインコンテンツ */}
       <main className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
-          <SciFiHeading level="h1">シフト枠カレンダー</SciFiHeading>
-          <SciFiButton
+          <Heading level="h1">シフト枠カレンダー</Heading>
+          <Button
             variant="secondary"
             size="sm"
             onClick={() => setShowImportModal(true)}
           >
             📥 過去シフトのインポート
-          </SciFiButton>
+          </Button>
         </div>
 
         {/* 部門タブナビゲーション */}
@@ -160,14 +160,14 @@ function ShiftRequirementsContent() {
                 ✏️ シフト枠編集
               </button>
             </div>
-            <SciFiButton
+            <Button
               variant="danger"
               size="sm"
               onClick={() => setShowDeleteConfirm(true)}
               className="mb-1"
             >
               シフト表削除
-            </SciFiButton>
+            </Button>
           </div>
         )}
 
@@ -230,21 +230,21 @@ function ShiftRequirementsContent() {
                 紐づくシフト枠・アサイン情報もすべて削除されます。この操作は取り消せません。
               </p>
               <div className="flex items-center justify-end gap-3">
-                <SciFiButton
+                <Button
                   variant="secondary"
                   onClick={() => setShowDeleteConfirm(false)}
                   disabled={deleteLoading}
                 >
                   キャンセル
-                </SciFiButton>
-                <SciFiButton
+                </Button>
+                <Button
                   variant="danger"
                   onClick={handleDeletePlan}
                   loading={deleteLoading}
                   disabled={deleteLoading}
                 >
                   削除する
-                </SciFiButton>
+                </Button>
               </div>
             </div>
           </div>

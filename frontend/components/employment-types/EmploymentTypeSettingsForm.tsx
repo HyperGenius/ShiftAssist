@@ -4,10 +4,10 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiHeading } from "@/components/ui/SciFiHeading";
-import { SciFiInput } from "@/components/ui/SciFiInput";
-import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { Button } from "@/components/ui/Button";
+import { Heading } from "@/components/ui/Heading";
+import { Input } from "@/components/ui/Input";
+import { Panel } from "@/components/ui/Panel";
 import { EmploymentTypeRuleEditor } from "@/components/employment-types/EmploymentTypeRuleEditor";
 import { useEmploymentTypes } from "@/hooks/useEmploymentTypes";
 import type { EmploymentType, EmploymentTypeCreate } from "@/types/employmentType";
@@ -35,7 +35,7 @@ function AddEmploymentTypeForm({
     <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
       <div className="flex items-end gap-3">
         <div className="flex-1">
-          <SciFiInput
+          <Input
             id="new-employment-type-name"
             label="雇用形態名"
             placeholder="例: 正職員、非常勤、特別雇用"
@@ -44,9 +44,9 @@ function AddEmploymentTypeForm({
             disabled={isSubmitting}
           />
         </div>
-        <SciFiButton type="submit" loading={isSubmitting} disabled={!name.trim()}>
+        <Button type="submit" loading={isSubmitting} disabled={!name.trim()}>
           追加
-        </SciFiButton>
+        </Button>
       </div>
       <label className="flex items-center gap-2 cursor-pointer select-none">
         <input
@@ -114,7 +114,7 @@ function EmploymentTypeRow({
   if (isEditing) {
     return (
       <li className="flex items-center gap-3 py-2 border-b border-gray-200">
-        <SciFiInput
+        <Input
           id={`edit-employment-type-${employmentType.id}`}
           label=""
           value={editName}
@@ -122,17 +122,17 @@ function EmploymentTypeRow({
           disabled={isSaving}
           className="flex-1"
         />
-        <SciFiButton size="sm" loading={isSaving} onClick={() => void handleSave()}>
+        <Button size="sm" loading={isSaving} onClick={() => void handleSave()}>
           保存
-        </SciFiButton>
-        <SciFiButton
+        </Button>
+        <Button
           size="sm"
           variant="ghost"
           disabled={isSaving}
           onClick={() => setIsEditing(false)}
         >
           キャンセル
-        </SciFiButton>
+        </Button>
       </li>
     );
   }
@@ -148,7 +148,7 @@ function EmploymentTypeRow({
         )}
       </span>
       {!employmentType.is_default && (
-        <SciFiButton
+        <Button
           size="sm"
           variant="ghost"
           loading={isSettingDefault}
@@ -156,30 +156,30 @@ function EmploymentTypeRow({
           title="デフォルトに設定"
         >
           デフォルトに設定
-        </SciFiButton>
+        </Button>
       )}
-      <SciFiButton
+      <Button
         size="sm"
         variant="secondary"
         onClick={() => onEditRules(employmentType.id)}
       >
         ルール設定
-      </SciFiButton>
-      <SciFiButton
+      </Button>
+      <Button
         size="sm"
         variant="secondary"
         onClick={() => setIsEditing(true)}
       >
         編集
-      </SciFiButton>
-      <SciFiButton
+      </Button>
+      <Button
         size="sm"
         variant="danger"
         loading={isDeleting}
         onClick={() => void handleDelete()}
       >
         削除
-      </SciFiButton>
+      </Button>
     </li>
   );
 }
@@ -257,17 +257,17 @@ export function EmploymentTypeSettingsForm() {
     <div className="space-y-6">
       {/* ルールエディタモーダル */}
       {editingRulesFor && (
-        <SciFiPanel className="p-6 space-y-4 border-2 border-indigo-400/40">
+        <Panel className="p-6 space-y-4 border-2 border-indigo-400/40">
           <EmploymentTypeRuleEditor
             employmentTypeId={editingRulesFor.id}
             employmentTypeName={editingRulesFor.name}
             onClose={() => setEditingRulesFor(null)}
           />
-        </SciFiPanel>
+        </Panel>
       )}
 
-      <SciFiPanel className="p-6 space-y-4">
-        <SciFiHeading level="h3">雇用形態一覧</SciFiHeading>
+      <Panel className="p-6 space-y-4">
+        <Heading level="h3">雇用形態一覧</Heading>
         <p className="text-xs text-gray-500">
           テナント固有の雇用形態を定義します。スタッフ登録・一覧画面に反映されます。
         </p>
@@ -290,12 +290,12 @@ export function EmploymentTypeSettingsForm() {
             ))}
           </ul>
         )}
-      </SciFiPanel>
+      </Panel>
 
-      <SciFiPanel className="p-6 space-y-4">
-        <SciFiHeading level="h3">雇用形態を追加</SciFiHeading>
+      <Panel className="p-6 space-y-4">
+        <Heading level="h3">雇用形態を追加</Heading>
         <AddEmploymentTypeForm onAdd={handleAdd} isSubmitting={isAdding} />
-      </SciFiPanel>
+      </Panel>
     </div>
   );
 }

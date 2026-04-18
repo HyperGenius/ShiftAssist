@@ -4,9 +4,9 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiHeading } from "@/components/ui/SciFiHeading";
-import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { Button } from "@/components/ui/Button";
+import { Heading } from "@/components/ui/Heading";
+import { Panel } from "@/components/ui/Panel";
 import { useDepartments } from "@/hooks/useDepartments";
 import type { Department, DepartmentCreate } from "@/types/department";
 import { ApiError } from "@/utils/apiClient";
@@ -48,20 +48,20 @@ function DepartmentRow({
       </td>
       <td className="px-4 py-3 text-right">
         <div className="flex items-center justify-end gap-2">
-          <SciFiButton
+          <Button
             variant="secondary"
             size="sm"
             onClick={() => onEdit(department)}
           >
             編集
-          </SciFiButton>
-          <SciFiButton
+          </Button>
+          <Button
             variant="danger"
             size="sm"
             onClick={() => onDelete(department)}
           >
             削除
-          </SciFiButton>
+          </Button>
         </div>
       </td>
     </tr>
@@ -142,18 +142,18 @@ export function DepartmentList() {
 
   return (
     <>
-      <SciFiPanel className="p-6">
+      <Panel className="p-6">
         {/* ヘッダー */}
         <div className="flex items-center justify-between mb-6">
-          <SciFiHeading level="h2">部門（Department）管理</SciFiHeading>
+          <Heading level="h2">部門（Department）管理</Heading>
           <div className="flex items-center gap-2">
-            <SciFiButton
+            <Button
               variant="secondary"
               onClick={() => setIsBulkUploadOpen((prev) => !prev)}
             >
               一括登録・更新
-            </SciFiButton>
-            <SciFiButton onClick={handleCreate}>＋ 新規追加</SciFiButton>
+            </Button>
+            <Button onClick={handleCreate}>＋ 新規追加</Button>
           </div>
         </div>
 
@@ -247,7 +247,7 @@ export function DepartmentList() {
             {departments.length} 件
           </p>
         )}
-      </SciFiPanel>
+      </Panel>
 
       {/* 作成・編集モーダル */}
       {isModalOpen && (

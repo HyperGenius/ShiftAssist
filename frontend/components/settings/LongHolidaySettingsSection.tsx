@@ -4,8 +4,8 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { SciFiPanel } from "@/components/ui/SciFiPanel";
-import { SciFiSelect } from "@/components/ui/SciFiSelect";
+import { Panel } from "@/components/ui/Panel";
+import { Select } from "@/components/ui/Select";
 import { useLongHolidayPeriods } from "@/hooks/useLongHolidayPeriods";
 import type { LongHolidayPeriodCreate } from "@/types/longHolidayPeriod";
 
@@ -59,12 +59,12 @@ export function LongHolidaySettingsSection() {
 
   return (
     <div className="space-y-8">
-      <SciFiPanel className="p-6 space-y-6">
+      <Panel className="p-6 space-y-6">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <h2 className="text-sm font-semibold tracking-widest text-gray-700 uppercase">
             長期休暇期間の設定
           </h2>
-          <SciFiSelect
+          <Select
             id="lhp-year-filter"
             label="表示年"
             value={String(selectedYear)}
@@ -76,7 +76,7 @@ export function LongHolidaySettingsSection() {
                 {y}年
               </option>
             ))}
-          </SciFiSelect>
+          </Select>
         </div>
 
         {/* 登録済み一覧 */}
@@ -116,7 +116,7 @@ export function LongHolidaySettingsSection() {
             onSubmit={handleCreate}
           />
         </div>
-      </SciFiPanel>
+      </Panel>
     </div>
   );
 }

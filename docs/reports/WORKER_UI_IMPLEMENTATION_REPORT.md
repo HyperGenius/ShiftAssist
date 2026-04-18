@@ -32,11 +32,11 @@ frontend/
 │   └── sign-up/[[...sign-up]]/page.tsx   # Clerkサインアップページ
 ├── components/
 │   ├── ui/
-│   │   ├── SciFiButton.tsx               # SciFiデザインシステム：ボタン
-│   │   ├── SciFiHeading.tsx              # SciFiデザインシステム：見出し
-│   │   ├── SciFiInput.tsx                # SciFiデザインシステム：テキスト入力
-│   │   ├── SciFiPanel.tsx                # SciFiデザインシステム：パネル
-│   │   └── SciFiSelect.tsx               # SciFiデザインシステム：セレクトボックス
+│   │   ├── Button.tsx                    # 汎用UIコンポーネント：ボタン
+│   │   ├── Heading.tsx                   # 汎用UIコンポーネント：見出し
+│   │   ├── Input.tsx                     # 汎用UIコンポーネント：テキスト入力
+│   │   ├── Panel.tsx                     # 汎用UIコンポーネント：パネル
+│   │   └── Select.tsx                    # 汎用UIコンポーネント：セレクトボックス
 │   └── workers/
 │       ├── WorkerList.tsx                # Worker一覧・CRUD操作統合コンポーネント
 │       ├── WorkerForm.tsx                # 作成・編集フォーム（Zodバリデーション付き）
@@ -93,10 +93,10 @@ frontend/
 - 対象Worker名を表示
 - 削除中のローディング状態表示
 
-#### 7. SciFiデザインシステム
-- サイバーパンク風スタイル（シアン/スレート配色）
-- コーナーアクセント付きパネル
-- グローエフェクト付きボタン
+#### 7. モダンSaaS風UIコンポーネント
+- 白/ライトグレー基調のクリーンなフラットデザイン
+- シンプルなボーダー（`border-gray-200`）と控えめなシャドウ（`shadow-sm`）
+- ホバー・フォーカス時はシステムカラー（`blue-600`）を使ったシンプルな表現
 
 ### 環境変数設定
 

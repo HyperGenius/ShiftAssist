@@ -27,7 +27,7 @@
 │   ├── src/
 │   │   ├── app/        # Next.js App Router Pages
 │   │   ├── components/ # UIコンポーネント
-│   │   │   └── ui/     # カスタムSciFiコンポーネント (SciFiButton等)
+│   │   │   └── ui/     # カスタムUIコンポーネント (Button・Heading等)
 │   │   ├── services/   # API呼び出し (api.ts)
 │   │   ├── types/      # TypeScript型定義
 │   │   └── utils/      # 汎用ユーティリティ

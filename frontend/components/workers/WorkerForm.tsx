@@ -5,9 +5,9 @@ import { useEffect } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiInput } from "@/components/ui/SciFiInput";
-import { SciFiSelect } from "@/components/ui/SciFiSelect";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useEmploymentTypes } from "@/hooks/useEmploymentTypes";
 import { usePositions } from "@/hooks/usePositions";
@@ -151,7 +151,7 @@ export function WorkerForm({
       onSubmit={handleSubmit(handleFormSubmit)}
       className="flex flex-col gap-4"
     >
-      <SciFiInput
+      <Input
         id="worker-name"
         label="氏名"
         placeholder="例: 山田 太郎"
@@ -160,7 +160,7 @@ export function WorkerForm({
         disabled={isSubmitting}
       />
 
-      <SciFiInput
+      <Input
         id="worker-employee-code"
         label="職員番号"
         placeholder="例: EMP001"
@@ -169,7 +169,7 @@ export function WorkerForm({
         disabled={isSubmitting}
       />
 
-      <SciFiSelect
+      <Select
         id="worker-department-id"
         label="所属課"
         {...register("department_id")}
@@ -185,9 +185,9 @@ export function WorkerForm({
             {dept.name}
           </option>
         ))}
-      </SciFiSelect>
+      </Select>
 
-      <SciFiSelect
+      <Select
         id="worker-skill-rank"
         label="スキルランク"
         {...register("skill_rank_id")}
@@ -204,9 +204,9 @@ export function WorkerForm({
             {rank.is_leader_eligible ? " ★" : ""}
           </option>
         ))}
-      </SciFiSelect>
+      </Select>
 
-      <SciFiSelect
+      <Select
         id="worker-position-id"
         label="役職"
         {...register("position_id")}
@@ -222,9 +222,9 @@ export function WorkerForm({
             {pos.is_excluded_from_all_shifts ? " ※除外対象" : ""}
           </option>
         ))}
-      </SciFiSelect>
+      </Select>
 
-      <SciFiSelect
+      <Select
         id="worker-employment-type-id"
         label="雇用形態"
         {...register("employment_type_id")}
@@ -243,9 +243,9 @@ export function WorkerForm({
             {et.name}
           </option>
         ))}
-      </SciFiSelect>
+      </Select>
 
-      <SciFiInput
+      <Input
         id="worker-birth-date"
         label="生年月日"
         type="date"
@@ -254,7 +254,7 @@ export function WorkerForm({
         disabled={isSubmitting}
       />
 
-      <SciFiInput
+      <Input
         id="worker-skill-acquired-at"
         label="スキルランク取得日"
         type="date"
@@ -263,7 +263,7 @@ export function WorkerForm({
         disabled={isSubmitting}
       />
 
-      <SciFiSelect
+      <Select
         id="worker-transfer-type"
         label="異動種別"
         {...register("transfer_type")}
@@ -275,10 +275,10 @@ export function WorkerForm({
             {opt.label}
           </option>
         ))}
-      </SciFiSelect>
+      </Select>
 
       {transferType === "transfer_out" && (
-        <SciFiInput
+        <Input
           id="worker-transfer-scheduled-month"
           label="異動予定月（YYYY-MM）"
           placeholder="例: 2026-04"
@@ -289,7 +289,7 @@ export function WorkerForm({
       )}
 
       {(transferType === "transfer_in" || transferType === "hired") && (
-        <SciFiInput
+        <Input
           id="worker-joined-at"
           label="着任日（統計集計の基準日）"
           type="date"
@@ -318,17 +318,17 @@ export function WorkerForm({
       )}
 
       <div className="flex justify-end gap-3 mt-2">
-        <SciFiButton
+        <Button
           type="button"
           variant="ghost"
           onClick={onCancel}
           disabled={isSubmitting}
         >
           キャンセル
-        </SciFiButton>
-        <SciFiButton type="submit" loading={isSubmitting}>
+        </Button>
+        <Button type="submit" loading={isSubmitting}>
           {isEditing ? "更新する" : "作成する"}
-        </SciFiButton>
+        </Button>
       </div>
     </form>
   );

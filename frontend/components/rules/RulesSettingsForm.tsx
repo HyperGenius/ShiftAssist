@@ -7,9 +7,9 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiInput } from "@/components/ui/SciFiInput";
-import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Panel } from "@/components/ui/Panel";
 import { useShiftRules } from "@/hooks/useShiftRules";
 import type { ShiftRules } from "@/types/shiftRules";
 
@@ -215,12 +215,12 @@ export function RulesSettingsForm() {
     <>
       <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-8">
         {/* シフトルール設定 */}
-        <SciFiPanel className="p-6 space-y-6">
+        <Panel className="p-6 space-y-6">
           <h2 className="text-sm font-semibold text-gray-700">
             シフトルール設定
           </h2>
 
-          <SciFiInput
+          <Input
             id="min_interval_days"
             label="最小勤務間隔（日数）"
             type="number"
@@ -312,7 +312,7 @@ export function RulesSettingsForm() {
           </div>
           */}
 
-          <SciFiInput
+          <Input
             id="workers_per_slot"
             label="1スロットあたりの必要人数"
             type="number"
@@ -322,7 +322,7 @@ export function RulesSettingsForm() {
             disabled={isSubmitting}
           />
 
-          <SciFiInput
+          <Input
             id="hired_tenure_months"
             label="採用アサイン可能期間（月）"
             type="number"
@@ -332,7 +332,7 @@ export function RulesSettingsForm() {
             disabled={isSubmitting}
           />
 
-          <SciFiInput
+          <Input
             id="cross_division_transfer_tenure_months"
             label="事業部間転入アサイン可能期間（月）"
             type="number"
@@ -344,7 +344,7 @@ export function RulesSettingsForm() {
             disabled={isSubmitting}
           />
 
-          <SciFiInput
+          <Input
             id="max_total_age"
             label="合計年齢上限（歳）"
             type="number"
@@ -355,7 +355,7 @@ export function RulesSettingsForm() {
           />
           <p className="text-xs text-gray-400 -mt-4">0 で制限なし</p>
 
-          <SciFiInput
+          <Input
             id="max_non_weekday_night_per_period"
             label="平日夜間以外シフト回数上限（回/月）"
             type="number"
@@ -367,10 +367,10 @@ export function RulesSettingsForm() {
             disabled={isSubmitting}
           />
           <p className="text-xs text-gray-400 -mt-4">0 で制限なし</p>
-        </SciFiPanel>
+        </Panel>
 
         {/* 警告設定 */}
-        <SciFiPanel className="p-6 space-y-6">
+        <Panel className="p-6 space-y-6">
           <h2 className="text-sm font-semibold text-gray-700">
             警告設定
           </h2>
@@ -390,10 +390,10 @@ export function RulesSettingsForm() {
               休日枠への連続アサインを警告する
             </label>
           </div>
-        </SciFiPanel>
+        </Panel>
 
         {/* 年間シフト回数上限設定 */}
-        <SciFiPanel className="p-6 space-y-6">
+        <Panel className="p-6 space-y-6">
           <div>
             <h2 className="text-sm font-semibold text-gray-700">
               年間シフト回数上限
@@ -403,7 +403,7 @@ export function RulesSettingsForm() {
             </p>
           </div>
 
-          <SciFiInput
+          <Input
             id="annual_total"
             label="年間総シフト回数上限（全種別合計）"
             type="number"
@@ -413,7 +413,7 @@ export function RulesSettingsForm() {
             disabled={isSubmitting}
           />
 
-          <SciFiInput
+          <Input
             id="annual_weekday_night"
             label="年間上限: 平日夜間（weekday_night）"
             type="number"
@@ -423,7 +423,7 @@ export function RulesSettingsForm() {
             disabled={isSubmitting}
           />
 
-          <SciFiInput
+          <Input
             id="annual_sat_pre_hol_night"
             label="年間上限: 土曜・祝前日夜間（sat_pre_hol_night）"
             type="number"
@@ -433,7 +433,7 @@ export function RulesSettingsForm() {
             disabled={isSubmitting}
           />
 
-          <SciFiInput
+          <Input
             id="annual_sat_day"
             label="年間上限: 土曜昼間（sat_day）"
             type="number"
@@ -443,7 +443,7 @@ export function RulesSettingsForm() {
             disabled={isSubmitting}
           />
 
-          <SciFiInput
+          <Input
             id="annual_sat_night"
             label="年間上限: 土曜夜間（sat_night）"
             type="number"
@@ -453,7 +453,7 @@ export function RulesSettingsForm() {
             disabled={isSubmitting}
           />
 
-          <SciFiInput
+          <Input
             id="annual_sun_hol_day"
             label="年間上限: 日祝昼間（sun_hol_day・long_hol_day 合算）"
             type="number"
@@ -463,7 +463,7 @@ export function RulesSettingsForm() {
             disabled={isSubmitting}
           />
 
-          <SciFiInput
+          <Input
             id="annual_sun_hol_night"
             label="年間上限: 日祝夜間（sun_hol_night・long_hol_night 合算）"
             type="number"
@@ -472,23 +472,23 @@ export function RulesSettingsForm() {
             error={errors.annual_sun_hol_night?.message}
             disabled={isSubmitting}
           />
-        </SciFiPanel>
+        </Panel>
 
         <div className="flex justify-end">
-          <SciFiButton
+          <Button
             type="submit"
             loading={isSubmitting}
             disabled={!isDirty || isSubmitting}
           >
             設定を保存する
-          </SciFiButton>
+          </Button>
         </div>
       </form>
 
       {/* 保存確認ダイアログ */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
-          <SciFiPanel className="p-8 max-w-md w-full mx-4 space-y-6">
+          <Panel className="p-8 max-w-md w-full mx-4 space-y-6">
             <h3 className="text-base font-semibold text-gray-900">
               ルールの適用確認
             </h3>
@@ -496,18 +496,18 @@ export function RulesSettingsForm() {
               このシフトルールを適用しますか？変更後は新しいルールに基づいてシフトバリデーションが動作します。
             </p>
             <div className="flex justify-end gap-3">
-              <SciFiButton
+              <Button
                 type="button"
                 variant="ghost"
                 onClick={handleCancelConfirm}
               >
                 キャンセル
-              </SciFiButton>
-              <SciFiButton type="button" onClick={handleConfirm}>
+              </Button>
+              <Button type="button" onClick={handleConfirm}>
                 適用する
-              </SciFiButton>
+              </Button>
             </div>
-          </SciFiPanel>
+          </Panel>
         </div>
       )}
     </>

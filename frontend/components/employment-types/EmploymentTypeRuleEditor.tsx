@@ -4,10 +4,10 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiHeading } from "@/components/ui/SciFiHeading";
-import { SciFiInput } from "@/components/ui/SciFiInput";
-import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { Button } from "@/components/ui/Button";
+import { Heading } from "@/components/ui/Heading";
+import { Input } from "@/components/ui/Input";
+import { Panel } from "@/components/ui/Panel";
 import { useEmploymentTypes } from "@/hooks/useEmploymentTypes";
 import type {
   AnnualPartialLimitsConfig,
@@ -121,11 +121,11 @@ export function EmploymentTypeRuleEditor({ employmentTypeId, employmentTypeName,
 
   return (
     <div className="space-y-6">
-      <SciFiHeading level="h4">「{employmentTypeName}」のルール設定</SciFiHeading>
+      <Heading level="h4">「{employmentTypeName}」のルール設定</Heading>
 
       {/* ペア制限 */}
-      <SciFiPanel className="p-4 space-y-3">
-        <SciFiHeading level="h4">ペア制限（require_default_pair）</SciFiHeading>
+      <Panel className="p-4 space-y-3">
+        <Heading level="h4">ペア制限（require_default_pair）</Heading>
         <label className="flex items-center gap-2 cursor-pointer select-none">
           <input
             type="checkbox"
@@ -141,11 +141,11 @@ export function EmploymentTypeRuleEditor({ employmentTypeId, employmentTypeName,
         <p className="text-xs text-gray-400">
           有効にすると、この雇用形態のスタッフをアサインする際、同一枠にデフォルト雇用形態のスタッフが含まれていなければなりません（1人枠は除く）。
         </p>
-      </SciFiPanel>
+      </Panel>
 
       {/* アサイン可能枠 */}
-      <SciFiPanel className="p-4 space-y-3">
-        <SciFiHeading level="h4">アサイン可能枠（allowed_slot_types）</SciFiHeading>
+      <Panel className="p-4 space-y-3">
+        <Heading level="h4">アサイン可能枠（allowed_slot_types）</Heading>
         <label className="flex items-center gap-2 cursor-pointer select-none">
           <input
             type="checkbox"
@@ -177,17 +177,17 @@ export function EmploymentTypeRuleEditor({ employmentTypeId, employmentTypeName,
             ))}
           </div>
         )}
-      </SciFiPanel>
+      </Panel>
 
       {/* 年間シフト回数上限の上書き */}
-      <SciFiPanel className="p-4 space-y-3">
-        <SciFiHeading level="h4">年間シフト回数上限の上書き（annual_limit_overrides）</SciFiHeading>
+      <Panel className="p-4 space-y-3">
+        <Heading level="h4">年間シフト回数上限の上書き（annual_limit_overrides）</Heading>
         <p className="text-xs text-gray-400">
           空欄はグローバル設定に従います。0 を入力すると制限なしになります。
         </p>
         <div className="grid grid-cols-2 gap-3">
           {ANNUAL_LIMIT_FIELDS.map((field) => (
-            <SciFiInput
+            <Input
               key={field.key}
               id={`annual-override-${field.key}`}
               label={field.label}
@@ -202,15 +202,15 @@ export function EmploymentTypeRuleEditor({ employmentTypeId, employmentTypeName,
             />
           ))}
         </div>
-      </SciFiPanel>
+      </Panel>
 
       <div className="flex gap-3 justify-end">
-        <SciFiButton variant="ghost" onClick={onClose} disabled={isSaving}>
+        <Button variant="ghost" onClick={onClose} disabled={isSaving}>
           キャンセル
-        </SciFiButton>
-        <SciFiButton loading={isSaving} onClick={() => void handleSave()}>
+        </Button>
+        <Button loading={isSaving} onClick={() => void handleSave()}>
           保存
-        </SciFiButton>
+        </Button>
       </div>
     </div>
   );

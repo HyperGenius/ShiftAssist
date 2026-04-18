@@ -6,8 +6,8 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiInput } from "@/components/ui/SciFiInput";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import type { Department, DepartmentCreate } from "@/types/department";
 
 const departmentSchema = z.object({
@@ -72,7 +72,7 @@ export function DepartmentForm({
       onSubmit={handleSubmit(handleFormSubmit)}
       className="flex flex-col gap-4"
     >
-      <SciFiInput
+      <Input
         id="department-name"
         label="部門名"
         placeholder="例: 営業部"
@@ -81,7 +81,7 @@ export function DepartmentForm({
         disabled={isSubmitting}
       />
 
-      <SciFiInput
+      <Input
         id="department-code"
         label="部門コード"
         placeholder="例: SALES-01"
@@ -91,17 +91,17 @@ export function DepartmentForm({
       />
 
       <div className="flex justify-end gap-3 mt-2">
-        <SciFiButton
+        <Button
           type="button"
           variant="ghost"
           onClick={onCancel}
           disabled={isSubmitting}
         >
           キャンセル
-        </SciFiButton>
-        <SciFiButton type="submit" loading={isSubmitting}>
+        </Button>
+        <Button type="submit" loading={isSubmitting}>
           {isEditing ? "更新する" : "作成する"}
-        </SciFiButton>
+        </Button>
       </div>
     </form>
   );

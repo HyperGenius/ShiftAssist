@@ -1,4 +1,4 @@
-// frontend/components/ui/SciFiButton.tsx
+// frontend/components/ui/Button.tsx
 "use client";
 
 import { type ButtonHTMLAttributes, forwardRef } from "react";
@@ -6,7 +6,7 @@ import { type ButtonHTMLAttributes, forwardRef } from "react";
 type Variant = "primary" | "secondary" | "danger" | "ghost";
 type Size = "sm" | "md" | "lg";
 
-interface SciFiButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
   loading?: boolean;
@@ -29,7 +29,7 @@ const sizeClasses: Record<Size, string> = {
   lg: "px-6 py-3 text-base",
 };
 
-const SciFiButton = forwardRef<HTMLButtonElement, SciFiButtonProps>(
+const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   (
     {
       variant = "primary",
@@ -66,6 +66,6 @@ const SciFiButton = forwardRef<HTMLButtonElement, SciFiButtonProps>(
   },
 );
 
-SciFiButton.displayName = "SciFiButton";
+Button.displayName = "Button";
 
-export { SciFiButton };
+export { Button };

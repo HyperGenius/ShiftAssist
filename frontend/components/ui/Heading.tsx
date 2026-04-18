@@ -1,9 +1,9 @@
-// frontend/components/ui/SciFiHeading.tsx
+// frontend/components/ui/Heading.tsx
 import { type HTMLAttributes } from "react";
 
 type Level = "h1" | "h2" | "h3" | "h4";
 
-interface SciFiHeadingProps extends HTMLAttributes<HTMLHeadingElement> {
+interface HeadingProps extends HTMLAttributes<HTMLHeadingElement> {
   level?: Level;
   /** アクセントラインを表示するか */
   accent?: boolean;
@@ -16,13 +16,13 @@ const levelClasses: Record<Level, string> = {
   h4: "text-lg font-medium",
 };
 
-export function SciFiHeading({
+export function Heading({
   level = "h2",
   accent = true,
   className = "",
   children,
   ...props
-}: SciFiHeadingProps) {
+}: HeadingProps) {
   const Tag = level;
   return (
     <Tag

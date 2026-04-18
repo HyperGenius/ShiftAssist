@@ -5,9 +5,9 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiHeading } from "@/components/ui/SciFiHeading";
-import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { Button } from "@/components/ui/Button";
+import { Heading } from "@/components/ui/Heading";
+import { Panel } from "@/components/ui/Panel";
 import { useEmploymentTypes } from "@/hooks/useEmploymentTypes";
 import { useSkillRanks } from "@/hooks/useSkillRanks";
 import { useWorkers } from "@/hooks/useWorkers";
@@ -303,13 +303,13 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
   }, []);
 
   return (
-    <SciFiPanel className="p-6">
+    <Panel className="p-6">
       <div className="flex items-center justify-between mb-4">
-        <SciFiHeading level="h3">一括登録・更新（JSONアップロード）</SciFiHeading>
+        <Heading level="h3">一括登録・更新（JSONアップロード）</Heading>
         {onClose && (
-          <SciFiButton variant="ghost" size="sm" onClick={onClose}>
+          <Button variant="ghost" size="sm" onClick={onClose}>
             ✕
-          </SciFiButton>
+          </Button>
         )}
       </div>
 
@@ -386,20 +386,20 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
           <div className="flex items-center gap-3 text-sm text-gray-700">
             <CheckIcon />
             <span>{parsedItems.length}件のデータが読み込まれました。</span>
-            <SciFiButton variant="ghost" size="sm" onClick={handleReset}>
+            <Button variant="ghost" size="sm" onClick={handleReset}>
               やり直す
-            </SciFiButton>
+            </Button>
           </div>
 
           {/* プレビュー未取得時 */}
           {!preview && (
-            <SciFiButton
+            <Button
               onClick={handlePreview}
               loading={isPreviewing}
               disabled={isPreviewing}
             >
               差分をプレビュー
-            </SciFiButton>
+            </Button>
           )}
 
           {/* プレビュー表示 */}
@@ -431,21 +431,21 @@ export function WorkerBulkUploadPanel({ onClose }: WorkerBulkUploadPanelProps) {
               <PreviewTable preview={preview.preview} />
 
               <div className="flex items-center gap-3 pt-2">
-                <SciFiButton
+                <Button
                   onClick={handleExecute}
                   loading={isExecuting}
                   disabled={isExecuting}
                 >
                   実行する
-                </SciFiButton>
-                <SciFiButton variant="secondary" onClick={handleReset}>
+                </Button>
+                <Button variant="secondary" onClick={handleReset}>
                   キャンセル
-                </SciFiButton>
+                </Button>
               </div>
             </div>
           )}
         </div>
       )}
-    </SciFiPanel>
+    </Panel>
   );
 }

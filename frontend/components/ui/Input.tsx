@@ -1,14 +1,14 @@
-// frontend/components/ui/SciFiInput.tsx
+// frontend/components/ui/Input.tsx
 "use client";
 
 import { forwardRef, type InputHTMLAttributes } from "react";
 
-interface SciFiInputProps extends InputHTMLAttributes<HTMLInputElement> {
+interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
 }
 
-const SciFiInput = forwardRef<HTMLInputElement, SciFiInputProps>(
+const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ label, error, className = "", id, ...props }, ref) => {
     return (
       <div className="flex flex-col gap-1">
@@ -42,6 +42,6 @@ const SciFiInput = forwardRef<HTMLInputElement, SciFiInputProps>(
   },
 );
 
-SciFiInput.displayName = "SciFiInput";
+Input.displayName = "Input";
 
-export { SciFiInput };
+export { Input };

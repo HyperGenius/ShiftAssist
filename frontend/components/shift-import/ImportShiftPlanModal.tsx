@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { mutate as globalMutate } from "swr";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
+import { Button } from "@/components/ui/Button";
 import { useImportShiftPlan } from "@/hooks/useImportShiftPlan";
 import type { PlanStatus, ShiftPlanImportResponse } from "@/types/shiftPlan";
 
@@ -141,9 +141,9 @@ export function ImportShiftPlanModal({ onClose, onSuccess }: Props) {
               </ul>
             </div>
             <div className="flex justify-end">
-              <SciFiButton variant="secondary" onClick={onClose}>
+              <Button variant="secondary" onClick={onClose}>
                 閉じる
-              </SciFiButton>
+              </Button>
             </div>
           </div>
         ) : (
@@ -252,22 +252,22 @@ export function ImportShiftPlanModal({ onClose, onSuccess }: Props) {
 
             {/* アクションボタン */}
             <div className="flex items-center justify-end gap-3 pt-1">
-              <SciFiButton
+              <Button
                 type="button"
                 variant="secondary"
                 onClick={onClose}
                 disabled={isLoading}
               >
                 キャンセル
-              </SciFiButton>
-              <SciFiButton
+              </Button>
+              <Button
                 type="submit"
                 variant="primary"
                 loading={isLoading}
                 disabled={!canSubmit}
               >
                 インポート実行
-              </SciFiButton>
+              </Button>
             </div>
           </form>
         )}

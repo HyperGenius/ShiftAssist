@@ -4,8 +4,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { Button } from "@/components/ui/Button";
+import { Panel } from "@/components/ui/Panel";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useShiftRules } from "@/hooks/useShiftRules";
 import type { ShiftRules } from "@/types/shiftRules";
@@ -80,7 +80,7 @@ export function TenantSettingsForm() {
 
   return (
     <div className="space-y-8">
-      <SciFiPanel className="p-6 space-y-6">
+      <Panel className="p-6 space-y-6">
         <h2 className="text-sm font-semibold tracking-widest text-gray-700 uppercase">
           シフト対象部門の設定
         </h2>
@@ -144,17 +144,17 @@ export function TenantSettingsForm() {
             </div>
           )}
         </div>
-      </SciFiPanel>
+      </Panel>
 
       <div className="flex justify-end">
-        <SciFiButton
+        <Button
           type="button"
           loading={isSubmitting}
           disabled={!isDirty || isSubmitting}
           onClick={() => void handleSave()}
         >
           設定を保存する
-        </SciFiButton>
+        </Button>
       </div>
     </div>
   );

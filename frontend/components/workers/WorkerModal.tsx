@@ -2,8 +2,8 @@
 // 作成・編集フォームを表示するモーダルコンポーネント
 "use client";
 
-import { SciFiHeading } from "@/components/ui/SciFiHeading";
-import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { Heading } from "@/components/ui/Heading";
+import { Panel } from "@/components/ui/Panel";
 import type { Worker, WorkerCreate } from "@/types/worker";
 import { WorkerForm } from "./WorkerForm";
 
@@ -30,11 +30,11 @@ export function WorkerModal({
       aria-modal="true"
       aria-labelledby="worker-modal-title"
     >
-      <SciFiPanel className="w-full max-w-lg mx-4 p-6">
+      <Panel className="w-full max-w-lg mx-4 p-6">
         <div className="flex flex-col gap-5">
-          <SciFiHeading id="worker-modal-title" level="h3">
+          <Heading id="worker-modal-title" level="h3">
             {title}
-          </SciFiHeading>
+          </Heading>
           <WorkerForm
             worker={worker}
             onSubmit={onSubmit}
@@ -42,7 +42,7 @@ export function WorkerModal({
             isSubmitting={isSubmitting}
           />
         </div>
-      </SciFiPanel>
+      </Panel>
     </div>
   );
 }
