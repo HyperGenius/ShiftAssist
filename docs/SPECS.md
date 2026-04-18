@@ -112,7 +112,7 @@ MVPフェーズの検証完了後、設定UIの拡充などに伴い、このJSO
 ### 6.6. フロントエンド管理画面
 
 - URL: `/admin/settings/holidays`
-- 機能: 年ナビゲーター付き休日一覧（削除可）+ 新規休日追加フォーム
+- 機能: 年ナビゲーター付き休日一覧（削除可）+ 新規休日追加フォーム + 長期休暇期間設定（GW・シルバーウィーク・年末年始等）
 - ローディング中は「内閣府ウェブサイトより祝日データ取得中」を表示する（`HolidayLoadingSkeleton` コンポーネント）。
 - `HolidayLoadingSkeleton` は Storybook でプレビュー可能（`Holidays/HolidayLoadingSkeleton` ストーリー）。
 
