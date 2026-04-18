@@ -35,4 +35,10 @@ export const ROUTES = {
     allowedRoles: ["org:admin"] as UserRole[],
     description: "スキルランク・シフトルール・対象部門・休日設定等の管理者専用設定",
   },
+  TENANT_INFO: {
+    path: "/admin/settings/tenant-info",
+    label: "テナント基本情報",
+    allowedRoles: ["org:admin"] as UserRole[],
+    description: "組織名・Clerk Organization ID・プラン情報の確認",
+  },
 } as const satisfies Record<string, RouteConfig>;

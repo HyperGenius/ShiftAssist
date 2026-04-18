@@ -163,3 +163,28 @@ MVPフェーズの検証完了後、設定UIの拡充などに伴い、このJSO
 
 すべてのエンドポイントは `X-Tenant-Id` ヘッダーによるテナントアイソレーションが必須。
 
+## 8. テナント基本情報管理
+
+### 8.1. 概要
+
+管理者がアプリ内で自組織の基本情報を確認できる管理ページ。サポート対応・将来的なプラン管理の基盤として機能する。
+
+### 8.2. 実装ページ
+
+* **パス**: `/admin/settings/tenant-info`
+* **アクセス権限**: `org:admin` ロールのみ
+* **実装方式**: Next.js Server Component（Clerk Server SDK を使用）
+
+### 8.3. 表示情報
+
+| 項目 | 取得元 | 備考 |
+|---|---|---|
+| 組織名 (Organization Name) | `organization.name` (Clerk API) | 読み取り専用 |
+| Clerk Organization ID | `organization.id` (Clerk API) | 読み取り専用、コピーボタン付き |
+| 現在のプラン | ハードコード（初期実装: "Free"） | 将来的に `organization.publicMetadata` から取得予定 |
+
+### 8.4. 将来的な拡張
+
+* プラン情報は将来的に Clerk の `organization.publicMetadata` に格納する予定
+* プラン管理が必要になった場合、`GET /api/tenant/info` エンドポイントを追加する
+
