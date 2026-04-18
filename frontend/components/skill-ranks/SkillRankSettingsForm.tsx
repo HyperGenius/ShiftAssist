@@ -4,10 +4,10 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiHeading } from "@/components/ui/SciFiHeading";
-import { SciFiInput } from "@/components/ui/SciFiInput";
-import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { Button } from "@/components/ui/Button";
+import { Heading } from "@/components/ui/Heading";
+import { Input } from "@/components/ui/Input";
+import { Panel } from "@/components/ui/Panel";
 import { useSkillRanks } from "@/hooks/useSkillRanks";
 import type { TenantSkillRank, TenantSkillRankCreate } from "@/types/skillRank";
 
@@ -33,7 +33,7 @@ function AddSkillRankForm({
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="flex items-end gap-3">
       <div className="flex-1">
-        <SciFiInput
+        <Input
           id="new-skill-rank-name"
           label="ランク名"
           placeholder="例: シニア、1級"
@@ -58,9 +58,9 @@ function AddSkillRankForm({
           リーダー適性
         </label>
       </div>
-      <SciFiButton type="submit" loading={isSubmitting} disabled={!name.trim()}>
+      <Button type="submit" loading={isSubmitting} disabled={!name.trim()}>
         追加
-      </SciFiButton>
+      </Button>
     </form>
   );
 }
@@ -104,7 +104,7 @@ function SkillRankRow({
   if (isEditing) {
     return (
       <li className="flex items-center gap-3 py-2 border-b border-gray-200">
-        <SciFiInput
+        <Input
           id={`edit-rank-${rank.id}`}
           label=""
           value={editName}
@@ -128,17 +128,17 @@ function SkillRankRow({
             リーダー適性
           </label>
         </div>
-        <SciFiButton size="sm" loading={isSaving} onClick={() => void handleSave()}>
+        <Button size="sm" loading={isSaving} onClick={() => void handleSave()}>
           保存
-        </SciFiButton>
-        <SciFiButton
+        </Button>
+        <Button
           size="sm"
           variant="ghost"
           disabled={isSaving}
           onClick={() => setIsEditing(false)}
         >
           キャンセル
-        </SciFiButton>
+        </Button>
       </li>
     );
   }
@@ -151,21 +151,21 @@ function SkillRankRow({
           リーダー適性
         </span>
       )}
-      <SciFiButton
+      <Button
         size="sm"
         variant="secondary"
         onClick={() => setIsEditing(true)}
       >
         編集
-      </SciFiButton>
-      <SciFiButton
+      </Button>
+      <Button
         size="sm"
         variant="danger"
         loading={isDeleting}
         onClick={() => void handleDelete()}
       >
         削除
-      </SciFiButton>
+      </Button>
     </li>
   );
 }
@@ -226,8 +226,8 @@ export function SkillRankSettingsForm() {
 
   return (
     <div className="space-y-6">
-      <SciFiPanel className="p-6 space-y-4">
-        <SciFiHeading level="h3">スキルランク一覧</SciFiHeading>
+      <Panel className="p-6 space-y-4">
+        <Heading level="h3">スキルランク一覧</Heading>
         <p className="text-xs text-gray-500">
           リーダー適性（★印）を持つランクは、シフト編成時にペアに1名以上含める必要があります。
         </p>
@@ -248,12 +248,12 @@ export function SkillRankSettingsForm() {
             ))}
           </ul>
         )}
-      </SciFiPanel>
+      </Panel>
 
-      <SciFiPanel className="p-6 space-y-4">
-        <SciFiHeading level="h3">スキルランクを追加</SciFiHeading>
+      <Panel className="p-6 space-y-4">
+        <Heading level="h3">スキルランクを追加</Heading>
         <AddSkillRankForm onAdd={handleAdd} isSubmitting={isAdding} />
-      </SciFiPanel>
+      </Panel>
     </div>
   );
 }

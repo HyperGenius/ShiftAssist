@@ -1,14 +1,14 @@
-// frontend/components/ui/SciFiSelect.tsx
+// frontend/components/ui/Select.tsx
 "use client";
 
 import { forwardRef, type SelectHTMLAttributes } from "react";
 
-interface SciFiSelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   error?: string;
 }
 
-const SciFiSelect = forwardRef<HTMLSelectElement, SciFiSelectProps>(
+const Select = forwardRef<HTMLSelectElement, SelectProps>(
   ({ label, error, className = "", id, children, ...props }, ref) => {
     return (
       <div className="flex flex-col gap-1">
@@ -44,6 +44,6 @@ const SciFiSelect = forwardRef<HTMLSelectElement, SciFiSelectProps>(
   },
 );
 
-SciFiSelect.displayName = "SciFiSelect";
+Select.displayName = "Select";
 
-export { SciFiSelect };
+export { Select };

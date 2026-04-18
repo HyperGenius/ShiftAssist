@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { Button } from "@/components/ui/Button";
+import { Panel } from "@/components/ui/Panel";
 import type { SlotType } from "@/types/shiftRequirement";
 import type { ValidationViolation } from "@/utils/shiftValidators";
 import type { ValidationMap } from "@/hooks/useShiftValidation";
@@ -65,7 +65,7 @@ export function OverrideConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
-      <SciFiPanel className="w-full max-w-lg mx-4 p-6">
+      <Panel className="w-full max-w-lg mx-4 p-6">
         {/* タイトル */}
         <div className="mb-4">
           <h2 className="text-base font-semibold tracking-widest text-yellow-400 uppercase">
@@ -135,10 +135,10 @@ export function OverrideConfirmDialog({
 
         {/* ボタン群 */}
         <div className="flex justify-end gap-3">
-          <SciFiButton variant="secondary" size="sm" onClick={onCancel}>
+          <Button variant="secondary" size="sm" onClick={onCancel}>
             キャンセル
-          </SciFiButton>
-          <SciFiButton
+          </Button>
+          <Button
             variant="danger"
             size="sm"
             disabled={!acknowledged}
@@ -148,9 +148,9 @@ export function OverrideConfirmDialog({
             }}
           >
             承諾して強制保存
-          </SciFiButton>
+          </Button>
         </div>
-      </SciFiPanel>
+      </Panel>
     </div>
   );
 }

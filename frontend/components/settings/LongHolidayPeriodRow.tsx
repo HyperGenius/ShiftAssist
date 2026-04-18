@@ -3,8 +3,8 @@
 
 import { useState } from "react";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiInput } from "@/components/ui/SciFiInput";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import type {
   LongHolidayPeriod,
   LongHolidayPeriodUpdate,
@@ -75,7 +75,7 @@ export function LongHolidayPeriodRow({
 
       {isEditing ? (
         <div className="flex flex-wrap items-end gap-2 flex-1">
-          <SciFiInput
+          <Input
             id={`start-${period.id}`}
             label="開始日"
             type="date"
@@ -85,7 +85,7 @@ export function LongHolidayPeriodRow({
               setDateError("");
             }}
           />
-          <SciFiInput
+          <Input
             id={`end-${period.id}`}
             label="終了日"
             type="date"
@@ -97,21 +97,21 @@ export function LongHolidayPeriodRow({
             error={dateError || undefined}
           />
           <div className="flex gap-2 items-end pb-0.5">
-            <SciFiButton
+            <Button
               size="sm"
               onClick={() => void handleSave()}
               loading={isSaving}
             >
               保存
-            </SciFiButton>
-            <SciFiButton
+            </Button>
+            <Button
               size="sm"
               variant="secondary"
               onClick={handleCancelEdit}
               disabled={isSaving}
             >
               キャンセル
-            </SciFiButton>
+            </Button>
           </div>
         </div>
       ) : (
@@ -120,40 +120,40 @@ export function LongHolidayPeriodRow({
             {period.start_date} 〜 {period.end_date}
           </span>
           <div className="flex gap-2 ml-auto">
-            <SciFiButton
+            <Button
               size="sm"
               variant="secondary"
               onClick={() => setIsEditing(true)}
             >
               編集
-            </SciFiButton>
+            </Button>
             {confirmDelete ? (
               <>
-                <SciFiButton
+                <Button
                   size="sm"
                   variant="danger"
                   onClick={() => void handleDelete()}
                   loading={isDeleting}
                 >
                   削除確定
-                </SciFiButton>
-                <SciFiButton
+                </Button>
+                <Button
                   size="sm"
                   variant="ghost"
                   onClick={() => setConfirmDelete(false)}
                   disabled={isDeleting}
                 >
                   キャンセル
-                </SciFiButton>
+                </Button>
               </>
             ) : (
-              <SciFiButton
+              <Button
                 size="sm"
                 variant="danger"
                 onClick={() => setConfirmDelete(true)}
               >
                 削除
-              </SciFiButton>
+              </Button>
             )}
           </div>
         </div>

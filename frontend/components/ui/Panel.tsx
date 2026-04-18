@@ -1,13 +1,13 @@
-// frontend/components/ui/SciFiPanel.tsx
+// frontend/components/ui/Panel.tsx
 import { type HTMLAttributes } from "react";
 
-type SciFiPanelProps = HTMLAttributes<HTMLDivElement>;
+type PanelProps = HTMLAttributes<HTMLDivElement>;
 
-export function SciFiPanel({
+export function Panel({
   className = "",
   children,
   ...props
-}: SciFiPanelProps) {
+}: PanelProps) {
   return (
     <div
       className={[

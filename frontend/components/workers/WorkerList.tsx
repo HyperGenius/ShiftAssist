@@ -4,9 +4,9 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiHeading } from "@/components/ui/SciFiHeading";
-import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { Button } from "@/components/ui/Button";
+import { Heading } from "@/components/ui/Heading";
+import { Panel } from "@/components/ui/Panel";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useEmploymentTypes } from "@/hooks/useEmploymentTypes";
 import { useSkillRanks } from "@/hooks/useSkillRanks";
@@ -129,20 +129,20 @@ function WorkerRow({
       </td>
       <td className="px-4 py-3 text-right">
         <div className="flex items-center justify-end gap-2">
-          <SciFiButton
+          <Button
             variant="secondary"
             size="sm"
             onClick={() => onEdit(worker)}
           >
             編集
-          </SciFiButton>
-          <SciFiButton
+          </Button>
+          <Button
             variant="danger"
             size="sm"
             onClick={() => onDelete(worker)}
           >
             削除
-          </SciFiButton>
+          </Button>
         </div>
       </td>
     </tr>
@@ -239,12 +239,12 @@ export function WorkerList() {
 
   return (
     <>
-      <SciFiPanel className="p-6">
+      <Panel className="p-6">
         {/* ヘッダー */}
         <div className="flex items-center justify-between mb-6">
-          <SciFiHeading level="h2">対応者（Worker）管理</SciFiHeading>
+          <Heading level="h2">対応者（Worker）管理</Heading>
           <div className="flex items-center gap-2">
-            <SciFiButton
+            <Button
               variant="secondary"
               onClick={() => {
                 setIsCsvUploadOpen((prev) => !prev);
@@ -252,8 +252,8 @@ export function WorkerList() {
               }}
             >
               CSV/Excelアップロード
-            </SciFiButton>
-            <SciFiButton
+            </Button>
+            <Button
               variant="secondary"
               onClick={() => {
                 setIsBulkUploadOpen((prev) => !prev);
@@ -261,8 +261,8 @@ export function WorkerList() {
               }}
             >
               JSON一括登録
-            </SciFiButton>
-            <SciFiButton onClick={handleCreate}>＋ 新規追加</SciFiButton>
+            </Button>
+            <Button onClick={handleCreate}>＋ 新規追加</Button>
           </div>
         </div>
 
@@ -360,7 +360,7 @@ export function WorkerList() {
             {workers.length} 件
           </p>
         )}
-      </SciFiPanel>
+      </Panel>
 
       {/* CSV/Excelアップロードパネル */}
       {isCsvUploadOpen && (

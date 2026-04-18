@@ -1,8 +1,8 @@
 // frontend/components/departments/DeleteDepartmentModal.tsx
 "use client";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { Button } from "@/components/ui/Button";
+import { Panel } from "@/components/ui/Panel";
 import type { Department } from "@/types/department";
 
 interface DeleteDepartmentModalProps {
@@ -25,7 +25,7 @@ export function DeleteDepartmentModal({
       aria-modal="true"
       aria-labelledby="delete-department-modal-title"
     >
-      <SciFiPanel className="w-full max-w-sm mx-4 p-6">
+      <Panel className="w-full max-w-sm mx-4 p-6">
         <div className="flex flex-col gap-4">
           {/* アイコン */}
           <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-500/20 border border-red-500/40 mx-auto">
@@ -63,25 +63,25 @@ export function DeleteDepartmentModal({
           </div>
 
           <div className="flex justify-end gap-3">
-            <SciFiButton
+            <Button
               type="button"
               variant="ghost"
               onClick={onCancel}
               disabled={isDeleting}
             >
               キャンセル
-            </SciFiButton>
-            <SciFiButton
+            </Button>
+            <Button
               type="button"
               variant="danger"
               onClick={onConfirm}
               loading={isDeleting}
             >
               削除する
-            </SciFiButton>
+            </Button>
           </div>
         </div>
-      </SciFiPanel>
+      </Panel>
     </div>
   );
 }

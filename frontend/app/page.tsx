@@ -3,8 +3,8 @@
 import { useOrganization } from "@clerk/nextjs";
 import Link from "next/link";
 
-import { SciFiHeading } from "@/components/ui/SciFiHeading";
-import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { Heading } from "@/components/ui/Heading";
+import { Panel } from "@/components/ui/Panel";
 import type { UserRole } from "@/constants/routes";
 import { ROUTES } from "@/constants/routes";
 
@@ -35,7 +35,7 @@ export default function DashboardPage() {
     <main className="flex flex-col flex-1 max-w-6xl mx-auto w-full px-4 py-10 gap-8">
       {/* ページタイトル */}
       <div>
-        <SciFiHeading level="h1">ダッシュボード</SciFiHeading>
+        <Heading level="h1">ダッシュボード</Heading>
         <p className="mt-2 text-sm text-gray-500">
           各機能へのポータルです。利用する機能を選択してください。
         </p>
@@ -45,7 +45,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {visibleRoutes.map((route) => (
           <Link key={route.path} href={route.path} className="group">
-            <SciFiPanel className="p-6 h-full transition-all duration-200 hover:border-gray-300 hover:shadow-md">
+            <Panel className="p-6 h-full transition-all duration-200 hover:border-gray-300 hover:shadow-md">
               <h2 className="text-base font-semibold text-gray-800 group-hover:text-blue-600 transition-colors">
                 {route.label}
               </h2>
@@ -57,7 +57,7 @@ export default function DashboardPage() {
               <span className="mt-4 inline-block text-xs text-gray-400 group-hover:text-blue-500 transition-colors">
                 開く →
               </span>
-            </SciFiPanel>
+            </Panel>
           </Link>
         ))}
       </div>

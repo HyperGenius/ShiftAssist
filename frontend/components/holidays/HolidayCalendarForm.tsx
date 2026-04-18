@@ -4,10 +4,10 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiHeading } from "@/components/ui/SciFiHeading";
-import { SciFiInput } from "@/components/ui/SciFiInput";
-import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { Button } from "@/components/ui/Button";
+import { Heading } from "@/components/ui/Heading";
+import { Input } from "@/components/ui/Input";
+import { Panel } from "@/components/ui/Panel";
 import { useHolidays } from "@/hooks/useHolidays";
 import type { TenantHoliday, TenantHolidayCreate } from "@/types/holiday";
 
@@ -60,7 +60,7 @@ function AddHolidayForm({
     <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
       <div className="flex items-end gap-3">
         <div className="w-44">
-          <SciFiInput
+          <Input
             id="new-holiday-date"
             label="日付"
             type="date"
@@ -70,7 +70,7 @@ function AddHolidayForm({
           />
         </div>
         <div className="flex-1">
-          <SciFiInput
+          <Input
             id="new-holiday-name"
             label="名称"
             placeholder="例: 創立記念日"
@@ -95,13 +95,13 @@ function AddHolidayForm({
             長期連休
           </label>
         </div>
-        <SciFiButton
+        <Button
           type="submit"
           loading={isSubmitting}
           disabled={!holidayDate || !name.trim()}
         >
           追加
-        </SciFiButton>
+        </Button>
       </div>
     </form>
   );
@@ -135,14 +135,14 @@ function HolidayRow({
           長期連休
         </span>
       )}
-      <SciFiButton
+      <Button
         size="sm"
         variant="danger"
         loading={isDeleting}
         onClick={() => void handleDelete()}
       >
         削除
-      </SciFiButton>
+      </Button>
     </li>
   );
 }
@@ -172,17 +172,17 @@ function YearSelector({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <SciFiButton
+      <Button
         size="sm"
         variant="ghost"
         onClick={() => onChange(year - 1)}
       >
         ◀
-      </SciFiButton>
+      </Button>
       <span className="w-16 text-center text-sm font-semibold text-gray-800 tabular-nums">
         {year}年
       </span>
-      <SciFiButton
+      <Button
         size="sm"
         variant="ghost"
         disabled={year >= maxYear}
@@ -190,7 +190,7 @@ function YearSelector({
         title={year >= maxYear ? "翌年の祝日は9月以降に取得できます" : undefined}
       >
         ▶
-      </SciFiButton>
+      </Button>
     </div>
   );
 }
@@ -239,9 +239,9 @@ export function HolidayCalendarForm() {
 
   return (
     <div className="space-y-6">
-      <SciFiPanel className="p-6 space-y-4">
+      <Panel className="p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <SciFiHeading level="h3">休日一覧</SciFiHeading>
+          <Heading level="h3">休日一覧</Heading>
           <YearSelector year={selectedYear} maxYear={maxYear} onChange={setSelectedYear} />
         </div>
         <p className="text-xs text-gray-500">
@@ -268,12 +268,12 @@ export function HolidayCalendarForm() {
             ))}
           </ul>
         )}
-      </SciFiPanel>
+      </Panel>
 
-      <SciFiPanel className="p-6 space-y-4">
-        <SciFiHeading level="h3">休日を追加</SciFiHeading>
+      <Panel className="p-6 space-y-4">
+        <Heading level="h3">休日を追加</Heading>
         <AddHolidayForm onAdd={handleAdd} isSubmitting={isAdding} />
-      </SciFiPanel>
+      </Panel>
     </div>
   );
 }

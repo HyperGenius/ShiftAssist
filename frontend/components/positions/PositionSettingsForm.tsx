@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiHeading } from "@/components/ui/SciFiHeading";
-import { SciFiInput } from "@/components/ui/SciFiInput";
-import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { Button } from "@/components/ui/Button";
+import { Heading } from "@/components/ui/Heading";
+import { Input } from "@/components/ui/Input";
+import { Panel } from "@/components/ui/Panel";
 import { usePositions } from "@/hooks/usePositions";
 import type { Position, PositionCreate } from "@/types/position";
 
@@ -52,7 +52,7 @@ function AddPositionForm({
 
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-      <SciFiInput
+      <Input
         id="new-position-name"
         label="役職名"
         placeholder="例: 係長、主任"
@@ -76,9 +76,9 @@ function AddPositionForm({
           </label>
         ))}
       </div>
-      <SciFiButton type="submit" loading={isSubmitting} disabled={!name.trim()}>
+      <Button type="submit" loading={isSubmitting} disabled={!name.trim()}>
         追加
-      </SciFiButton>
+      </Button>
     </form>
   );
 }
@@ -132,7 +132,7 @@ function PositionRow({
   if (isEditing) {
     return (
       <li className="py-3 border-b border-gray-200 space-y-3">
-        <SciFiInput
+        <Input
           id={`edit-position-${position.id}`}
           label=""
           value={editName}
@@ -156,10 +156,10 @@ function PositionRow({
           ))}
         </div>
         <div className="flex gap-2">
-          <SciFiButton size="sm" loading={isSaving} onClick={() => void handleSave()}>
+          <Button size="sm" loading={isSaving} onClick={() => void handleSave()}>
             保存
-          </SciFiButton>
-          <SciFiButton
+          </Button>
+          <Button
             size="sm"
             variant="ghost"
             disabled={isSaving}
@@ -175,7 +175,7 @@ function PositionRow({
             }}
           >
             キャンセル
-          </SciFiButton>
+          </Button>
         </div>
       </li>
     );
@@ -194,21 +194,21 @@ function PositionRow({
           </span>
         ))}
       </div>
-      <SciFiButton
+      <Button
         size="sm"
         variant="secondary"
         onClick={() => setIsEditing(true)}
       >
         編集
-      </SciFiButton>
-      <SciFiButton
+      </Button>
+      <Button
         size="sm"
         variant="danger"
         loading={isDeleting}
         onClick={() => void handleDelete()}
       >
         削除
-      </SciFiButton>
+      </Button>
     </li>
   );
 }
@@ -273,8 +273,8 @@ export function PositionSettingsForm() {
 
   return (
     <div className="space-y-6">
-      <SciFiPanel className="p-6 space-y-4">
-        <SciFiHeading level="h3">役職一覧</SciFiHeading>
+      <Panel className="p-6 space-y-4">
+        <Heading level="h3">役職一覧</Heading>
         <p className="text-xs text-gray-500">
           各除外フラグが有効な役職は、該当する長期休暇期間中のシフトアサインから除外されます。
         </p>
@@ -295,12 +295,12 @@ export function PositionSettingsForm() {
             ))}
           </ul>
         )}
-      </SciFiPanel>
+      </Panel>
 
-      <SciFiPanel className="p-6 space-y-4">
-        <SciFiHeading level="h3">役職を追加</SciFiHeading>
+      <Panel className="p-6 space-y-4">
+        <Heading level="h3">役職を追加</Heading>
         <AddPositionForm onAdd={handleAdd} isSubmitting={isAdding} />
-      </SciFiPanel>
+      </Panel>
     </div>
   );
 }

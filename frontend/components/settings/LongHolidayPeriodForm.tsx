@@ -3,9 +3,9 @@
 
 import { useState } from "react";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiInput } from "@/components/ui/SciFiInput";
-import { SciFiSelect } from "@/components/ui/SciFiSelect";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import type {
   LongHolidayPeriodCreate,
   LongHolidayType,
@@ -69,7 +69,7 @@ export function LongHolidayPeriodForm({
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <SciFiInput
+        <Input
           id="lhp-year"
           label="年"
           type="number"
@@ -79,7 +79,7 @@ export function LongHolidayPeriodForm({
           value={year}
           onChange={(e) => setYear(e.target.value)}
         />
-        <SciFiSelect
+        <Select
           id="lhp-type"
           label="休暇種別"
           value={holidayType}
@@ -90,8 +90,8 @@ export function LongHolidayPeriodForm({
               {HOLIDAY_TYPE_LABELS[t]}
             </option>
           ))}
-        </SciFiSelect>
-        <SciFiInput
+        </Select>
+        <Input
           id="lhp-start"
           label="開始日"
           type="date"
@@ -105,7 +105,7 @@ export function LongHolidayPeriodForm({
             dateError && startDate && endDate ? dateError : undefined
           }
         />
-        <SciFiInput
+        <Input
           id="lhp-end"
           label="終了日"
           type="date"
@@ -121,9 +121,9 @@ export function LongHolidayPeriodForm({
         />
       </div>
       <div className="flex justify-end">
-        <SciFiButton type="submit" size="sm" loading={isSubmitting}>
+        <Button type="submit" size="sm" loading={isSubmitting}>
           追加する
-        </SciFiButton>
+        </Button>
       </div>
     </form>
   );

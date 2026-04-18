@@ -13,8 +13,8 @@ import {
 } from "@dnd-kit/core";
 import { toast } from "sonner";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { Button } from "@/components/ui/Button";
+import { Panel } from "@/components/ui/Panel";
 import { CalendarCell } from "./CalendarCell";
 import { OverrideConfirmDialog } from "./OverrideConfirmDialog";
 import { WorkerCard } from "./WorkerCard";
@@ -447,22 +447,22 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
       <div className="flex gap-4">
         {/* カレンダーパネル */}
         <div className="flex-1 min-w-0">
-          <SciFiPanel className="p-4">
+          <Panel className="p-4">
             {/* ヘッダー：月ナビゲーション＆保存ボタン */}
             <div className="flex items-center justify-between mb-4">
-              <SciFiButton variant="secondary" size="sm" onClick={prevMonth}>
+              <Button variant="secondary" size="sm" onClick={prevMonth}>
                 &lt;&lt; 前月
-              </SciFiButton>
+              </Button>
               <div className="flex items-center gap-2">
                 <YearMonthPicker year={year} month={month} onChange={onYearMonthChange} />
                 <span className="text-xs text-gray-400">{department.name}</span>
               </div>
               <div className="flex items-center gap-2">
-                <SciFiButton variant="secondary" size="sm" onClick={nextMonth}>
+                <Button variant="secondary" size="sm" onClick={nextMonth}>
                   翌月 &gt;&gt;
-                </SciFiButton>
+                </Button>
                 {!readOnly && (
-                  <SciFiButton
+                  <Button
                     variant="primary"
                     size="sm"
                     onClick={handleSave}
@@ -470,7 +470,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
                     disabled={!hasDirtySlots}
                   >
                     保存
-                  </SciFiButton>
+                  </Button>
                 )}
               </div>
             </div>
@@ -568,7 +568,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
                 </div>
               </>
             )}
-          </SciFiPanel>
+          </Panel>
         </div>
 
         {/* サイドパネル */}

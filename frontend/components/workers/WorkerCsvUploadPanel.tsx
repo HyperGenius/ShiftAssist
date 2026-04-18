@@ -5,9 +5,9 @@
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { SciFiButton } from "@/components/ui/SciFiButton";
-import { SciFiHeading } from "@/components/ui/SciFiHeading";
-import { SciFiPanel } from "@/components/ui/SciFiPanel";
+import { Button } from "@/components/ui/Button";
+import { Heading } from "@/components/ui/Heading";
+import { Panel } from "@/components/ui/Panel";
 import { useWorkers } from "@/hooks/useWorkers";
 import type {
   WorkerUploadDiffItem,
@@ -266,13 +266,13 @@ export function WorkerCsvUploadPanel({ onClose }: WorkerCsvUploadPanelProps) {
   }, []);
 
   return (
-    <SciFiPanel className="p-6">
+    <Panel className="p-6">
       <div className="flex items-center justify-between mb-4">
-        <SciFiHeading level="h3">一括登録・更新（CSV/Excelアップロード）</SciFiHeading>
+        <Heading level="h3">一括登録・更新（CSV/Excelアップロード）</Heading>
         {onClose && (
-          <SciFiButton variant="ghost" size="sm" onClick={onClose}>
+          <Button variant="ghost" size="sm" onClick={onClose}>
             ✕
-          </SciFiButton>
+          </Button>
         )}
       </div>
 
@@ -341,20 +341,20 @@ export function WorkerCsvUploadPanel({ onClose }: WorkerCsvUploadPanelProps) {
           <div className="flex items-center gap-3 text-sm text-gray-700">
             <CheckIcon />
             <span>{selectedFile.name} が選択されました。</span>
-            <SciFiButton variant="ghost" size="sm" onClick={handleReset}>
+            <Button variant="ghost" size="sm" onClick={handleReset}>
               やり直す
-            </SciFiButton>
+            </Button>
           </div>
 
           {/* プレビュー未取得時 */}
           {!preview && (
-            <SciFiButton
+            <Button
               onClick={handlePreview}
               loading={isPreviewing}
               disabled={isPreviewing}
             >
               差分をプレビュー
-            </SciFiButton>
+            </Button>
           )}
 
           {/* プレビュー表示 */}
@@ -410,17 +410,17 @@ export function WorkerCsvUploadPanel({ onClose }: WorkerCsvUploadPanelProps) {
 
               {/* 実行ボタン */}
               <div className="flex items-center gap-3 pt-2">
-                <SciFiButton
+                <Button
                   onClick={handleExecute}
                   loading={isExecuting}
                   disabled={isExecuting || preview.has_errors}
                   title={preview.has_errors ? "エラーがある行が含まれています。ファイルを修正してください。" : undefined}
                 >
                   確定（Upsert実行）
-                </SciFiButton>
-                <SciFiButton variant="secondary" onClick={handleReset}>
+                </Button>
+                <Button variant="secondary" onClick={handleReset}>
                   キャンセル
-                </SciFiButton>
+                </Button>
                 {preview.has_errors && (
                   <span className="text-xs text-red-400">
                     エラー行を修正してから再アップロードしてください
@@ -431,6 +431,6 @@ export function WorkerCsvUploadPanel({ onClose }: WorkerCsvUploadPanelProps) {
           )}
         </div>
       )}
-    </SciFiPanel>
+    </Panel>
   );
 }
