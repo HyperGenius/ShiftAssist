@@ -23,8 +23,10 @@ export default async function AggregateStatsPage() {
               href="/admin/settings"
               className="text-sm text-gray-500 hover:text-gray-800 transition-colors"
             >
-              管理者設定
+              設定
             </Link>
+            <span className="text-gray-400">/</span>
+            <span className="text-sm text-gray-500">集計・ログ</span>
             <span className="text-gray-400">/</span>
             <span className="text-sm text-gray-700 font-medium">
               シフト集計
