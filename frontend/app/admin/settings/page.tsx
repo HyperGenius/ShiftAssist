@@ -52,6 +52,12 @@ const SETTINGS_LINKS = [
     description: "Worker単位のシフト集計（直近12ヶ月のSlotType別合計・月平均）を表示します。",
     icon: "📊",
   },
+  {
+    href: "/admin/settings/tenant-info",
+    label: "テナント基本情報",
+    description: "組織名・Clerk Organization ID・プラン情報を確認します。",
+    icon: "🏷️",
+  },
 ] as const;
 
 export default async function SettingsIndexPage() {
