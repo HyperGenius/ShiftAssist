@@ -11,19 +11,46 @@ import type { CustomRule, CustomRuleCreate, CustomRuleUpdate } from "@/types/cus
 
 const SLOT_TYPE_OPTIONS = [
   { value: "weekday_night", label: "平日夜間" },
+  { value: "sat_pre_hol_night", label: "土曜・祝前夜間" },
   { value: "sat_day", label: "土曜昼間" },
   { value: "sat_night", label: "土曜夜間" },
   { value: "sun_hol_day", label: "日祝昼間" },
   { value: "sun_hol_night", label: "日祝夜間" },
   { value: "long_hol_day", label: "長期休暇昼間" },
   { value: "long_hol_night", label: "長期休暇夜間" },
-  { value: "sat_pre_hol_night", label: "土曜・祝前夜間" },
 ] as const;
+
+/** 年間上限上書き対象の枠種別（long_hol は sun_hol に合算のため除外） */
+const ANNUAL_LIMIT_SLOT_OPTIONS = [
+  { value: "weekday_night", label: "平日夜間" },
+  { value: "sat_pre_hol_night", label: "土曜・祝前夜間" },
+  { value: "sat_day", label: "土曜昼間" },
+  { value: "sat_night", label: "土曜夜間" },
+  { value: "sun_hol_day", label: "日祝昼間" },
+  { value: "sun_hol_night", label: "日祝夜間" },
+] as const;
+
+type AnnualLimitKey = (typeof ANNUAL_LIMIT_SLOT_OPTIONS)[number]["value"] | "annual_total";
 
 interface RuleFormState {
   name: string;
   allowed_slot_types: string[];
   use_allowed_slot_types: boolean;
+  use_annual_limit_overrides: boolean;
+  /** 入力フィールドの値（空文字 = 上書きなし = グローバルルールに従う） */
+  annual_limit_overrides: Record<AnnualLimitKey, string>;
+}
+
+function emptyAnnualLimitOverrides(): Record<AnnualLimitKey, string> {
+  return {
+    annual_total: "",
+    weekday_night: "",
+    sat_pre_hol_night: "",
+    sat_day: "",
+    sat_night: "",
+    sun_hol_day: "",
+    sun_hol_night: "",
+  };
 }
 
 function defaultFormState(): RuleFormState {
@@ -31,15 +58,50 @@ function defaultFormState(): RuleFormState {
     name: "",
     allowed_slot_types: [],
     use_allowed_slot_types: false,
+    use_annual_limit_overrides: false,
+    annual_limit_overrides: emptyAnnualLimitOverrides(),
   };
 }
 
 function ruleToFormState(rule: CustomRule): RuleFormState {
+  const rawOverrides = rule.annual_limit_overrides;
+  const hasOverrides = rawOverrides !== null && rawOverrides !== undefined &&
+    Object.values(rawOverrides).some((v) => v !== null && v !== undefined);
+
+  const overridesForForm = emptyAnnualLimitOverrides();
+  if (rawOverrides) {
+    for (const key of Object.keys(overridesForForm) as AnnualLimitKey[]) {
+      const val = rawOverrides[key];
+      overridesForForm[key] = val !== null && val !== undefined ? String(val) : "";
+    }
+  }
+
   return {
     name: rule.name,
     allowed_slot_types: rule.allowed_slot_types ?? [],
     use_allowed_slot_types: (rule.allowed_slot_types?.length ?? 0) > 0,
+    use_annual_limit_overrides: hasOverrides,
+    annual_limit_overrides: overridesForForm,
   };
+}
+
+/** フォームの annual_limit_overrides を API 用の Record に変換する。空文字 → null */
+function buildAnnualLimitOverrides(
+  formOverrides: Record<AnnualLimitKey, string>,
+): Record<string, number | null> | null {
+  const result: Record<string, number | null> = {};
+  let hasAnyValue = false;
+  for (const key of Object.keys(formOverrides) as AnnualLimitKey[]) {
+    const raw = formOverrides[key].trim();
+    if (raw === "") {
+      result[key] = null;
+    } else {
+      const num = parseInt(raw, 10);
+      result[key] = isNaN(num) ? null : num;
+      if (!isNaN(num)) hasAnyValue = true;
+    }
+  }
+  return hasAnyValue ? result : null;
 }
 
 interface RuleFormProps {
@@ -65,6 +127,16 @@ function RuleForm({ initial, onSubmit, onCancel, isSubmitting, submitLabel }: Ru
     });
   };
 
+  const setLimitOverride = (key: AnnualLimitKey, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      annual_limit_overrides: {
+        ...prev.annual_limit_overrides,
+        [key]: value,
+      },
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return;
@@ -83,6 +155,7 @@ function RuleForm({ initial, onSubmit, onCancel, isSubmitting, submitLabel }: Ru
         required
       />
 
+      {/* アサイン可能な枠制限 */}
       <div className="space-y-2">
         <label className="flex items-center gap-2 cursor-pointer select-none">
           <input
@@ -119,6 +192,72 @@ function RuleForm({ initial, onSubmit, onCancel, isSubmitting, submitLabel }: Ru
                 />
                 <span className="text-sm text-gray-600">{opt.label}</span>
               </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 年間シフト回数上限の上書き */}
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={form.use_annual_limit_overrides}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                use_annual_limit_overrides: e.target.checked,
+                annual_limit_overrides: e.target.checked
+                  ? prev.annual_limit_overrides
+                  : emptyAnnualLimitOverrides(),
+              }))
+            }
+            disabled={isSubmitting}
+            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span className="text-sm font-medium text-gray-700">
+            年間シフト回数上限を上書きする
+          </span>
+        </label>
+
+        {form.use_annual_limit_overrides && (
+          <div className="ml-6 space-y-3">
+            <p className="text-xs text-gray-500">
+              空欄の場合はグローバルルールの設定が適用されます。0 を入力すると制限なしになります。
+            </p>
+            {/* 合計 */}
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-700 w-36 shrink-0">合計（年間）</span>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="例: 20"
+                  value={form.annual_limit_overrides.annual_total}
+                  onChange={(e) => setLimitOverride("annual_total", e.target.value)}
+                  disabled={isSubmitting}
+                  className="w-24 rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                />
+                <span className="text-xs text-gray-500">回</span>
+              </div>
+            </div>
+            {/* 各枠種別 */}
+            {ANNUAL_LIMIT_SLOT_OPTIONS.map((opt) => (
+              <div key={opt.value} className="flex items-center gap-3">
+                <span className="text-sm text-gray-700 w-36 shrink-0">{opt.label}</span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={0}
+                    placeholder="空欄=グローバル設定"
+                    value={form.annual_limit_overrides[opt.value]}
+                    onChange={(e) => setLimitOverride(opt.value, e.target.value)}
+                    disabled={isSubmitting}
+                    className="w-24 rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  />
+                  <span className="text-xs text-gray-500">回</span>
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -162,6 +301,9 @@ export function CustomRulesManager() {
           formState.use_allowed_slot_types && formState.allowed_slot_types.length > 0
             ? formState.allowed_slot_types
             : null,
+        annual_limit_overrides: formState.use_annual_limit_overrides
+          ? buildAnnualLimitOverrides(formState.annual_limit_overrides)
+          : null,
       };
       await createCustomRule(payload);
       setShowAddForm(false);
@@ -182,6 +324,9 @@ export function CustomRulesManager() {
           formState.use_allowed_slot_types && formState.allowed_slot_types.length > 0
             ? formState.allowed_slot_types
             : null,
+        annual_limit_overrides: formState.use_annual_limit_overrides
+          ? buildAnnualLimitOverrides(formState.annual_limit_overrides)
+          : null,
       };
       await updateCustomRule(id, payload);
       setEditingId(null);
@@ -208,6 +353,21 @@ export function CustomRulesManager() {
 
   const getSlotTypeLabel = (value: string) =>
     SLOT_TYPE_OPTIONS.find((o) => o.value === value)?.label ?? value;
+
+  const formatAnnualLimits = (overrides: Record<string, number | null> | null): string => {
+    if (!overrides) return "";
+    const parts: string[] = [];
+    if (overrides.annual_total !== null && overrides.annual_total !== undefined) {
+      parts.push(`合計: ${overrides.annual_total}回`);
+    }
+    for (const opt of ANNUAL_LIMIT_SLOT_OPTIONS) {
+      const val = overrides[opt.value];
+      if (val !== null && val !== undefined) {
+        parts.push(`${opt.label}: ${val}回`);
+      }
+    }
+    return parts.join("、");
+  };
 
   if (isLoading) {
     return (
@@ -244,6 +404,11 @@ export function CustomRulesManager() {
                       </p>
                     ) : (
                       <p className="text-xs text-gray-400 mt-0.5">枠制限なし</p>
+                    )}
+                    {rule.annual_limit_overrides && formatAnnualLimits(rule.annual_limit_overrides) && (
+                      <p className="text-xs text-blue-600 mt-0.5">
+                        年間上限: {formatAnnualLimits(rule.annual_limit_overrides)}
+                      </p>
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
