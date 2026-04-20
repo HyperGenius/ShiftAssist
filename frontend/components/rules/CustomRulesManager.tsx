@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useCustomRules } from "@/hooks/useCustomRules";
+import { useShiftRules } from "@/hooks/useShiftRules";
+import type { AnnualShiftLimitsConfig } from "@/types/shiftRules";
 import type { CustomRule, CustomRuleCreate, CustomRuleUpdate } from "@/types/customRule";
 
 const SLOT_TYPE_OPTIONS = [
@@ -110,9 +112,10 @@ interface RuleFormProps {
   onCancel: () => void;
   isSubmitting: boolean;
   submitLabel: string;
+  globalLimits: AnnualShiftLimitsConfig;
 }
 
-function RuleForm({ initial, onSubmit, onCancel, isSubmitting, submitLabel }: RuleFormProps) {
+function RuleForm({ initial, onSubmit, onCancel, isSubmitting, submitLabel, globalLimits }: RuleFormProps) {
   const [form, setForm] = useState<RuleFormState>(initial);
 
   const toggleSlotType = (value: string) => {
@@ -232,11 +235,11 @@ function RuleForm({ initial, onSubmit, onCancel, isSubmitting, submitLabel }: Ru
                 <input
                   type="number"
                   min={0}
-                  placeholder="例: 20"
+                  placeholder={`グローバル設定: ${globalLimits.annual_total}`}
                   value={form.annual_limit_overrides.annual_total}
                   onChange={(e) => setLimitOverride("annual_total", e.target.value)}
                   disabled={isSubmitting}
-                  className="w-24 rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  className="w-36 rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                 />
                 <span className="text-xs text-gray-500">回</span>
               </div>
@@ -249,11 +252,11 @@ function RuleForm({ initial, onSubmit, onCancel, isSubmitting, submitLabel }: Ru
                   <input
                     type="number"
                     min={0}
-                    placeholder="空欄=グローバル設定"
+                    placeholder={`グローバル設定: ${globalLimits[opt.value]}`}
                     value={form.annual_limit_overrides[opt.value]}
                     onChange={(e) => setLimitOverride(opt.value, e.target.value)}
                     disabled={isSubmitting}
-                    className="w-24 rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                    className="w-36 rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                   />
                   <span className="text-xs text-gray-500">回</span>
                 </div>
@@ -288,6 +291,8 @@ function RuleForm({ initial, onSubmit, onCancel, isSubmitting, submitLabel }: Ru
 export function CustomRulesManager() {
   const { customRules, isLoading, createCustomRule, updateCustomRule, deleteCustomRule } =
     useCustomRules();
+  const { rules: globalRules } = useShiftRules();
+  const globalLimits = globalRules.warnings.annual_shift_limits;
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -392,6 +397,7 @@ export function CustomRulesManager() {
                     onCancel={() => setEditingId(null)}
                     isSubmitting={isSubmitting}
                     submitLabel="更新する"
+                    globalLimits={globalLimits}
                   />
                 </div>
               ) : (
@@ -447,6 +453,7 @@ export function CustomRulesManager() {
             onCancel={() => setShowAddForm(false)}
             isSubmitting={isSubmitting}
             submitLabel="作成する"
+            globalLimits={globalLimits}
           />
         </div>
       ) : (
