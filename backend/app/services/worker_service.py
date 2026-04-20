@@ -9,7 +9,13 @@ import uuid
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
-from app.models.models import CustomRule, Department, EmploymentType, TenantSkillRank, Worker
+from app.models.models import (
+    CustomRule,
+    Department,
+    EmploymentType,
+    TenantSkillRank,
+    Worker,
+)
 from app.models.schemas import (
     WorkerBulkItem,
     WorkerBulkPreviewItem,
@@ -302,10 +308,7 @@ def update_worker(
     ):
         _validate_employment_type(session, tenant_id, update_data["employment_type_id"])
 
-    if (
-        "custom_rule_id" in update_data
-        and update_data["custom_rule_id"] is not None
-    ):
+    if "custom_rule_id" in update_data and update_data["custom_rule_id"] is not None:
         _validate_custom_rule(session, tenant_id, update_data["custom_rule_id"])
 
     for field, value in update_data.items():

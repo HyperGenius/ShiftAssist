@@ -161,9 +161,7 @@ def update_custom_rule(
     return CustomRuleResponse.model_validate(rule)
 
 
-def delete_custom_rule(
-    session: Session, tenant_id: str, rule_id: uuid.UUID
-) -> None:
+def delete_custom_rule(session: Session, tenant_id: str, rule_id: uuid.UUID) -> None:
     """指定したカスタムルールを物理削除する.
 
     削除されると、このルールをアサインされているWorkerの ``custom_rule_id`` は
