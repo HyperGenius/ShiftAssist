@@ -297,12 +297,43 @@ class EmploymentTypeRule(Base):
     )
 
 
+class CustomRule(Base):
+    """Worker単位のカスタムシフトルールを表すSQLAlchemyモデル.
+
+    テナント管理者が任意の名称でカスタムルールを作成し、Worker単位でアサインできる。
+    雇用形態ルール・グローバルルールより優先して適用される。
+
+    Attributes:
+        id: UUIDによるプライマリキー。
+        tenant_id: Clerk OrganizationのID。テナント分離・インデックス用。
+        name: カスタムルールの表示名。テナント内で一意。
+        allowed_slot_types: アサイン可能なSlotTypeEnumのリスト（空/nullは制限なし）。
+        annual_limit_overrides: AnnualShiftLimitsConfig の部分的な上書き設定（各キーはnull許容）。
+        created_at: レコード作成日時。
+        updated_at: レコード最終更新日時。更新時に自動更新される。
+    """
+
+    __tablename__ = "custom_rules"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    allowed_slot_types = Column(JSON, nullable=True)
+    annual_limit_overrides = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "name", name="uq_custom_rule_tenant_name"),
+    )
+
+
 class Worker(Base):
     """シフトにアサインされる対応者を表すSQLAlchemyモデル.
 
     マルチテナント対応のため ``tenant_id`` で論理分離される。
     特別雇用者（``is_special=True``）は平日夜間枠のみアサイン可能。
     ``employment_type_id`` により雇用形態マスタと紐付く。
+    ``custom_rule_id`` によりWorker単位のカスタムルールを設定できる。
 
     Attributes:
         id: UUIDによるプライマリキー。
@@ -314,6 +345,7 @@ class Worker(Base):
         skill_rank_id: スキルランクのID（tenant_skill_ranksテーブルへのFK）。
         position_id: 役職のID（positionsテーブルへのFK）。任意。
         employment_type_id: 雇用形態のID（employment_typesテーブルへのFK）。任意。
+        custom_rule_id: カスタムルールのID（custom_rulesテーブルへのFK、ON DELETE SET NULL）。任意。
         is_special: 特別雇用者フラグ（非推奨。employment_type.is_default による判定に移行済み）。
         birth_date: 生年月日（年齢計算用）。
         skill_acquired_at: 現在のスキルランクの取得日。
@@ -342,6 +374,11 @@ class Worker(Base):
     employment_type_id = Column(
         UUID(as_uuid=True), ForeignKey("employment_types.id"), nullable=True
     )  # 雇用形態ID（employment_typesテーブルへのFK）
+    custom_rule_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("custom_rules.id", ondelete="SET NULL"),
+        nullable=True,
+    )  # カスタムルールID（custom_rulesテーブルへのFK、削除時にNULL）
     is_special = Column(Boolean, default=False)  # 後方互換性フラグ
     birth_date = Column(Date, nullable=True)  # 生年月日（年齢計算用）
     skill_acquired_at = Column(Date, nullable=True)  # スキルランク取得日

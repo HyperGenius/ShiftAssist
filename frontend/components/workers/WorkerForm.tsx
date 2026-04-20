@@ -8,6 +8,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { useCustomRules } from "@/hooks/useCustomRules";
 import { useDepartments } from "@/hooks/useDepartments";
 import { useEmploymentTypes } from "@/hooks/useEmploymentTypes";
 import { usePositions } from "@/hooks/usePositions";
@@ -34,6 +35,11 @@ const workerSchema = z.object({
   employment_type_id: z
     .string()
     .uuid("雇用形態を選択してください")
+    .optional()
+    .nullable(),
+  custom_rule_id: z
+    .string()
+    .uuid("カスタムルールを選択してください")
     .optional()
     .nullable(),
   birth_date: z.string().optional().nullable(),
@@ -71,6 +77,7 @@ export function WorkerForm({
   const { positions, isLoading: isPositionsLoading } = usePositions();
   const { employmentTypes, isLoading: isEmploymentTypesLoading } =
     useEmploymentTypes();
+  const { customRules, isLoading: isCustomRulesLoading } = useCustomRules();
   const {
     register,
     handleSubmit,
@@ -87,6 +94,7 @@ export function WorkerForm({
       skill_rank_id: worker?.skill_rank_id ?? "",
       position_id: worker?.position_id ?? "",
       employment_type_id: worker?.employment_type_id ?? "",
+      custom_rule_id: worker?.custom_rule_id ?? "",
       birth_date: worker?.birth_date ?? "",
       skill_acquired_at: worker?.skill_acquired_at ?? "",
       transfer_type: worker?.transfer_type ?? null,
@@ -120,6 +128,7 @@ export function WorkerForm({
       skill_rank_id: worker?.skill_rank_id ?? "",
       position_id: worker?.position_id ?? "",
       employment_type_id: worker?.employment_type_id ?? "",
+      custom_rule_id: worker?.custom_rule_id ?? "",
       birth_date: worker?.birth_date ?? "",
       skill_acquired_at: worker?.skill_acquired_at ?? "",
       transfer_type: worker?.transfer_type ?? null,
@@ -135,6 +144,7 @@ export function WorkerForm({
       employee_code: values.employee_code || null,
       position_id: values.position_id || null,
       employment_type_id: values.employment_type_id || null,
+      custom_rule_id: values.custom_rule_id || null,
       birth_date: values.birth_date || null,
       skill_acquired_at: values.skill_acquired_at || null,
       transfer_type: values.transfer_type || null,
@@ -241,6 +251,25 @@ export function WorkerForm({
         {employmentTypes.map((et) => (
           <option key={et.id} value={et.id}>
             {et.name}
+          </option>
+        ))}
+      </Select>
+
+      <Select
+        id="worker-custom-rule-id"
+        label="カスタムルール"
+        {...register("custom_rule_id")}
+        error={errors.custom_rule_id?.message}
+        disabled={isSubmitting || isCustomRulesLoading}
+      >
+        <option value="">
+          {isCustomRulesLoading
+            ? "読み込み中..."
+            : "カスタムルールを選択してください（任意）"}
+        </option>
+        {customRules.map((rule) => (
+          <option key={rule.id} value={rule.id}>
+            {rule.name}
           </option>
         ))}
       </Select>

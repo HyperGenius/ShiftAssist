@@ -9,7 +9,7 @@ import uuid
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
-from app.models.models import Department, EmploymentType, TenantSkillRank, Worker
+from app.models.models import CustomRule, Department, EmploymentType, TenantSkillRank, Worker
 from app.models.schemas import (
     WorkerBulkItem,
     WorkerBulkPreviewItem,
@@ -99,6 +99,32 @@ def _validate_employment_type(
         )
 
 
+def _validate_custom_rule(
+    session: Session, tenant_id: str, custom_rule_id: uuid.UUID
+) -> None:
+    """指定された ``custom_rule_id`` が同一テナントに存在するか検証する.
+
+    Args:
+        session: SQLModelセッション。
+        tenant_id: テナントID。
+        custom_rule_id: 検証対象のカスタムルールID。
+
+    Raises:
+        HTTPException: カスタムルールが存在しない、または異なるテナントに属する場合。
+    """
+    rule = session.exec(
+        select(CustomRule).where(
+            CustomRule.id == custom_rule_id,  # type: ignore[arg-type]
+            CustomRule.tenant_id == tenant_id,
+        )
+    ).first()
+    if rule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"CustomRule '{custom_rule_id}' not found in tenant.",
+        )
+
+
 def _resolve_employment_types_by_name(
     session: Session, tenant_id: str, names: set[str]
 ) -> dict[str, uuid.UUID]:
@@ -156,6 +182,8 @@ def create_worker(
     _validate_skill_rank(session, tenant_id, data.skill_rank_id)
     if data.employment_type_id is not None:
         _validate_employment_type(session, tenant_id, data.employment_type_id)
+    if data.custom_rule_id is not None:
+        _validate_custom_rule(session, tenant_id, data.custom_rule_id)
 
     worker = Worker(
         tenant_id=tenant_id,
@@ -166,6 +194,7 @@ def create_worker(
         skill_rank_id=data.skill_rank_id,
         position_id=data.position_id,
         employment_type_id=data.employment_type_id,
+        custom_rule_id=data.custom_rule_id,
         birth_date=data.birth_date,
         skill_acquired_at=data.skill_acquired_at,
         transfer_type=data.transfer_type,
@@ -272,6 +301,12 @@ def update_worker(
         and update_data["employment_type_id"] is not None
     ):
         _validate_employment_type(session, tenant_id, update_data["employment_type_id"])
+
+    if (
+        "custom_rule_id" in update_data
+        and update_data["custom_rule_id"] is not None
+    ):
+        _validate_custom_rule(session, tenant_id, update_data["custom_rule_id"])
 
     for field, value in update_data.items():
         setattr(worker, field, value)

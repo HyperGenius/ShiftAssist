@@ -13,6 +13,7 @@ export interface Worker {
   skill_rank_id: string;
   position_id: string | null;
   employment_type_id: string | null;
+  custom_rule_id: string | null;
   is_special: boolean | null;  // 非推奨。後方互換性のため残存。
   birth_date: string | null;
   skill_acquired_at: string | null;
@@ -33,6 +34,7 @@ export interface WorkerCreate {
   skill_rank_id: string;
   position_id?: string | null;
   employment_type_id?: string | null;
+  custom_rule_id?: string | null;
   birth_date?: string | null;
   skill_acquired_at?: string | null;
   transfer_type?: TransferType | null;
@@ -50,6 +52,7 @@ export interface WorkerUpdate {
   skill_rank_id?: string;
   position_id?: string | null;
   employment_type_id?: string | null;
+  custom_rule_id?: string | null;
   birth_date?: string | null;
   skill_acquired_at?: string | null;
   transfer_type?: TransferType | null;

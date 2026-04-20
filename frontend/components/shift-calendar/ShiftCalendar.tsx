@@ -29,6 +29,7 @@ import { useAvailableWorkers } from "@/hooks/useAvailableWorkers";
 import { useShiftRules } from "@/hooks/useShiftRules";
 import { useValidationContext } from "@/hooks/useValidationContext";
 import { useAggregateStats } from "@/hooks/useAggregateStats";
+import { useCustomRules } from "@/hooks/useCustomRules";
 import { useEmploymentTypes } from "@/hooks/useEmploymentTypes";
 import { useWorkerStats } from "@/hooks/useWorkerStats";
 import type {
@@ -101,6 +102,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
   // 集計データ（スマートサジェストのソートと集計情報表示に使用）
   const { aggregateStats, isLoading: isAggregateStatsLoading } = useAggregateStats(targetYearMonth);
   const { employmentTypes } = useEmploymentTypes();
+  const { customRules } = useCustomRules();
   const { stats: workerStatsData } = useWorkerStats();
   const validationStartDate = useMemo(() => {
     const minIntervalDays = rules.shift_rules?.min_interval_days ?? 10;
@@ -140,6 +142,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
     /* annualWorkerStats= */ workerStatsData?.items,
     /* annualLimits= */ annualLimits,
     employmentTypes,
+    customRules,
   );
 
   const holidayMap = useMemo(() => getHolidayMap(year, month), [year, month]);
