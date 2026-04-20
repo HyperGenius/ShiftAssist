@@ -61,6 +61,12 @@ const SETTINGS_CATEGORIES: SettingsCategory[] = [
         icon: "📋",
       },
       {
+        href: "/admin/settings/custom-rules",
+        label: "カスタムルール管理",
+        description: "Worker単位でアサイン可能なカスタムシフトルールを定義します。雇用形態ルールより優先適用されます。",
+        icon: "⚙️",
+      },
+      {
         href: "/admin/settings/skill-ranks",
         label: "スキルランク設定",
         description: "テナント固有のスキルランクを定義します。",

@@ -4,6 +4,7 @@
 
 import { useMemo } from "react";
 
+import type { CustomRule } from "@/types/customRule";
 import type { EmploymentType } from "@/types/employmentType";
 import type { CalendarState, SlotType } from "@/types/shiftRequirement";
 import type { AnnualShiftLimitsConfig, ShiftRulesConfig } from "@/types/shiftRules";
@@ -32,6 +33,8 @@ export type ValidationMap = Record<SlotKey, ValidationViolation[]>;
  * これにより月跨ぎ（例: 3月31日→4月1日）のアサイン間隔違反を検出できる。
  *
  * annualWorkerStats と annualLimits を渡すと、年間シフト回数上限チェックも実行される。
+ *
+ * customRules を渡すと、カスタムルールを雇用形態ルールより優先して適用する。
  */
 export function useShiftValidation(
   calendarState: CalendarState,
@@ -42,6 +45,7 @@ export function useShiftValidation(
   annualWorkerStats?: WorkerStatsResponse[],
   annualLimits?: AnnualShiftLimitsConfig,
   employmentTypes?: EmploymentType[],
+  customRules?: CustomRule[],
 ): ValidationMap {
   const workerMap = useMemo(
     () => new Map(workers.map((w) => [w.id, w])),
@@ -76,6 +80,12 @@ export function useShiftValidation(
     [employmentTypes],
   );
 
+  /** カスタムルールマップ（custom_rule_id → CustomRule）。 */
+  const customRuleMap = useMemo(
+    () => customRules ? new Map(customRules.map((r) => [r.id, r])) : undefined,
+    [customRules],
+  );
+
   const validationMap = useMemo(() => {
     const result: ValidationMap = {};
 
@@ -94,6 +104,7 @@ export function useShiftValidation(
           workerStatsMap,
           annualLimits,
           employmentTypeMap,
+          customRuleMap,
         );
         if (violations.length > 0) {
           result[buildSlotKey(dateStr, slotType as SlotType)] = violations;
@@ -102,7 +113,7 @@ export function useShiftValidation(
     }
 
     return result;
-  }, [calendarState, workerMap, rules, skillRankMap, prevMonthDatesByWorker, workerStatsMap, annualLimits, employmentTypeMap]);
+  }, [calendarState, workerMap, rules, skillRankMap, prevMonthDatesByWorker, workerStatsMap, annualLimits, employmentTypeMap, customRuleMap]);
 
   return validationMap;
 }

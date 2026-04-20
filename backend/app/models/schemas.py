@@ -295,6 +295,42 @@ class EmploymentTypeRuleUpdate(BaseModel):
     annual_limit_overrides: dict | None = None
 
 
+class CustomRuleCreate(BaseModel):
+    """CustomRule作成リクエストスキーマ."""
+
+    name: str
+    allowed_slot_types: list[str] | None = None
+    annual_limit_overrides: dict | None = None
+
+
+class CustomRuleUpdate(BaseModel):
+    """CustomRule更新リクエストスキーマ.
+
+    すべてのフィールドはオプショナル。指定したフィールドのみ更新される。
+    """
+
+    name: str | None = None
+    allowed_slot_types: list[str] | None = None
+    annual_limit_overrides: dict | None = None
+
+
+class CustomRuleResponse(BaseModel):
+    """CustomRuleレスポンススキーマ.
+
+    ORMモデルからの変換に対応するため ``from_attributes=True`` を設定。
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    tenant_id: str
+    name: str
+    allowed_slot_types: list[str] | None = None
+    annual_limit_overrides: dict | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
 class WorkerCreate(BaseModel):
     """Worker作成リクエストスキーマ."""
 
@@ -305,6 +341,7 @@ class WorkerCreate(BaseModel):
     skill_rank_id: uuid.UUID
     position_id: uuid.UUID | None = None
     employment_type_id: uuid.UUID | None = None
+    custom_rule_id: uuid.UUID | None = None
     birth_date: date | None = None
     skill_acquired_at: date | None = None
     transfer_type: TransferTypeEnum | None = None
@@ -327,6 +364,7 @@ class WorkerUpdate(BaseModel):
     skill_rank_id: uuid.UUID | None = None
     position_id: uuid.UUID | None = None
     employment_type_id: uuid.UUID | None = None
+    custom_rule_id: uuid.UUID | None = None
     birth_date: date | None = None
     skill_acquired_at: date | None = None
     transfer_type: TransferTypeEnum | None = None
@@ -353,6 +391,7 @@ class WorkerResponse(BaseModel):
     skill_rank_id: uuid.UUID | None = None
     position_id: uuid.UUID | None = None
     employment_type_id: uuid.UUID | None = None
+    custom_rule_id: uuid.UUID | None = None
     is_special: bool | None = None  # 非推奨。後方互換性のため残存。
     birth_date: date | None = None
     skill_acquired_at: date | None = None

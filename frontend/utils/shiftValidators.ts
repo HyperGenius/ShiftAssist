@@ -277,7 +277,8 @@ export function validateWorkInterval(
  * ルール5: 特別雇用者の枠制限
  * 非デフォルト雇用形態に紐付くWorker（または is_special=true のWorker）は
  * 許可された枠以外にはアサイン不可。
- * 雇用形態別 allowed_slot_types が設定されている場合はそちらを優先する。
+ * 優先順位: カスタムルール > 雇用形態別ルール > グローバルルール。
+ * カスタムルールの allowed_slot_types が設定されているWorkerは雇用形態にかかわらず制限される。
  */
 export function validateSpecialEmployment(
   slotType: SlotType,
@@ -285,6 +286,7 @@ export function validateSpecialEmployment(
   workerMap: Map<string, Worker>,
   rules?: Pick<ShiftRulesConfig, "special_employment_shifts">,
   employmentTypeMap?: Map<string, EmploymentType>,
+  customRuleMap?: Map<string, { allowed_slot_types: string[] | null }>,
 ): ValidationViolation[] {
   const globalAllowedSlots = rules?.special_employment_shifts ?? ["weekday_night"];
 
@@ -295,7 +297,25 @@ export function validateSpecialEmployment(
     .filter((w): w is Worker => w !== undefined);
 
   for (const worker of assignedWorkers) {
-    // 雇用形態別ルールチェック（新ロジック）
+    // カスタムルールが設定されており allowed_slot_types が指定されている場合は最優先
+    if (customRuleMap && worker.custom_rule_id) {
+      const customRule = customRuleMap.get(worker.custom_rule_id);
+      if (customRule && customRule.allowed_slot_types && customRule.allowed_slot_types.length > 0) {
+        const allowedSlots = customRule.allowed_slot_types;
+        if (!(allowedSlots as string[]).includes(slotType)) {
+          const allowedStr = allowedSlots.join("、");
+          violations.push({
+            code: "SPECIAL_EMPLOYMENT",
+            severity: "error",
+            message: `${worker.name} のカスタムルールにより、許可された枠（${allowedStr}）以外にはアサインできません`,
+            workerIds: [worker.id],
+          });
+        }
+        continue;
+      }
+    }
+
+    // 雇用形態別ルールチェック（カスタムルールがない場合）
     if (employmentTypeMap && worker.employment_type_id) {
       const et = employmentTypeMap.get(worker.employment_type_id);
       if (et && !et.is_default) {
@@ -473,6 +493,7 @@ export function validateConsecutiveHolidays(
  * WorkerStatsResponse を参照して年間合計・各スロット種別の上限を超えているか検証する。
  * - long_hol_day / long_hol_night は sun_hol_day / sun_hol_night に合算する
  * - limits の各フィールドが 0 の場合は制限なし
+ * 適用優先順位: カスタムルール > 雇用形態別ルール > グローバルルール（limits）
  */
 export function validateAnnualShiftLimits(
   slotType: SlotType,
@@ -480,6 +501,8 @@ export function validateAnnualShiftLimits(
   workerMap: Map<string, Worker>,
   workerStatsMap: Map<string, WorkerStatsResponse>,
   limits: AnnualShiftLimitsConfig,
+  employmentTypeMap?: Map<string, EmploymentType>,
+  customRuleMap?: Map<string, { annual_limit_overrides: Record<string, number | null> | null }>,
 ): ValidationViolation[] {
   const violations: ValidationViolation[] = [];
   const assignedWorkers = workers.filter((id): id is string => id !== null);
@@ -526,24 +549,58 @@ export function validateAnnualShiftLimits(
       counts[currentSt] += 1;
     }
 
+    // 有効な上限を決定（優先順位: カスタムルール > 雇用形態別 > グローバル）
+    let effectiveLimits = limits;
+
+    const customRule = customRuleMap && worker.custom_rule_id
+      ? customRuleMap.get(worker.custom_rule_id)
+      : null;
+
+    if (customRule?.annual_limit_overrides) {
+      const overrides = customRule.annual_limit_overrides;
+      effectiveLimits = {
+        annual_total: overrides.annual_total ?? limits.annual_total,
+        weekday_night: overrides.weekday_night ?? limits.weekday_night,
+        sat_day: overrides.sat_day ?? limits.sat_day,
+        sat_night: overrides.sat_night ?? limits.sat_night,
+        sun_hol_day: overrides.sun_hol_day ?? limits.sun_hol_day,
+        sun_hol_night: overrides.sun_hol_night ?? limits.sun_hol_night,
+        sat_pre_hol_night: overrides.sat_pre_hol_night ?? limits.sat_pre_hol_night,
+      };
+    } else if (employmentTypeMap && worker.employment_type_id) {
+      const et = employmentTypeMap.get(worker.employment_type_id);
+      if (et?.rule?.annual_limit_overrides) {
+        const overrides = et.rule.annual_limit_overrides;
+        effectiveLimits = {
+          annual_total: overrides.annual_total ?? limits.annual_total,
+          weekday_night: overrides.weekday_night ?? limits.weekday_night,
+          sat_day: overrides.sat_day ?? limits.sat_day,
+          sat_night: overrides.sat_night ?? limits.sat_night,
+          sun_hol_day: overrides.sun_hol_day ?? limits.sun_hol_day,
+          sun_hol_night: overrides.sun_hol_night ?? limits.sun_hol_night,
+          sat_pre_hol_night: overrides.sat_pre_hol_night ?? limits.sat_pre_hol_night,
+        };
+      }
+    }
+
     // 年間合計チェック
-    if (limits.annual_total > 0 && total > limits.annual_total) {
+    if (effectiveLimits.annual_total > 0 && total > effectiveLimits.annual_total) {
       violations.push({
         code: "ANNUAL_TOTAL_SHIFTS",
         severity: "warning",
-        message: `${worker.name} の年間シフト回数が上限（${limits.annual_total}回）を超えています（現在: ${total}回）`,
+        message: `${worker.name} の年間シフト回数が上限（${effectiveLimits.annual_total}回）を超えています（現在: ${total}回）`,
         workerIds: [workerId],
       });
     }
 
     // 各スロット種別チェック
     const slotLimitMap: Array<[string, ValidationCode, number, string]> = [
-      ["weekday_night", "ANNUAL_WEEKDAY_NIGHT", limits.weekday_night, "平日夜間"],
-      ["sat_day", "ANNUAL_SAT_DAY", limits.sat_day, "土曜昼間"],
-      ["sat_night", "ANNUAL_SAT_NIGHT", limits.sat_night, "土曜夜間"],
-      ["sun_hol_day", "ANNUAL_SUN_HOL_DAY", limits.sun_hol_day, "日祝昼間"],
-      ["sun_hol_night", "ANNUAL_SUN_HOL_NIGHT", limits.sun_hol_night, "日祝夜間"],
-      ["sat_pre_hol_night", "ANNUAL_SAT_PRE_HOL_NIGHT", limits.sat_pre_hol_night, "土曜・祝前日夜間"],
+      ["weekday_night", "ANNUAL_WEEKDAY_NIGHT", effectiveLimits.weekday_night, "平日夜間"],
+      ["sat_day", "ANNUAL_SAT_DAY", effectiveLimits.sat_day, "土曜昼間"],
+      ["sat_night", "ANNUAL_SAT_NIGHT", effectiveLimits.sat_night, "土曜夜間"],
+      ["sun_hol_day", "ANNUAL_SUN_HOL_DAY", effectiveLimits.sun_hol_day, "日祝昼間"],
+      ["sun_hol_night", "ANNUAL_SUN_HOL_NIGHT", effectiveLimits.sun_hol_night, "日祝夜間"],
+      ["sat_pre_hol_night", "ANNUAL_SAT_PRE_HOL_NIGHT", effectiveLimits.sat_pre_hol_night, "土曜・祝前日夜間"],
     ];
 
     for (const [stKey, code, limit, label] of slotLimitMap) {
@@ -704,6 +761,7 @@ export function validateSlot(
   workerStatsMap?: Map<string, WorkerStatsResponse>,
   annualLimits?: AnnualShiftLimitsConfig,
   employmentTypeMap?: Map<string, EmploymentType>,
+  customRuleMap?: Map<string, { allowed_slot_types: string[] | null; annual_limit_overrides: Record<string, number | null> | null }>,
 ): ValidationViolation[] {
   const assignedCount = workers.filter((id) => id !== null).length;
   if (assignedCount === 0) return [];
@@ -713,11 +771,11 @@ export function validateSlot(
     ...validateSameDepartment(workers, workerMap, rules),
     ...validateSkillRankA(workers, requiredHeadcount, workerMap, rules, skillRankMap),
     ...validateWorkInterval(dateStr, slotType, workers, calendarState, workerMap, rules, prevMonthDatesByWorker),
-    ...validateSpecialEmployment(slotType, workers, workerMap, rules, employmentTypeMap),
+    ...validateSpecialEmployment(slotType, workers, workerMap, rules, employmentTypeMap, customRuleMap),
     ...validateTenureRestriction(dateStr, workers, workerMap, rules),
     ...validateConsecutiveHolidays(dateStr, slotType, workers, calendarState, workerMap),
     ...(workerStatsMap && annualLimits
-      ? validateAnnualShiftLimits(slotType, workers, workerMap, workerStatsMap, annualLimits)
+      ? validateAnnualShiftLimits(slotType, workers, workerMap, workerStatsMap, annualLimits, employmentTypeMap, customRuleMap)
       : []),
     ...(rules ? validateTotalAgeLimit(workers, workerMap, rules, dateStr) : []),
     ...(rules

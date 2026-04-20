@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers.branches import router as branches_router
+from app.routers.custom_rules import router as custom_rules_router
 from app.routers.departments import router as departments_router
 from app.routers.employment_types import router as employment_types_router
 from app.routers.holidays import router as holidays_router
@@ -57,6 +58,7 @@ app.include_router(long_holiday_periods_router)
 app.include_router(employment_types_router)
 app.include_router(shifts_router)
 app.include_router(shift_plans_router)
+app.include_router(custom_rules_router)
 
 # --- Response Schemas ---
 
