@@ -65,6 +65,5 @@ variable "clerk_jwks_url" {
 }
 
 variable "allowed_origins" {
-  type    = string
-  default = ""
+  type    = list(string)
 }

@@ -36,5 +36,5 @@ module "cloud_run" {
   database_url     = var.database_url
   clerk_secret_key = var.clerk_secret_key
   clerk_jwks_url   = var.clerk_jwks_url
-  allowed_origins  = var.allowed_origins
+  allowed_origins  = join(",", var.allowed_origins)
 }
