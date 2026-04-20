@@ -356,7 +356,7 @@ export function useAvailableWorkers({
 
       return true;
     });
-  }, [workers, skillRankMap, assignedSet, allowSameDepartment, slotType, showAll, workerStatsMap, annualLimits, currentDateStr, minIntervalDays, prevMonthDatesByWorker, inProgressDataByWorker, rules, calendarState, employmentTypeMap]);
+  }, [workers, skillRankMap, assignedSet, allowSameDepartment, slotType, showAll, workerStatsMap, annualLimits, currentDateStr, minIntervalDays, prevMonthDatesByWorker, inProgressDataByWorker, rules, calendarState, employmentTypeMap, customRuleMap]);
 
   const isWorkerAvailable = useMemo(() => {
     const availableSet = new Set(availableWorkers.map((w) => w.id));
