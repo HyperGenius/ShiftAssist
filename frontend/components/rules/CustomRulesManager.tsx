@@ -235,7 +235,7 @@ function RuleForm({ initial, onSubmit, onCancel, isSubmitting, submitLabel, glob
                 <input
                   type="number"
                   min={0}
-                  placeholder={`グローバル設定: ${globalLimits.annual_total}`}
+                  placeholder={`${globalLimits.annual_total}`}
                   value={form.annual_limit_overrides.annual_total}
                   onChange={(e) => setLimitOverride("annual_total", e.target.value)}
                   disabled={isSubmitting}
@@ -252,7 +252,7 @@ function RuleForm({ initial, onSubmit, onCancel, isSubmitting, submitLabel, glob
                   <input
                     type="number"
                     min={0}
-                    placeholder={`グローバル設定: ${globalLimits[opt.value]}`}
+                    placeholder={`${globalLimits[opt.value]}`}
                     value={form.annual_limit_overrides[opt.value]}
                     onChange={(e) => setLimitOverride(opt.value, e.target.value)}
                     disabled={isSubmitting}
