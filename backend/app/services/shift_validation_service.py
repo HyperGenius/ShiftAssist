@@ -411,6 +411,44 @@ def _check_work_interval(
     return violations
 
 
+def _check_assign_prohibited(
+    workers: list[Worker],
+    worker_custom_rules: dict[uuid.UUID, CustomRule | None] | None = None,
+) -> list[ValidationViolationItem]:
+    """カスタムルール: アサイン不可チェック.
+
+    ``is_assign_prohibited=True`` のカスタムルールが設定されているWorkerは
+    全スロットへのアサインを禁止する。
+
+    Args:
+        workers: バリデーション対象のWorkerリスト。
+        worker_custom_rules: ワーカーID -> CustomRuleオブジェクトのマッピング。
+
+    Returns:
+        バリデーション違反アイテムのリスト。
+    """
+    violations: list[ValidationViolationItem] = []
+    custom_rules = worker_custom_rules or {}
+
+    for worker in workers:
+        worker_id = cast(uuid.UUID, worker.id)
+        custom_rule = custom_rules.get(worker_id)
+        if custom_rule is not None and custom_rule.is_assign_prohibited:
+            violations.append(
+                ValidationViolationItem(
+                    code="ASSIGN_PROHIBITED",
+                    severity="error",
+                    message=(
+                        f"{worker.name} はアサイン不可ルールにより、"
+                        "いずれの枠にもアサインできません"
+                    ),
+                    worker_ids=[str(worker.id)],
+                )
+            )
+
+    return violations
+
+
 def _check_special_employment(
     requirement: ShiftRequirement,
     workers: list[Worker],
@@ -433,6 +471,10 @@ def _check_special_employment(
     for worker in workers:
         worker_id = cast(uuid.UUID, worker.id)
         custom_rule = custom_rules.get(worker_id)
+
+        # is_assign_prohibited=True の Worker は _check_assign_prohibited の責務に委ねる
+        if custom_rule is not None and custom_rule.is_assign_prohibited:
+            continue
 
         # カスタムルールが設定されており allowed_slot_types が指定されている場合は最優先
         if (
@@ -1247,6 +1289,7 @@ def validate_shift_assignments(
         *_check_same_department(workers, rules),
         *_check_skill_rank(session, requirement, workers, rules),
         *_check_work_interval(session, tenant_id, requirement, workers, rules),
+        *_check_assign_prohibited(workers, worker_custom_rule_map),
         *_check_special_employment(
             requirement,
             workers,
