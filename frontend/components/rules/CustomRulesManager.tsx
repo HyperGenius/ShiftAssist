@@ -36,6 +36,7 @@ type AnnualLimitKey = (typeof ANNUAL_LIMIT_SLOT_OPTIONS)[number]["value"] | "ann
 
 interface RuleFormState {
   name: string;
+  is_assign_prohibited: boolean;
   allowed_slot_types: string[];
   use_allowed_slot_types: boolean;
   use_annual_limit_overrides: boolean;
@@ -58,6 +59,7 @@ function emptyAnnualLimitOverrides(): Record<AnnualLimitKey, string> {
 function defaultFormState(): RuleFormState {
   return {
     name: "",
+    is_assign_prohibited: false,
     allowed_slot_types: [],
     use_allowed_slot_types: false,
     use_annual_limit_overrides: false,
@@ -80,6 +82,7 @@ function ruleToFormState(rule: CustomRule): RuleFormState {
 
   return {
     name: rule.name,
+    is_assign_prohibited: rule.is_assign_prohibited ?? false,
     allowed_slot_types: rule.allowed_slot_types ?? [],
     use_allowed_slot_types: (rule.allowed_slot_types?.length ?? 0) > 0,
     use_annual_limit_overrides: hasOverrides,
@@ -158,6 +161,32 @@ function RuleForm({ initial, onSubmit, onCancel, isSubmitting, submitLabel, glob
         required
       />
 
+      {/* アサイン不可フラグ */}
+      <div className="space-y-1">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={form.is_assign_prohibited}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                is_assign_prohibited: e.target.checked,
+              }))
+            }
+            disabled={isSubmitting}
+            className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+          />
+          <span className="text-sm font-medium text-red-700">
+            アサイン不可（全枠へのアサインを禁止する）
+          </span>
+        </label>
+        {form.is_assign_prohibited && (
+          <p className="ml-6 text-xs text-red-500">
+            このルールが設定されたWorkerはいずれの枠にもアサインできません。
+          </p>
+        )}
+      </div>
+
       {/* アサイン可能な枠制限 */}
       <div className="space-y-2">
         <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -171,15 +200,15 @@ function RuleForm({ initial, onSubmit, onCancel, isSubmitting, submitLabel, glob
                 allowed_slot_types: e.target.checked ? prev.allowed_slot_types : [],
               }))
             }
-            disabled={isSubmitting}
-            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            disabled={isSubmitting || form.is_assign_prohibited}
+            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
           />
-          <span className="text-sm font-medium text-gray-700">
+          <span className={`text-sm font-medium ${form.is_assign_prohibited ? "text-gray-400" : "text-gray-700"}`}>
             アサイン可能な枠を制限する
           </span>
         </label>
 
-        {form.use_allowed_slot_types && (
+        {form.use_allowed_slot_types && !form.is_assign_prohibited && (
           <div className="ml-6 grid grid-cols-2 gap-2">
             {SLOT_TYPE_OPTIONS.map((opt) => (
               <label
@@ -302,8 +331,9 @@ export function CustomRulesManager() {
     try {
       const payload: CustomRuleCreate = {
         name: formState.name.trim(),
+        is_assign_prohibited: formState.is_assign_prohibited,
         allowed_slot_types:
-          formState.use_allowed_slot_types && formState.allowed_slot_types.length > 0
+          !formState.is_assign_prohibited && formState.use_allowed_slot_types && formState.allowed_slot_types.length > 0
             ? formState.allowed_slot_types
             : null,
         annual_limit_overrides: formState.use_annual_limit_overrides
@@ -325,8 +355,9 @@ export function CustomRulesManager() {
     try {
       const payload: CustomRuleUpdate = {
         name: formState.name.trim(),
+        is_assign_prohibited: formState.is_assign_prohibited,
         allowed_slot_types:
-          formState.use_allowed_slot_types && formState.allowed_slot_types.length > 0
+          !formState.is_assign_prohibited && formState.use_allowed_slot_types && formState.allowed_slot_types.length > 0
             ? formState.allowed_slot_types
             : null,
         annual_limit_overrides: formState.use_annual_limit_overrides
@@ -402,8 +433,15 @@ export function CustomRulesManager() {
                 </div>
               ) : (
                 <div className="px-4 py-3 flex items-center justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800">{rule.name}</p>
+                   <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-gray-800">{rule.name}</p>
+                      {rule.is_assign_prohibited && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+                          アサイン不可
+                        </span>
+                      )}
+                    </div>
                     {rule.allowed_slot_types && rule.allowed_slot_types.length > 0 ? (
                       <p className="text-xs text-gray-500 mt-0.5">
                         許可枠: {rule.allowed_slot_types.map(getSlotTypeLabel).join("、")}

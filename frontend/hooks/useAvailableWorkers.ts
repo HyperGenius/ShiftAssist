@@ -4,6 +4,7 @@
 
 import { useMemo } from "react";
 
+import type { CustomRule } from "@/types/customRule";
 import type { EmploymentType } from "@/types/employmentType";
 import type { CalendarState, SlotType } from "@/types/shiftRequirement";
 import type { AnnualShiftLimitsConfig, ShiftRulesConfig } from "@/types/shiftRules";
@@ -71,6 +72,8 @@ interface UseAvailableWorkersOptions {
   prevMonthDatesByWorker?: Record<string, string | null>;
   /** 雇用形態マップ（employment_type_id → EmploymentType）。allowed_slot_types フィルタリングに使用 */
   employmentTypeMap?: Map<string, EmploymentType>;
+  /** カスタムルールリスト。is_assign_prohibited=true のWorkerを除外するために使用 */
+  customRules?: CustomRule[];
 }
 
 /**
@@ -91,6 +94,7 @@ export function useAvailableWorkers({
   minIntervalDays,
   prevMonthDatesByWorker,
   employmentTypeMap,
+  customRules,
 }: UseAvailableWorkersOptions): AvailableWorkersResult {
   const skillRankMap = useMemo(
     () => new Map(skillRanks.map((r) => [r.id, r])),
@@ -145,10 +149,22 @@ export function useAvailableWorkers({
   // ルール由来の設定（未設定時はデフォルト値を適用）
   const allowSameDepartment = rules?.allow_same_department ?? false;
 
+  /** カスタムルールマップ（custom_rule_id → CustomRule） */
+  const customRuleMap = useMemo(
+    () => customRules ? new Map(customRules.map((r) => [r.id, r])) : undefined,
+    [customRules],
+  );
+
   const availableWorkers = useMemo(() => {
     if (showAll || slotType === null) return workers;
 
     return workers.filter((w) => {
+      // is_assign_prohibited=true のWorkerを最初に除外
+      if (customRuleMap && w.custom_rule_id) {
+        const customRule = customRuleMap.get(w.custom_rule_id);
+        if (customRule?.is_assign_prohibited) return false;
+      }
+
       // すでにアサイン済みのWorkerは除外
       if (assignedSet.has(w.id)) return false;
 

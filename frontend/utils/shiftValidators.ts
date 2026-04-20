@@ -14,6 +14,7 @@ export type ValidationCode =
   | "SAME_DEPARTMENT" // 同じ所属課同士のペア
   | "SKILL_RANK_A" // スキルランクAがペアに含まれない
   | "WORK_INTERVAL" // 中9日未満の勤務間隔
+  | "ASSIGN_PROHIBITED" // アサイン不可ルールによるアサイン禁止
   | "SPECIAL_EMPLOYMENT" // 特別雇用者の枠制限違反
   | "NEW_HIRE_TENURE" // 採用後の期間制限
   | "TRANSFER_TENURE" // 事業本部間転入後の期間制限
@@ -274,6 +275,40 @@ export function validateWorkInterval(
 }
 
 /**
+ * カスタムルール: アサイン不可チェック（ASSIGN_PROHIBITED）
+ * is_assign_prohibited=true のカスタムルールが設定されているWorkerは
+ * allowed_slot_types の設定に関わらず全スロットへのアサインを禁止する。
+ */
+export function validateAssignProhibited(
+  workers: readonly (string | null)[],
+  workerMap: Map<string, Worker>,
+  customRuleMap?: Map<string, { is_assign_prohibited?: boolean; allowed_slot_types: string[] | null }>,
+): ValidationViolation[] {
+  if (!customRuleMap) return [];
+
+  const violations: ValidationViolation[] = [];
+  const assignedWorkers = workers
+    .filter((id): id is string => id !== null)
+    .map((id) => workerMap.get(id))
+    .filter((w): w is Worker => w !== undefined);
+
+  for (const worker of assignedWorkers) {
+    if (!worker.custom_rule_id) continue;
+    const customRule = customRuleMap.get(worker.custom_rule_id);
+    if (customRule?.is_assign_prohibited) {
+      violations.push({
+        code: "ASSIGN_PROHIBITED",
+        severity: "error",
+        message: `${worker.name} はアサイン不可ルールにより、いずれの枠にもアサインできません`,
+        workerIds: [worker.id],
+      });
+    }
+  }
+
+  return violations;
+}
+
+/**
  * ルール5: 特別雇用者の枠制限
  * 非デフォルト雇用形態に紐付くWorker（または is_special=true のWorker）は
  * 許可された枠以外にはアサイン不可。
@@ -286,7 +321,7 @@ export function validateSpecialEmployment(
   workerMap: Map<string, Worker>,
   rules?: Pick<ShiftRulesConfig, "special_employment_shifts">,
   employmentTypeMap?: Map<string, EmploymentType>,
-  customRuleMap?: Map<string, { allowed_slot_types: string[] | null }>,
+  customRuleMap?: Map<string, { is_assign_prohibited?: boolean; allowed_slot_types: string[] | null }>,
 ): ValidationViolation[] {
   const globalAllowedSlots = rules?.special_employment_shifts ?? ["weekday_night"];
 
@@ -297,6 +332,14 @@ export function validateSpecialEmployment(
     .filter((w): w is Worker => w !== undefined);
 
   for (const worker of assignedWorkers) {
+    // is_assign_prohibited=true の Worker は validateAssignProhibited の責務に委ねる
+    if (customRuleMap && worker.custom_rule_id) {
+      const customRule = customRuleMap.get(worker.custom_rule_id);
+      if (customRule?.is_assign_prohibited) {
+        continue;
+      }
+    }
+
     // カスタムルールが設定されており allowed_slot_types が指定されている場合は最優先
     if (customRuleMap && worker.custom_rule_id) {
       const customRule = customRuleMap.get(worker.custom_rule_id);
@@ -761,7 +804,7 @@ export function validateSlot(
   workerStatsMap?: Map<string, WorkerStatsResponse>,
   annualLimits?: AnnualShiftLimitsConfig,
   employmentTypeMap?: Map<string, EmploymentType>,
-  customRuleMap?: Map<string, { allowed_slot_types: string[] | null; annual_limit_overrides: Record<string, number | null> | null }>,
+  customRuleMap?: Map<string, { is_assign_prohibited?: boolean; allowed_slot_types: string[] | null; annual_limit_overrides: Record<string, number | null> | null }>,
 ): ValidationViolation[] {
   const assignedCount = workers.filter((id) => id !== null).length;
   if (assignedCount === 0) return [];
@@ -771,6 +814,7 @@ export function validateSlot(
     ...validateSameDepartment(workers, workerMap, rules),
     ...validateSkillRankA(workers, requiredHeadcount, workerMap, rules, skillRankMap),
     ...validateWorkInterval(dateStr, slotType, workers, calendarState, workerMap, rules, prevMonthDatesByWorker),
+    ...validateAssignProhibited(workers, workerMap, customRuleMap),
     ...validateSpecialEmployment(slotType, workers, workerMap, rules, employmentTypeMap, customRuleMap),
     ...validateTenureRestriction(dateStr, workers, workerMap, rules),
     ...validateConsecutiveHolidays(dateStr, slotType, workers, calendarState, workerMap),

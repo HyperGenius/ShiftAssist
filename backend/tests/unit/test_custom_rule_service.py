@@ -31,6 +31,7 @@ def _make_custom_rule(
     name: str = "テストルール",
     allowed_slot_types: list[str] | None = None,
     annual_limit_overrides: dict | None = None,
+    is_assign_prohibited: bool = False,
 ) -> CustomRule:
     """テスト用CustomRuleオブジェクトを生成するヘルパー."""
     r = CustomRule()
@@ -39,6 +40,7 @@ def _make_custom_rule(
     r.name = name
     r.allowed_slot_types = allowed_slot_types
     r.annual_limit_overrides = annual_limit_overrides
+    r.is_assign_prohibited = is_assign_prohibited
     r.created_at = datetime(2026, 1, 1)
     r.updated_at = datetime(2026, 1, 1)
     return r

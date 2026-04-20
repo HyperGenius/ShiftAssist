@@ -180,6 +180,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
     minIntervalDays,
     prevMonthDatesByWorker,
     employmentTypeMap,
+    customRules,
   });
 
   // DnDセンサー設定

@@ -309,6 +309,7 @@ class CustomRule(Base):
         name: カスタムルールの表示名。テナント内で一意。
         allowed_slot_types: アサイン可能なSlotTypeEnumのリスト（空/nullは制限なし）。
         annual_limit_overrides: AnnualShiftLimitsConfig の部分的な上書き設定（各キーはnull許容）。
+        is_assign_prohibited: アサイン不可フラグ。Trueの場合、全スロットへのアサインを禁止する。
         created_at: レコード作成日時。
         updated_at: レコード最終更新日時。更新時に自動更新される。
     """
@@ -319,6 +320,7 @@ class CustomRule(Base):
     name = Column(String, nullable=False)
     allowed_slot_types = Column(JSON, nullable=True)
     annual_limit_overrides = Column(JSON, nullable=True)
+    is_assign_prohibited = Column(Boolean, nullable=False, server_default="false")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

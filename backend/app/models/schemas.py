@@ -301,6 +301,7 @@ class CustomRuleCreate(BaseModel):
     name: str
     allowed_slot_types: list[str] | None = None
     annual_limit_overrides: dict | None = None
+    is_assign_prohibited: bool = False
 
 
 class CustomRuleUpdate(BaseModel):
@@ -312,6 +313,7 @@ class CustomRuleUpdate(BaseModel):
     name: str | None = None
     allowed_slot_types: list[str] | None = None
     annual_limit_overrides: dict | None = None
+    is_assign_prohibited: bool | None = None
 
 
 class CustomRuleResponse(BaseModel):
@@ -327,6 +329,7 @@ class CustomRuleResponse(BaseModel):
     name: str
     allowed_slot_types: list[str] | None = None
     annual_limit_overrides: dict | None = None
+    is_assign_prohibited: bool = False
     created_at: datetime
     updated_at: datetime
 

@@ -27,11 +27,14 @@ ShiftAssistでは、ユーザー体験とデータ整合性を両立させるた
 | 2 | `SAME_DEPARTMENT` | `allow_same_department: bool` | 同一所属課のワーカーが同一枠にペアになっている | 可 |
 | 3 | `SKILL_RANK_A` | `require_skill_ranks: list[str]` | 枠の全員がアサイン済みの際、`is_leader_eligible=true` のワーカーがいない | 可 |
 | 4 | `WORK_INTERVAL` | `min_interval_days: int`（デフォルト: 10） | 同一ワーカーの別アサインとの間隔が `min_interval_days` 日未満（**月跨ぎ対応**） | 可 |
+| C | `ASSIGN_PROHIBITED` | `CustomRule.is_assign_prohibited: bool` | カスタムルールの `is_assign_prohibited=true` が設定されたワーカーがいずれかの枠にアサインされている。`allowed_slot_types` より優先 | 可 |
 | 5 | `SPECIAL_EMPLOYMENT` | `special_employment_shifts: list[str]`（デフォルト: `["weekday_night"]`） | `is_special=true` のワーカーが許可外の枠にアサインされている | 可 |
 | 8a | `NEW_HIRE_TENURE` | `hired_tenure_months: int`（デフォルト: 6） | `transfer_type=hired` のワーカーが `joined_at` から `hired_tenure_months` ヶ月未満 | 可 |
 | 8b | `TRANSFER_TENURE` | `cross_division_transfer_tenure_months: int`（デフォルト: 3） | `transfer_type=transfer_in` かつ `is_cross_division_transfer=true` のワーカーが異動日から `cross_division_transfer_tenure_months` ヶ月未満 | 可 |
 | 11 | `TOTAL_AGE_LIMIT` | `max_total_age: int`（デフォルト: 120） | スロット内ワーカーの年齢合計（シフト日の月初時点）が `max_total_age` を超える。`0` で制限なし。`birth_date` が null のワーカーは除外（0歳扱い） | 可 |
 | 12 | `NON_WEEKDAY_NIGHT_LIMIT` | `max_non_weekday_night_per_period: int`（デフォルト: 1） | 同一シフト計画期間内（月次）で、同一ワーカーが平日夜間以外スロット（`sat_day` / `sat_night` / `sun_hol_day` / `sun_hol_night` / `long_hol_day` / `long_hol_night` / `sat_pre_hol_night`）に `max_non_weekday_night_per_period` 回を超えてアサインされている。`0` で制限なし。`weekday_night` スロットには適用しない | 可 |
+
+> **注意**: `ASSIGN_PROHIBITED` はカスタムルール（`custom_rules` テーブル）の `is_assign_prohibited` フィールドで制御する。グローバルルール（`ShiftRulesConfig`）の設定パラメータではない。
 
 ### 警告ルール（`severity: "warning"`）
 

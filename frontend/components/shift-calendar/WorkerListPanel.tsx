@@ -12,6 +12,7 @@ import type { TenantSkillRank } from "@/types/skillRank";
 import type { Worker } from "@/types/worker";
 import type { AggregateStatsResponse, WorkerStatsResponse } from "@/types/workerStats";
 import { useAvailableWorkers } from "@/hooks/useAvailableWorkers";
+import { useCustomRules } from "@/hooks/useCustomRules";
 import { matchesNormalized } from "@/utils/stringUtils";
 import { WorkerCard } from "./WorkerCard";
 import { WorkerFilterBar, type WorkerFilterState } from "./WorkerFilterBar";
@@ -86,6 +87,9 @@ export function WorkerListPanel({
   const resetFilter = () =>
     setFilterState({ departmentId: null, positionId: null, nameQuery: "" });
 
+  // カスタムルール一覧（is_assign_prohibited フィルタリングに使用）
+  const { customRules } = useCustomRules();
+
   // 雇用形態マップ（employment_type_id → EmploymentType）
   const employmentTypeMap = useMemo(
     () => new Map(employmentTypes.map((et) => [et.id, et])),
@@ -107,6 +111,7 @@ export function WorkerListPanel({
       minIntervalDays,
       prevMonthDatesByWorker,
       employmentTypeMap,
+      customRules,
     });
 
   // 全Workerのうちフィルタで除外されているIDセット（全表示時はdisabledにしない）

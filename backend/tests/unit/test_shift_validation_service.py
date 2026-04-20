@@ -1088,6 +1088,153 @@ class TestValidateShiftAssignments:
         codes = [v.code for v in result]
         assert "AGE_SUM_EXCEEDED" not in codes
 
+    # --- アサイン不可ルール: ASSIGN_PROHIBITED ---
+
+    def test_assign_prohibited_detected(self) -> None:
+        """異常系（ASSIGN_PROHIBITED）: is_assign_prohibited=True のカスタムルールが設定されたWorkerがアサインされた場合."""
+        from app.models.models import CustomRule
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement()
+        worker = _make_worker(worker_id=WORKER_ID_1)
+        worker.custom_rule_id = uuid.uuid4()
+
+        custom_rule = CustomRule()
+        custom_rule.id = worker.custom_rule_id
+        custom_rule.tenant_id = TENANT_ID
+        custom_rule.name = "アサイン不可テスト"
+        custom_rule.is_assign_prohibited = True
+        custom_rule.allowed_slot_types = None
+        custom_rule.annual_limit_overrides = None
+
+        with patch(
+            "app.services.shift_validation_service._load_worker_custom_rule_objects",
+            return_value={worker.id: custom_rule},
+        ):
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [worker], DEFAULT_RULES
+            )
+
+        codes = [v.code for v in result]
+        assert "ASSIGN_PROHIBITED" in codes
+
+    def test_assign_prohibited_no_violation_when_flag_false(self) -> None:
+        """正常系（ASSIGN_PROHIBITED）: is_assign_prohibited=False の場合は違反なし."""
+        from app.models.models import CustomRule
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement()
+        worker = _make_worker(worker_id=WORKER_ID_1)
+        worker.custom_rule_id = uuid.uuid4()
+
+        custom_rule = CustomRule()
+        custom_rule.id = worker.custom_rule_id
+        custom_rule.tenant_id = TENANT_ID
+        custom_rule.name = "通常ルール"
+        custom_rule.is_assign_prohibited = False
+        custom_rule.allowed_slot_types = None
+        custom_rule.annual_limit_overrides = None
+
+        with patch(
+            "app.services.shift_validation_service._load_worker_custom_rule_objects",
+            return_value={worker.id: custom_rule},
+        ):
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [worker], DEFAULT_RULES
+            )
+
+        codes = [v.code for v in result]
+        assert "ASSIGN_PROHIBITED" not in codes
+
+    def test_assign_prohibited_no_violation_when_no_custom_rule(self) -> None:
+        """正常系（ASSIGN_PROHIBITED）: カスタムルールが設定されていない場合は違反なし."""
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement()
+        worker = _make_worker(worker_id=WORKER_ID_1)
+        # custom_rule_id を設定しない
+
+        result = shift_validation_service.validate_shift_assignments(
+            session, TENANT_ID, req, [worker], DEFAULT_RULES
+        )
+
+        codes = [v.code for v in result]
+        assert "ASSIGN_PROHIBITED" not in codes
+
+    def test_assign_prohibited_takes_priority_over_allowed_slot_types(self) -> None:
+        """異常系（ASSIGN_PROHIBITED）: is_assign_prohibited=True は allowed_slot_types より優先され ASSIGN_PROHIBITED を返し SPECIAL_EMPLOYMENT は返さない."""
+        from app.models.models import CustomRule
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement(slot_type="weekday_night")
+        worker = _make_worker(worker_id=WORKER_ID_1)
+        worker.custom_rule_id = uuid.uuid4()
+
+        # is_assign_prohibited=True かつ allowed_slot_types も設定されている
+        custom_rule = CustomRule()
+        custom_rule.id = worker.custom_rule_id
+        custom_rule.tenant_id = TENANT_ID
+        custom_rule.name = "アサイン不可＋枠制限"
+        custom_rule.is_assign_prohibited = True
+        custom_rule.allowed_slot_types = ["weekday_night"]  # 本来は許可されるはず
+        custom_rule.annual_limit_overrides = None
+
+        with patch(
+            "app.services.shift_validation_service._load_worker_custom_rule_objects",
+            return_value={worker.id: custom_rule},
+        ):
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [worker], DEFAULT_RULES
+            )
+
+        codes = [v.code for v in result]
+        assert "ASSIGN_PROHIBITED" in codes
+        # is_assign_prohibited=True の Worker は _check_special_employment でスキップされる
+        assert "SPECIAL_EMPLOYMENT" not in codes
+
+    def test_assign_prohibited_is_error_severity(self) -> None:
+        """正常系（ASSIGN_PROHIBITED）: 違反の severity は error である."""
+        from app.models.models import CustomRule
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+        req = _make_requirement()
+        worker = _make_worker(worker_id=WORKER_ID_1)
+        worker.custom_rule_id = uuid.uuid4()
+
+        custom_rule = CustomRule()
+        custom_rule.id = worker.custom_rule_id
+        custom_rule.tenant_id = TENANT_ID
+        custom_rule.name = "アサイン不可テスト"
+        custom_rule.is_assign_prohibited = True
+        custom_rule.allowed_slot_types = None
+        custom_rule.annual_limit_overrides = None
+
+        with patch(
+            "app.services.shift_validation_service._load_worker_custom_rule_objects",
+            return_value={worker.id: custom_rule},
+        ):
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [worker], DEFAULT_RULES
+            )
+
+        violations = [v for v in result if v.code == "ASSIGN_PROHIBITED"]
+        assert len(violations) == 1
+        assert violations[0].severity == "error"
+
 
 # ---------------------------------------------------------------------------
 # _check_annual_shift_limits
