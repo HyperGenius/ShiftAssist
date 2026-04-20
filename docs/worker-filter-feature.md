@@ -27,7 +27,7 @@
 | Prop | 型 | 説明 |
 |------|----|------|
 | `departments` | `Department[]` | 所属課リスト（プルダウン選択肢生成に使用） |
-| `skillRanks` | `TenantSkillRank[]` | スキルランク（役職）リスト（`sort_order` 昇順で表示） |
+| `positions` | `Position[]` | 役職リスト（プルダウン選択肢生成に使用） |
 | `filterState` | `WorkerFilterState` | 現在のフィルタ状態 |
 | `onChange` | `(next: WorkerFilterState) => void` | フィルタ変更コールバック |
 | `onReset` | `() => void` | 全フィルタリセットコールバック |
@@ -39,7 +39,7 @@
 ```typescript
 interface WorkerFilterState {
   departmentId: string | null;  // null = 「すべて」
-  skillRankId: string | null;   // null = 「すべて」
+  positionId: string | null;    // null = 「すべて」
   nameQuery: string;            // 空文字 = フィルタなし
 }
 ```
@@ -59,7 +59,7 @@ interface WorkerFilterState {
 | フィルタ種別 | 適用条件 |
 |---|---|
 | 所属課 | `Worker.department_id === filterState.departmentId`（`null` の場合は全通過） |
-| 役職 | `Worker.skill_rank_id === filterState.skillRankId`（`null` の場合は全通過） |
+| 役職 | `Worker.position_id === filterState.positionId`（`null` の場合は全通過） |
 | 氏名 | `matchesNormalized(worker.name, filterState.nameQuery)`（空文字の場合は全通過） |
 
 - 3つのフィルタは **AND 条件** で複合的に機能する

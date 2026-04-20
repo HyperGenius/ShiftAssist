@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import type { Department } from "@/types/department";
 import type { EmploymentType } from "@/types/employmentType";
+import type { Position } from "@/types/position";
 import type { CalendarState, SlotType } from "@/types/shiftRequirement";
 import type { AnnualShiftLimitsConfig, ShiftRulesConfig } from "@/types/shiftRules";
 import type { TenantSkillRank } from "@/types/skillRank";
@@ -20,6 +21,8 @@ interface WorkerListPanelProps {
   workers: Worker[];
   departments: Department[];
   skillRanks: TenantSkillRank[];
+  /** 役職フィルタ用のPosition一覧 */
+  positions?: Position[];
   employmentTypes?: EmploymentType[];
   rules?: ShiftRulesConfig;
   /** 現在アクティブなスロットの種類（フィルタリングに使用） */
@@ -57,6 +60,7 @@ export function WorkerListPanel({
   workers,
   departments,
   skillRanks,
+  positions = [],
   employmentTypes = [],
   rules,
   activeSlotType,
@@ -75,12 +79,12 @@ export function WorkerListPanel({
   // フィルタ状態
   const [filterState, setFilterState] = useState<WorkerFilterState>({
     departmentId: null,
-    skillRankId: null,
+    positionId: null,
     nameQuery: "",
   });
 
   const resetFilter = () =>
-    setFilterState({ departmentId: null, skillRankId: null, nameQuery: "" });
+    setFilterState({ departmentId: null, positionId: null, nameQuery: "" });
 
   // 雇用形態マップ（employment_type_id → EmploymentType）
   const employmentTypeMap = useMemo(
@@ -200,8 +204,8 @@ export function WorkerListPanel({
       )
         return false;
       if (
-        filterState.skillRankId !== null &&
-        w.skill_rank_id !== filterState.skillRankId
+        filterState.positionId !== null &&
+        w.position_id !== filterState.positionId
       )
         return false;
       if (!matchesNormalized(w.name, filterState.nameQuery)) return false;
@@ -225,7 +229,7 @@ export function WorkerListPanel({
         {/* フィルタUI */}
         <WorkerFilterBar
           departments={departments}
-          skillRanks={skillRanks}
+          positions={positions}
           filterState={filterState}
           onChange={setFilterState}
           onReset={resetFilter}

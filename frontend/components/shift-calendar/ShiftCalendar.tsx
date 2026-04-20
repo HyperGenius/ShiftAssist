@@ -31,6 +31,7 @@ import { useValidationContext } from "@/hooks/useValidationContext";
 import { useAggregateStats } from "@/hooks/useAggregateStats";
 import { useCustomRules } from "@/hooks/useCustomRules";
 import { useEmploymentTypes } from "@/hooks/useEmploymentTypes";
+import { usePositions } from "@/hooks/usePositions";
 import { useWorkerStats } from "@/hooks/useWorkerStats";
 import type {
   CalendarState,
@@ -102,6 +103,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
   // 集計データ（スマートサジェストのソートと集計情報表示に使用）
   const { aggregateStats, isLoading: isAggregateStatsLoading } = useAggregateStats(targetYearMonth);
   const { employmentTypes } = useEmploymentTypes();
+  const { positions } = usePositions();
   const { customRules } = useCustomRules();
   const { stats: workerStatsData } = useWorkerStats();
   const validationStartDate = useMemo(() => {
@@ -581,6 +583,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
               workers={workers}
               departments={departments}
               skillRanks={skillRanks}
+              positions={positions}
               employmentTypes={employmentTypes}
               rules={rules.shift_rules}
               activeSlotType={activeSlot?.slotType ?? null}

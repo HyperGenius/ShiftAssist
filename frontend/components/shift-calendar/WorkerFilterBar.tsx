@@ -1,17 +1,17 @@
 "use client";
 
 import type { Department } from "@/types/department";
-import type { TenantSkillRank } from "@/types/skillRank";
+import type { Position } from "@/types/position";
 
 export interface WorkerFilterState {
   departmentId: string | null;
-  skillRankId: string | null;
+  positionId: string | null;
   nameQuery: string;
 }
 
 interface WorkerFilterBarProps {
   departments: Department[];
-  skillRanks: TenantSkillRank[];
+  positions: Position[];
   filterState: WorkerFilterState;
   onChange: (next: WorkerFilterState) => void;
   onReset: () => void;
@@ -25,18 +25,18 @@ interface WorkerFilterBarProps {
 function isAnyFilterActive(state: WorkerFilterState): boolean {
   return (
     state.departmentId !== null ||
-    state.skillRankId !== null ||
+    state.positionId !== null ||
     state.nameQuery !== ""
   );
 }
 
 /**
  * 対応者リストパネルのフィルタUIコンポーネント。
- * 所属課・役職（スキルランク）プルダウンと氏名テキスト入力を提供する。
+ * 所属課・役職プルダウンと氏名テキスト入力を提供する。
  */
 export function WorkerFilterBar({
   departments,
-  skillRanks,
+  positions,
   filterState,
   onChange,
   onReset,
@@ -44,11 +44,6 @@ export function WorkerFilterBar({
   totalCount,
 }: WorkerFilterBarProps) {
   const isActive = isAnyFilterActive(filterState);
-
-  // sort_order 昇順でソート済みのスキルランク一覧
-  const sortedSkillRanks = [...skillRanks].sort(
-    (a, b) => a.sort_order - b.sort_order,
-  );
 
   const selectBase =
     "w-full text-[12px] rounded border py-1 px-1 bg-white leading-tight focus:outline-none focus:ring-1 focus:ring-blue-400";
@@ -77,22 +72,22 @@ export function WorkerFilterBar({
         ))}
       </select>
 
-      {/* 役職（スキルランク）プルダウン */}
+      {/* 役職プルダウン */}
       <select
-        value={filterState.skillRankId ?? ""}
+        value={filterState.positionId ?? ""}
         onChange={(e) =>
           onChange({
             ...filterState,
-            skillRankId: e.target.value === "" ? null : e.target.value,
+            positionId: e.target.value === "" ? null : e.target.value,
           })
         }
-        className={filterState.skillRankId !== null ? selectActive : selectNormal}
+        className={filterState.positionId !== null ? selectActive : selectNormal}
         aria-label="役職で絞り込む"
       >
         <option value="">全役職</option>
-        {sortedSkillRanks.map((r) => (
-          <option key={r.id} value={r.id}>
-            {r.name}
+        {positions.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
           </option>
         ))}
       </select>
