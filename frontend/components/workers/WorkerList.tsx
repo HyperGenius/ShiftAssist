@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Heading } from "@/components/ui/Heading";
 import { Panel } from "@/components/ui/Panel";
 import { useDepartments } from "@/hooks/useDepartments";
+import { useCustomRules } from "@/hooks/useCustomRules";
 import { useEmploymentTypes } from "@/hooks/useEmploymentTypes";
 import { useSkillRanks } from "@/hooks/useSkillRanks";
 import { useWorkers } from "@/hooks/useWorkers";
@@ -28,7 +29,7 @@ import { WorkerUploadModal } from "./WorkerUploadModal";
 function SkeletonRow() {
   return (
     <tr className="animate-pulse">
-      {[...Array(5)].map((_, i) => (
+      {[...Array(6)].map((_, i) => (
         <td key={i} className="px-4 py-3">
           <div className="h-4 bg-gray-200 rounded w-3/4" />
         </td>
@@ -43,6 +44,7 @@ function WorkerRow({
   departmentName,
   skillRankName,
   employmentTypeName,
+  customRuleName,
   onEdit,
   onDelete,
 }: {
@@ -50,6 +52,7 @@ function WorkerRow({
   departmentName: string;
   skillRankName: string;
   employmentTypeName: string;
+  customRuleName: string;
   onEdit: (w: Worker) => void;
   onDelete: (w: Worker) => void;
 }) {
@@ -70,6 +73,15 @@ function WorkerRow({
         {employmentTypeName ? (
           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
             {employmentTypeName}
+          </span>
+        ) : (
+          <span className="text-xs text-gray-400">—</span>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        {customRuleName ? (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+            {customRuleName}
           </span>
         ) : (
           <span className="text-xs text-gray-400">—</span>
@@ -108,6 +120,7 @@ export function WorkerList() {
   const { departments } = useDepartments();
   const { skillRanks, skillRankNameById } = useSkillRanks();
   const { employmentTypes, employmentTypeNameById } = useEmploymentTypes();
+  const { customRuleNameById } = useCustomRules();
 
   const departmentNameById = useMemo(
     () => Object.fromEntries(departments.map((d) => [d.id, d.name])),
@@ -254,6 +267,9 @@ export function WorkerList() {
                 <th className="px-4 py-3 text-xs text-gray-500 font-medium">
                   雇用形態
                 </th>
+                <th className="px-4 py-3 text-xs text-gray-500 font-medium">
+                  カスタムルール
+                </th>
                 <th className="px-4 py-3 text-xs text-gray-500 font-medium text-right">
                   操作
                 </th>
@@ -269,7 +285,7 @@ export function WorkerList() {
               ) : filteredWorkers.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-4 py-12 text-center text-gray-400"
                   >
                     <div className="flex flex-col items-center gap-2">
@@ -308,6 +324,7 @@ export function WorkerList() {
                     departmentName={departmentNameById[worker.department_id] ?? worker.department_id}
                     skillRankName={skillRankNameById[worker.skill_rank_id] ?? worker.skill_rank_id}
                     employmentTypeName={worker.employment_type_id ? (employmentTypeNameById[worker.employment_type_id] ?? "") : ""}
+                    customRuleName={worker.custom_rule_id ? (customRuleNameById[worker.custom_rule_id] ?? "") : ""}
                     onEdit={handleEdit}
                     onDelete={setDeletingWorker}
                   />
