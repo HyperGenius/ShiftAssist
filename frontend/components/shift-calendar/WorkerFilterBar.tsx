@@ -51,7 +51,7 @@ export function WorkerFilterBar({
   );
 
   const selectBase =
-    "w-full text-[10px] rounded border py-0.5 px-1 bg-white leading-tight focus:outline-none focus:ring-1 focus:ring-blue-400";
+    "w-full text-[12px] rounded border py-1 px-1 bg-white leading-tight focus:outline-none focus:ring-1 focus:ring-blue-400";
   const selectNormal = `${selectBase} border-gray-200 text-gray-600`;
   const selectActive = `${selectBase} border-blue-300 text-blue-700 bg-blue-50`;
 
@@ -69,7 +69,7 @@ export function WorkerFilterBar({
         className={filterState.departmentId !== null ? selectActive : selectNormal}
         aria-label="所属課で絞り込む"
       >
-        <option value="">所属課: すべて</option>
+        <option value="">全所属課</option>
         {departments.map((d) => (
           <option key={d.id} value={d.id}>
             {d.name}
@@ -89,7 +89,7 @@ export function WorkerFilterBar({
         className={filterState.skillRankId !== null ? selectActive : selectNormal}
         aria-label="役職で絞り込む"
       >
-        <option value="">役職: すべて</option>
+        <option value="">全役職</option>
         {sortedSkillRanks.map((r) => (
           <option key={r.id} value={r.id}>
             {r.name}
@@ -107,7 +107,7 @@ export function WorkerFilterBar({
           }
           placeholder="氏名で絞り込む"
           className={[
-            "w-full text-[10px] rounded border py-0.5 pl-1 pr-5 bg-white leading-tight focus:outline-none focus:ring-1 focus:ring-blue-400",
+            "w-full text-[13px] rounded border py-1 pl-2 pr-5 bg-white leading-tight focus:outline-none focus:ring-1 focus:ring-blue-400",
             filterState.nameQuery !== ""
               ? "border-blue-300 bg-blue-50 text-blue-700"
               : "border-gray-200 text-gray-600",
@@ -118,7 +118,7 @@ export function WorkerFilterBar({
           <button
             type="button"
             onClick={() => onChange({ ...filterState, nameQuery: "" })}
-            className="absolute right-0.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 px-1 text-[10px] leading-none"
+            className="absolute right-0.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 px-1 text-[13px] leading-none"
             aria-label="氏名フィルタをクリア"
           >
             ×
