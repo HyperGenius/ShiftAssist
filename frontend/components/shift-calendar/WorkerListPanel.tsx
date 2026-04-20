@@ -1,23 +1,28 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 
 import type { Department } from "@/types/department";
 import type { EmploymentType } from "@/types/employmentType";
+import type { Position } from "@/types/position";
 import type { CalendarState, SlotType } from "@/types/shiftRequirement";
 import type { AnnualShiftLimitsConfig, ShiftRulesConfig } from "@/types/shiftRules";
 import type { TenantSkillRank } from "@/types/skillRank";
 import type { Worker } from "@/types/worker";
 import type { AggregateStatsResponse, WorkerStatsResponse } from "@/types/workerStats";
 import { useAvailableWorkers } from "@/hooks/useAvailableWorkers";
+import { matchesNormalized } from "@/utils/stringUtils";
 import { WorkerCard } from "./WorkerCard";
+import { WorkerFilterBar, type WorkerFilterState } from "./WorkerFilterBar";
 import { SmartSuggestRow, SMART_SUGGEST_GRID_COLS } from "./SmartSuggestRow";
 
 interface WorkerListPanelProps {
   workers: Worker[];
   departments: Department[];
   skillRanks: TenantSkillRank[];
+  /** 役職フィルタ用のPosition一覧 */
+  positions?: Position[];
   employmentTypes?: EmploymentType[];
   rules?: ShiftRulesConfig;
   /** 現在アクティブなスロットの種類（フィルタリングに使用） */
@@ -55,6 +60,7 @@ export function WorkerListPanel({
   workers,
   departments,
   skillRanks,
+  positions = [],
   employmentTypes = [],
   rules,
   activeSlotType,
@@ -70,6 +76,16 @@ export function WorkerListPanel({
   minIntervalDays,
   prevMonthDatesByWorker,
 }: WorkerListPanelProps) {
+  // フィルタ状態
+  const [filterState, setFilterState] = useState<WorkerFilterState>({
+    departmentId: null,
+    positionId: null,
+    nameQuery: "",
+  });
+
+  const resetFilter = () =>
+    setFilterState({ departmentId: null, positionId: null, nameQuery: "" });
+
   // 雇用形態マップ（employment_type_id → EmploymentType）
   const employmentTypeMap = useMemo(
     () => new Map(employmentTypes.map((et) => [et.id, et])),
@@ -177,6 +193,26 @@ export function WorkerListPanel({
     departments,
   ]);
 
+  // フィルタ適用後のWorkerリスト
+  const filteredWorkers = useMemo(() => {
+    // showAll=true の場合は workers 全体に、false の場合は sortedAvailableWorkers に適用
+    const base = showAll ? workers : sortedAvailableWorkers;
+    return base.filter((w) => {
+      if (
+        filterState.departmentId !== null &&
+        w.department_id !== filterState.departmentId
+      )
+        return false;
+      if (
+        filterState.positionId !== null &&
+        w.position_id !== filterState.positionId
+      )
+        return false;
+      if (!matchesNormalized(w.name, filterState.nameQuery)) return false;
+      return true;
+    });
+  }, [showAll, workers, sortedAvailableWorkers, filterState]);
+
   return (
     <div className="flex flex-col h-full bg-white border border-gray-200 rounded-lg shadow-sm">
       {/* パネルヘッダー */}
@@ -190,15 +226,26 @@ export function WorkerListPanel({
           </span>
         </div>
 
+        {/* フィルタUI */}
+        <WorkerFilterBar
+          departments={departments}
+          positions={positions}
+          filterState={filterState}
+          onChange={setFilterState}
+          onReset={resetFilter}
+          filteredCount={filteredWorkers.length}
+          totalCount={showAll ? workers.length : availableWorkers.length}
+        />
+
         {/* フィルタ状態表示 */}
         {activeSlotType && isFiltered && !showAll && (
-          <p className="text-[10px] text-gray-400 mb-1">
+          <p className="text-[10px] text-gray-400 mt-1">
             スマートサジェスト適用中
           </p>
         )}
 
         {/* 全表示チェックボックス */}
-        <label className="flex items-center gap-1.5 cursor-pointer group">
+        <label className="flex items-center gap-1.5 cursor-pointer group mt-1">
           <input
             type="checkbox"
             checked={showAll}
@@ -245,9 +292,13 @@ export function WorkerListPanel({
             <p className="text-[11px] text-gray-400 text-center py-4">
               対応者が登録されていません
             </p>
+          ) : filteredWorkers.length === 0 ? (
+            <p className="text-[11px] text-gray-400 text-center py-4">
+              条件に一致する対応者がいません
+            </p>
           ) : showAll ? (
             // 全表示モード: フィルタで除外されるWorkerを薄く表示
-            workers.map((w) => (
+            filteredWorkers.map((w) => (
               <WorkerCard
                 key={w.id}
                 worker={w}
@@ -258,7 +309,7 @@ export function WorkerListPanel({
             ))
           ) : (
             // スマートサジェストモード: 6カラムGrid表示 + スマートソート
-            sortedAvailableWorkers.map((w) => {
+            filteredWorkers.map((w) => {
               const statsItem = aggregateStatsMap.get(w.id);
               const slotStat = activeSlotType
                 ? statsItem?.slot_stats.find((s) => s.slot_type === activeSlotType) ?? null
