@@ -41,8 +41,8 @@ export default async function CustomRulesSettingsPage() {
             カスタムルール管理
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            Worker単位でアサイン可能なカスタムシフトルールを定義します。
-            カスタムルールは雇用形態ルール・グローバルルールより優先して適用されます。
+            個人単位で設定可能なカスタムシフトルールを定義します。<br />
+            カスタムシフトルールは雇用形態ルール・デフォルトルールより優先して適用されます。
           </p>
         </div>
 
