@@ -45,7 +45,7 @@ const workerSchema = z.object({
   birth_date: z.string().optional().nullable(),
   skill_acquired_at: z.string().optional().nullable(),
   transfer_type: z
-    .enum(["no_transfer", "transfer_in", "transfer_out", "hired"])
+    .enum(["", "no_transfer", "transfer_in", "transfer_out", "hired"])
     .optional()
     .nullable(),
   transfer_scheduled_month: z.string().optional().nullable(),
@@ -119,8 +119,17 @@ export function WorkerForm({
     }
   }, [transferType, setValue]);
 
-  // worker が切り替わったらフォームをリセット
+  // worker が切り替わったとき、またはマスターデータ取得完了後にフォームをリセット
   useEffect(() => {
+    if (
+      isDepartmentsLoading ||
+      isSkillRanksLoading ||
+      isPositionsLoading ||
+      isEmploymentTypesLoading ||
+      isCustomRulesLoading
+    ) {
+      return;
+    }
     reset({
       name: worker?.name ?? "",
       employee_code: worker?.employee_code ?? "",
@@ -136,9 +145,21 @@ export function WorkerForm({
       is_cross_division_transfer: worker?.is_cross_division_transfer ?? false,
       joined_at: worker?.joined_at ?? "",
     });
-  }, [worker, reset]);
+  }, [
+    worker,
+    reset,
+    isDepartmentsLoading,
+    isSkillRanksLoading,
+    isPositionsLoading,
+    isEmploymentTypesLoading,
+    isCustomRulesLoading,
+  ]);
 
   const handleFormSubmit = async (values: WorkerFormValues) => {
+    const rawTransferType = values.transfer_type;
+    const transferType = rawTransferType === "" || !rawTransferType
+      ? null
+      : rawTransferType as import("@/types/worker").TransferType;
     await onSubmit({
       ...values,
       employee_code: values.employee_code || null,
@@ -147,7 +168,7 @@ export function WorkerForm({
       custom_rule_id: values.custom_rule_id || null,
       birth_date: values.birth_date || null,
       skill_acquired_at: values.skill_acquired_at || null,
-      transfer_type: values.transfer_type || null,
+      transfer_type: transferType,
       transfer_scheduled_month: values.transfer_scheduled_month || null,
       is_cross_division_transfer: values.is_cross_division_transfer ?? false,
       joined_at: values.joined_at || null,
