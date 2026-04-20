@@ -362,9 +362,9 @@ export function validateSpecialEmployment(
     if (employmentTypeMap && worker.employment_type_id) {
       const et = employmentTypeMap.get(worker.employment_type_id);
       if (et && !et.is_default) {
-        // 非デフォルト雇用形態: allowed_slot_types または global にフォールバック
+        // null の場合はグローバル設定にフォールバック。空配列は全スロット禁止として扱う。
         const allowedSlots =
-          et.rule?.allowed_slot_types && et.rule.allowed_slot_types.length > 0
+          et.rule?.allowed_slot_types != null
             ? et.rule.allowed_slot_types
             : globalAllowedSlots;
         if (!(allowedSlots as string[]).includes(slotType)) {

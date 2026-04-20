@@ -72,7 +72,7 @@ interface UseAvailableWorkersOptions {
   prevMonthDatesByWorker?: Record<string, string | null>;
   /** 雇用形態マップ（employment_type_id → EmploymentType）。allowed_slot_types フィルタリングに使用 */
   employmentTypeMap?: Map<string, EmploymentType>;
-  /** カスタムルールリスト。is_assign_prohibited=true のWorkerを除外するために使用 */
+  /** カスタムルールリスト。is_assign_prohibited=true のWorkerを除外、allowed_slot_types によるスロット制限に使用 */
   customRules?: CustomRule[];
 }
 
@@ -163,6 +163,11 @@ export function useAvailableWorkers({
       if (customRuleMap && w.custom_rule_id) {
         const customRule = customRuleMap.get(w.custom_rule_id);
         if (customRule?.is_assign_prohibited) return false;
+        // カスタムルールの allowed_slot_types によるスロット制限チェック
+        // リーダー適性の有無にかかわらず、指定されたスロット種別以外は除外する
+        if (customRule?.allowed_slot_types && customRule.allowed_slot_types.length > 0) {
+          if (!customRule.allowed_slot_types.includes(slotType)) return false;
+        }
       }
 
       // すでにアサイン済みのWorkerは除外
@@ -200,8 +205,9 @@ export function useAvailableWorkers({
         const et = employmentTypeMap.get(w.employment_type_id);
         if (et && !et.is_default) {
           const globalAllowedSlots = rules?.special_employment_shifts ?? ["weekday_night"];
+          // null の場合はグローバル設定にフォールバック。空配列は全スロット禁止として扱う。
           const allowedSlots =
-            et.rule?.allowed_slot_types && et.rule.allowed_slot_types.length > 0
+            et.rule?.allowed_slot_types != null
               ? et.rule.allowed_slot_types
               : globalAllowedSlots;
           if (!(allowedSlots as string[]).includes(slotType)) {
@@ -356,7 +362,7 @@ export function useAvailableWorkers({
 
       return true;
     });
-  }, [workers, skillRankMap, assignedSet, allowSameDepartment, slotType, showAll, workerStatsMap, annualLimits, currentDateStr, minIntervalDays, prevMonthDatesByWorker, inProgressDataByWorker, rules, calendarState, employmentTypeMap]);
+  }, [workers, skillRankMap, assignedSet, allowSameDepartment, slotType, showAll, workerStatsMap, annualLimits, currentDateStr, minIntervalDays, prevMonthDatesByWorker, inProgressDataByWorker, rules, calendarState, employmentTypeMap, customRuleMap]);
 
   const isWorkerAvailable = useMemo(() => {
     const availableSet = new Set(availableWorkers.map((w) => w.id));
