@@ -6,6 +6,7 @@ import { useMemo } from "react";
 
 import type { CustomRule } from "@/types/customRule";
 import type { EmploymentType } from "@/types/employmentType";
+import type { Position } from "@/types/position";
 import type { CalendarState, SlotType } from "@/types/shiftRequirement";
 import type { AnnualShiftLimitsConfig, ShiftRulesConfig } from "@/types/shiftRules";
 import type { TenantSkillRank } from "@/types/skillRank";
@@ -72,6 +73,8 @@ interface UseAvailableWorkersOptions {
   prevMonthDatesByWorker?: Record<string, string | null>;
   /** 雇用形態マップ（employment_type_id → EmploymentType）。allowed_slot_types フィルタリングに使用 */
   employmentTypeMap?: Map<string, EmploymentType>;
+  /** 役職リスト。is_excluded_from_all_shifts=true のWorkerを除外するために使用 */
+  positions?: Position[];
   /** カスタムルールリスト。is_assign_prohibited=true のWorkerを除外、allowed_slot_types によるスロット制限に使用 */
   customRules?: CustomRule[];
 }
@@ -94,6 +97,7 @@ export function useAvailableWorkers({
   minIntervalDays,
   prevMonthDatesByWorker,
   employmentTypeMap,
+  positions,
   customRules,
 }: UseAvailableWorkersOptions): AvailableWorkersResult {
   const skillRankMap = useMemo(
@@ -155,6 +159,12 @@ export function useAvailableWorkers({
     [customRules],
   );
 
+  /** 役職マップ（position_id → Position） */
+  const positionMap = useMemo(
+    () => positions ? new Map(positions.map((p) => [p.id, p])) : undefined,
+    [positions],
+  );
+
   const availableWorkers = useMemo(() => {
     if (showAll || slotType === null) return workers;
 
@@ -168,6 +178,12 @@ export function useAvailableWorkers({
         if (customRule?.allowed_slot_types && customRule.allowed_slot_types.length > 0) {
           if (!customRule.allowed_slot_types.includes(slotType)) return false;
         }
+      }
+
+      // 役職の is_excluded_from_all_shifts=true のWorkerを除外
+      if (positionMap && w.position_id) {
+        const position = positionMap.get(w.position_id);
+        if (position?.is_excluded_from_all_shifts) return false;
       }
 
       // すでにアサイン済みのWorkerは除外
@@ -362,7 +378,7 @@ export function useAvailableWorkers({
 
       return true;
     });
-  }, [workers, skillRankMap, assignedSet, allowSameDepartment, slotType, showAll, workerStatsMap, annualLimits, currentDateStr, minIntervalDays, prevMonthDatesByWorker, inProgressDataByWorker, rules, calendarState, employmentTypeMap, customRuleMap]);
+  }, [workers, skillRankMap, assignedSet, allowSameDepartment, slotType, showAll, workerStatsMap, annualLimits, currentDateStr, minIntervalDays, prevMonthDatesByWorker, inProgressDataByWorker, rules, calendarState, employmentTypeMap, positionMap, customRuleMap]);
 
   const isWorkerAvailable = useMemo(() => {
     const availableSet = new Set(availableWorkers.map((w) => w.id));

@@ -2,6 +2,7 @@
 // シフトバリデーションのための純粋関数群
 
 import type { EmploymentType } from "@/types/employmentType";
+import type { Position } from "@/types/position";
 import type { CalendarState, SlotType } from "@/types/shiftRequirement";
 import type { AnnualShiftLimitsConfig, ShiftRulesConfig } from "@/types/shiftRules";
 import type { TenantSkillRank } from "@/types/skillRank";
@@ -16,6 +17,7 @@ export type ValidationCode =
   | "WORK_INTERVAL" // 中9日未満の勤務間隔
   | "ASSIGN_PROHIBITED" // アサイン不可ルールによるアサイン禁止
   | "SPECIAL_EMPLOYMENT" // 特別雇用者の枠制限違反
+  | "POSITION_EXCLUDED" // 役職の全シフト除外フラグによるアサイン禁止
   | "NEW_HIRE_TENURE" // 採用後の期間制限
   | "TRANSFER_TENURE" // 事業本部間転入後の期間制限
   | "TOTAL_AGE_LIMIT" // スロット内ワーカーの合計年齢上限超過
@@ -300,6 +302,39 @@ export function validateAssignProhibited(
         code: "ASSIGN_PROHIBITED",
         severity: "error",
         message: `${worker.name} はアサイン不可ルールにより、いずれの枠にもアサインできません`,
+        workerIds: [worker.id],
+      });
+    }
+  }
+
+  return violations;
+}
+
+/**
+ * 役職除外チェック（POSITION_EXCLUDED）
+ * is_excluded_from_all_shifts=true の役職に紐付くワーカーは全スロットへのアサインを禁止する。
+ */
+export function validatePositionExclusion(
+  workers: readonly (string | null)[],
+  workerMap: Map<string, Worker>,
+  positionMap?: Map<string, Position>,
+): ValidationViolation[] {
+  if (!positionMap) return [];
+
+  const violations: ValidationViolation[] = [];
+  const assignedWorkers = workers
+    .filter((id): id is string => id !== null)
+    .map((id) => workerMap.get(id))
+    .filter((w): w is Worker => w !== undefined);
+
+  for (const worker of assignedWorkers) {
+    if (!worker.position_id) continue;
+    const position = positionMap.get(worker.position_id);
+    if (position?.is_excluded_from_all_shifts) {
+      violations.push({
+        code: "POSITION_EXCLUDED",
+        severity: "error",
+        message: `${worker.name} の役職（${position.name}）は全シフトへのアサインが除外されています`,
         workerIds: [worker.id],
       });
     }
@@ -805,6 +840,7 @@ export function validateSlot(
   annualLimits?: AnnualShiftLimitsConfig,
   employmentTypeMap?: Map<string, EmploymentType>,
   customRuleMap?: Map<string, { is_assign_prohibited?: boolean; allowed_slot_types: string[] | null; annual_limit_overrides: Record<string, number | null> | null }>,
+  positionMap?: Map<string, Position>,
 ): ValidationViolation[] {
   const assignedCount = workers.filter((id) => id !== null).length;
   if (assignedCount === 0) return [];
@@ -815,6 +851,7 @@ export function validateSlot(
     ...validateSkillRankA(workers, requiredHeadcount, workerMap, rules, skillRankMap),
     ...validateWorkInterval(dateStr, slotType, workers, calendarState, workerMap, rules, prevMonthDatesByWorker),
     ...validateAssignProhibited(workers, workerMap, customRuleMap),
+    ...validatePositionExclusion(workers, workerMap, positionMap),
     ...validateSpecialEmployment(slotType, workers, workerMap, rules, employmentTypeMap, customRuleMap),
     ...validateTenureRestriction(dateStr, workers, workerMap, rules),
     ...validateConsecutiveHolidays(dateStr, slotType, workers, calendarState, workerMap),
