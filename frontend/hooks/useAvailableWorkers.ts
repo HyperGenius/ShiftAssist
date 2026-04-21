@@ -356,7 +356,7 @@ export function useAvailableWorkers({
 
       // 例7: 平日夜間以外シフト回数上限フィルタ
       if (rules && calendarState && slotType && HOLIDAY_SLOT_TYPES.has(slotType)) {
-        const limit = rules.max_non_weekday_night_per_period ?? 1;
+        const limit = rules.monthly_shift_limits?.non_weekday_night ?? 1;
         if (limit > 0) {
           // 進行中アサインの平日夜間以外スロットカウント（現在スロットを除く）
           let nonWeekdayNightCount = 0;

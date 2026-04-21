@@ -199,3 +199,53 @@ class TestUpdateShiftRules:
         assert result.shift_rules.min_interval_days == 7
         assert result.shift_rules.workers_per_slot == 3
         assert result.warnings.avoid_consecutive_holidays is False
+
+
+class TestShiftRulesConfigMonthlyShiftLimits:
+    """ShiftRulesConfig の monthly_shift_limits フィールドに関するテスト."""
+
+    def test_default_monthly_shift_limits_set(self) -> None:
+        """正常系: DBにレコードがない場合、monthly_shift_limits にデフォルト値が設定される."""
+        from app.models.rule_schemas import MonthlyShiftLimitsConfig
+
+        session = _make_session_no_record()
+        result = shift_rules_service.get_shift_rules(session, TENANT_ID)
+        assert isinstance(result.shift_rules.monthly_shift_limits, MonthlyShiftLimitsConfig)
+        assert result.shift_rules.monthly_shift_limits.monthly_total == 2
+        assert result.shift_rules.monthly_shift_limits.weekday_night == 2
+        assert result.shift_rules.monthly_shift_limits.non_weekday_night == 1
+
+    def test_legacy_max_non_weekday_night_per_period_migrated(self) -> None:
+        """正常系: DBに旧フィールド max_non_weekday_night_per_period を含むJSONが保存されている場合、
+        monthly_shift_limits.non_weekday_night として読み込める（後方互換）."""
+        from app.models.models import TenantRulesConfig
+        from app.models.rule_schemas import MonthlyShiftLimitsConfig
+        import uuid
+        from datetime import datetime
+
+        legacy_rules_json = {
+            "min_interval_days": 10,
+            "require_skill_ranks": ["rank_a"],
+            "allow_same_department": False,
+            "special_employment_shifts": ["weekday_night"],
+            "workers_per_slot": 2,
+            "max_non_weekday_night_per_period": 3,  # 旧フィールド
+        }
+
+        config = TenantRulesConfig()
+        config.id = uuid.uuid4()
+        config.tenant_id = TENANT_ID
+        config.rules_json = legacy_rules_json
+        config.warnings_json = {}
+        config.created_at = datetime(2026, 1, 1)
+        config.updated_at = datetime(2026, 1, 1)
+
+        session = MagicMock()
+        exec_result = MagicMock()
+        exec_result.first.return_value = config
+        session.exec.return_value = exec_result
+
+        result = shift_rules_service.get_shift_rules(session, TENANT_ID)
+
+        assert isinstance(result.shift_rules.monthly_shift_limits, MonthlyShiftLimitsConfig)
+        assert result.shift_rules.monthly_shift_limits.non_weekday_night == 3

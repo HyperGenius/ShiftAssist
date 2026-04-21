@@ -1,10 +1,11 @@
-// frontend/app/admin/settings/rules/page.tsx
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { MonthlyShiftLimitsTab } from "@/components/rules/MonthlyShiftLimitsTab";
 import { RulesSettingsForm } from "@/components/rules/RulesSettingsForm";
 import { TenantSettingsForm } from "@/components/settings/TenantSettingsForm";
+import { RulesTabsClient } from "@/components/rules/RulesTabsClient";
 
 export default async function RulesSettingsPage() {
   const { userId } = await auth();
@@ -36,7 +37,7 @@ export default async function RulesSettingsPage() {
       </nav>
 
       {/* メインコンテンツ */}
-      <main className="max-w-3xl mx-auto px-4 py-8 space-y-10">
+      <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900 tracking-wide">
             基本ルール設定
@@ -46,25 +47,11 @@ export default async function RulesSettingsPage() {
           </p>
         </div>
 
-        <section aria-labelledby="shift-rules-heading" className="space-y-6">
-          <h2
-            id="shift-rules-heading"
-            className="text-base font-semibold text-gray-800 border-b border-gray-200 pb-2"
-          >
-            シフトルール設定
-          </h2>
-          <RulesSettingsForm />
-        </section>
-
-        <section aria-labelledby="dept-settings-heading" className="space-y-6">
-          <h2
-            id="dept-settings-heading"
-            className="text-base font-semibold text-gray-800 border-b border-gray-200 pb-2"
-          >
-            シフト対象部門の設定
-          </h2>
-          <TenantSettingsForm />
-        </section>
+        <RulesTabsClient
+          shiftRulesTab={<RulesSettingsForm />}
+          tenantSettingsTab={<TenantSettingsForm />}
+          monthlyLimitsTab={<MonthlyShiftLimitsTab />}
+        />
       </main>
     </div>
   );

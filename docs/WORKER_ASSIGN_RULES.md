@@ -32,7 +32,9 @@ ShiftAssistでは、ユーザー体験とデータ整合性を両立させるた
 | 8a | `NEW_HIRE_TENURE` | `hired_tenure_months: int`（デフォルト: 6） | `transfer_type=hired` のワーカーが `joined_at` から `hired_tenure_months` ヶ月未満 | 可 |
 | 8b | `TRANSFER_TENURE` | `cross_division_transfer_tenure_months: int`（デフォルト: 3） | `transfer_type=transfer_in` かつ `is_cross_division_transfer=true` のワーカーが異動日から `cross_division_transfer_tenure_months` ヶ月未満 | 可 |
 | 11 | `TOTAL_AGE_LIMIT` | `max_total_age: int`（デフォルト: 120） | スロット内ワーカーの年齢合計（シフト日の月初時点）が `max_total_age` を超える。`0` で制限なし。`birth_date` が null のワーカーは除外（0歳扱い） | 可 |
-| 12 | `NON_WEEKDAY_NIGHT_LIMIT` | `max_non_weekday_night_per_period: int`（デフォルト: 1） | 同一シフト計画期間内（月次）で、同一ワーカーが平日夜間以外スロット（`sat_day` / `sat_night` / `sun_hol_day` / `sun_hol_night` / `long_hol_day` / `long_hol_night` / `sat_pre_hol_night`）に `max_non_weekday_night_per_period` 回を超えてアサインされている。`0` で制限なし。`weekday_night` スロットには適用しない | 可 |
+| 12 | `NON_WEEKDAY_NIGHT_LIMIT` | `monthly_shift_limits.non_weekday_night: int`（デフォルト: 1） | 同一シフト計画期間内（月次）で、同一ワーカーが平日夜間以外スロット（`sat_day` / `sat_night` / `sun_hol_day` / `sun_hol_night` / `long_hol_day` / `long_hol_night` / `sat_pre_hol_night`）に `non_weekday_night` 回を超えてアサインされている。`0` で制限なし。`weekday_night` スロットには適用しない | 可 |
+| 13 | `MONTHLY_TOTAL_LIMIT` | `monthly_shift_limits.monthly_total: int`（デフォルト: 2） | 同一シフト計画期間（月次）で、同一ワーカーの全スロット合計アサイン回数が上限を超えている。`0` で制限なし | 可 |
+| 14 | `MONTHLY_WEEKDAY_NIGHT_LIMIT` | `monthly_shift_limits.weekday_night: int`（デフォルト: 2） | 同一シフト計画期間（月次）で、同一ワーカーの `weekday_night` スロットへのアサイン回数が上限を超えている。`0` で制限なし | 可 |
 
 > **注意**: `ASSIGN_PROHIBITED` はカスタムルール（`custom_rules` テーブル）の `is_assign_prohibited` フィールドで制御する。グローバルルール（`ShiftRulesConfig`）の設定パラメータではない。
 
@@ -60,6 +62,11 @@ ShiftAssistでは、ユーザー体験とデータ整合性を両立させるた
 # backend: app/models/rule_schemas.py
 # frontend: frontend/types/shiftRules.ts
 
+MonthlyShiftLimitsConfig:
+  monthly_total: int = 2        # 全スロット合計の月間上限
+  weekday_night: int = 2        # weekday_night の月間上限
+  non_weekday_night: int = 1    # 平日夜間以外スロットの月間上限（旧 max_non_weekday_night_per_period）
+
 ShiftRulesConfig:
   min_interval_days: int = 10
   require_skill_ranks: list[str] = ["rank_a"]
@@ -71,7 +78,7 @@ ShiftRulesConfig:
   hired_tenure_months: int = 6
   cross_division_transfer_tenure_months: int = 3
   max_total_age: int = 120
-  max_non_weekday_night_per_period: int = 1
+  monthly_shift_limits: MonthlyShiftLimitsConfig = MonthlyShiftLimitsConfig()
 
 ShiftWarningsConfig:
   avoid_consecutive_holidays: bool = True
@@ -89,6 +96,8 @@ AnnualShiftLimitsConfig:
 
 > `target_departments` / `target_all_departments` はアサイン可能部門の絞り込みに使用。バックエンドの `_validate_worker_departments` で検証される（ビジネスルールとは独立した前提チェック）。
 > `hired_tenure_months` / `cross_division_transfer_tenure_months` は `0` を指定すると制限なしとして扱う。
+> `monthly_shift_limits` の各フィールドも `0` を指定すると制限なしとして扱う。
+> 旧フィールド `max_non_weekday_night_per_period` を含む DB レコードは、Pydantic の `@model_validator(mode="before")` により自動的に `monthly_shift_limits.non_weekday_night` へ移行される（後方互換）。
 
 ---
 
@@ -138,6 +147,8 @@ AnnualShiftLimitsConfig:
 | フロントエンド: スマートサジェスト行コンポーネント（6カラムGrid） | `frontend/components/shift-calendar/SmartSuggestRow.tsx` |
 | フロントエンド: 対応者リストパネル（スマートソート・集計連携） | `frontend/components/shift-calendar/WorkerListPanel.tsx` |
 | フロントエンド: ルール設定フォーム | `frontend/components/rules/RulesSettingsForm.tsx` |
+| フロントエンド: タブ切り替えクライアントコンポーネント | `frontend/components/rules/RulesTabsClient.tsx` |
+| フロントエンド: 月間シフト回数上限設定タブ | `frontend/components/rules/MonthlyShiftLimitsTab.tsx` |
 | バックエンド: バリデーションテスト | `backend/tests/unit/test_shift_validation_service.py` |
 | バックエンド: ルールサービステスト | `backend/tests/unit/test_shift_rules_service.py` |
 | バックエンド: シフト要件テスト | `backend/tests/unit/test_shift_requirement_service.py` |

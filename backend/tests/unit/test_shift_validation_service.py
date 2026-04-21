@@ -1764,3 +1764,390 @@ class TestAnnualLimitOverrides:
         warning_codes = [v.code for v in result if v.severity == "warning"]
         # 9+1=10 = 上限 → 違反なし
         assert "ANNUAL_WEEKDAY_NIGHT" not in warning_codes
+
+
+# ---------------------------------------------------------------------------
+# _check_non_weekday_night_limit（monthly_shift_limits 移行後）
+# ---------------------------------------------------------------------------
+
+
+class TestCheckNonWeekdayNightLimit:
+    """_check_non_weekday_night_limit のテスト（monthly_shift_limits.non_weekday_night 参照）."""
+
+    def test_non_weekday_night_violation_detected(self) -> None:
+        """異常系: 今月の平日夜間以外シフトが上限超えの場合、NON_WEEKDAY_NIGHT_LIMIT を返す."""
+        from app.models.rule_schemas import MonthlyShiftLimitsConfig
+
+        # 既存アサイン1件（上限1）→ 今回で2件になり違反
+        session = MagicMock()
+        session.exec.return_value = MagicMock(**{"all.return_value": [MagicMock()]})
+
+        req = _make_requirement(shift_date_str="2026-04-15", slot_type="sat_day")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        rules = ShiftRulesConfig(
+            monthly_shift_limits=MonthlyShiftLimitsConfig(non_weekday_night=1)
+        )
+
+        result = shift_validation_service._check_non_weekday_night_limit(
+            session, TENANT_ID, req, [worker], rules
+        )
+
+        codes = [v.code for v in result]
+        assert "NON_WEEKDAY_NIGHT_LIMIT" in codes
+        assert result[0].severity == "error"
+
+    def test_non_weekday_night_no_violation_under_limit(self) -> None:
+        """正常系: 今月の平日夜間以外シフトが上限以下の場合、違反なし."""
+        from app.models.rule_schemas import MonthlyShiftLimitsConfig
+
+        # 既存アサイン0件（上限1）→ 今回で1件になり違反なし
+        session = MagicMock()
+        session.exec.return_value = MagicMock(**{"all.return_value": []})
+
+        req = _make_requirement(shift_date_str="2026-04-15", slot_type="sat_night")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        rules = ShiftRulesConfig(
+            monthly_shift_limits=MonthlyShiftLimitsConfig(non_weekday_night=1)
+        )
+
+        result = shift_validation_service._check_non_weekday_night_limit(
+            session, TENANT_ID, req, [worker], rules
+        )
+
+        assert result == []
+
+    def test_non_weekday_night_zero_limit_no_restriction(self) -> None:
+        """正常系: non_weekday_night=0 の場合は制限なし."""
+        from app.models.rule_schemas import MonthlyShiftLimitsConfig
+
+        session = MagicMock()
+        req = _make_requirement(shift_date_str="2026-04-15", slot_type="sat_day")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        rules = ShiftRulesConfig(
+            monthly_shift_limits=MonthlyShiftLimitsConfig(non_weekday_night=0)
+        )
+
+        result = shift_validation_service._check_non_weekday_night_limit(
+            session, TENANT_ID, req, [worker], rules
+        )
+
+        assert result == []
+        session.exec.assert_not_called()
+
+    def test_non_weekday_night_not_applied_to_weekday_night(self) -> None:
+        """正常系: weekday_night スロットには NON_WEEKDAY_NIGHT_LIMIT を適用しない."""
+        from app.models.rule_schemas import MonthlyShiftLimitsConfig
+
+        session = MagicMock()
+        req = _make_requirement(shift_date_str="2026-04-15", slot_type="weekday_night")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        rules = ShiftRulesConfig(
+            monthly_shift_limits=MonthlyShiftLimitsConfig(non_weekday_night=1)
+        )
+
+        result = shift_validation_service._check_non_weekday_night_limit(
+            session, TENANT_ID, req, [worker], rules
+        )
+
+        assert result == []
+        session.exec.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _check_monthly_total_limit
+# ---------------------------------------------------------------------------
+
+
+class TestCheckMonthlyTotalLimit:
+    """_check_monthly_total_limit のテスト."""
+
+    def test_monthly_total_violation_detected(self) -> None:
+        """異常系: 今月の総シフト回数が上限超えの場合、MONTHLY_TOTAL_LIMIT を返す."""
+        from app.models.rule_schemas import MonthlyShiftLimitsConfig
+
+        # 既存アサイン2件（上限2）→ 今回で3件になり違反
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"all.return_value": [MagicMock(), MagicMock()]}
+        )
+
+        req = _make_requirement(shift_date_str="2026-04-15", slot_type="weekday_night")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        rules = ShiftRulesConfig(
+            monthly_shift_limits=MonthlyShiftLimitsConfig(monthly_total=2)
+        )
+
+        result = shift_validation_service._check_monthly_total_limit(
+            session, TENANT_ID, req, [worker], rules
+        )
+
+        codes = [v.code for v in result]
+        assert "MONTHLY_TOTAL_LIMIT" in codes
+        assert result[0].severity == "error"
+
+    def test_monthly_total_no_violation_under_limit(self) -> None:
+        """正常系: 今月の総シフト回数が上限以下の場合、違反なし."""
+        from app.models.rule_schemas import MonthlyShiftLimitsConfig
+
+        # 既存アサイン1件（上限2）→ 今回で2件になり違反なし
+        session = MagicMock()
+        session.exec.return_value = MagicMock(**{"all.return_value": [MagicMock()]})
+
+        req = _make_requirement(shift_date_str="2026-04-15", slot_type="sat_day")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        rules = ShiftRulesConfig(
+            monthly_shift_limits=MonthlyShiftLimitsConfig(monthly_total=2)
+        )
+
+        result = shift_validation_service._check_monthly_total_limit(
+            session, TENANT_ID, req, [worker], rules
+        )
+
+        assert result == []
+
+    def test_monthly_total_zero_means_no_restriction(self) -> None:
+        """正常系: monthly_total=0 の場合は制限なし."""
+        from app.models.rule_schemas import MonthlyShiftLimitsConfig
+
+        session = MagicMock()
+        req = _make_requirement(shift_date_str="2026-04-15", slot_type="weekday_night")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        rules = ShiftRulesConfig(
+            monthly_shift_limits=MonthlyShiftLimitsConfig(monthly_total=0)
+        )
+
+        result = shift_validation_service._check_monthly_total_limit(
+            session, TENANT_ID, req, [worker], rules
+        )
+
+        assert result == []
+        session.exec.assert_not_called()
+
+    def test_monthly_total_applies_to_all_slot_types(self) -> None:
+        """正常系: 全スロット種別がカウント対象となる."""
+        from app.models.rule_schemas import MonthlyShiftLimitsConfig
+
+        # 既存アサイン2件（sat_day含む）、上限2 → 違反
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"all.return_value": [MagicMock(), MagicMock()]}
+        )
+
+        req = _make_requirement(shift_date_str="2026-04-20", slot_type="sun_hol_day")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        rules = ShiftRulesConfig(
+            monthly_shift_limits=MonthlyShiftLimitsConfig(monthly_total=2)
+        )
+
+        result = shift_validation_service._check_monthly_total_limit(
+            session, TENANT_ID, req, [worker], rules
+        )
+
+        codes = [v.code for v in result]
+        assert "MONTHLY_TOTAL_LIMIT" in codes
+
+    def test_monthly_total_included_in_validate_shift_assignments(self) -> None:
+        """正常系: validate_shift_assignments から MONTHLY_TOTAL_LIMIT チェックが呼ばれる."""
+        from unittest.mock import patch
+
+        from app.models.rule_schemas import MonthlyShiftLimitsConfig
+
+        req = _make_requirement(slot_type="weekday_night", shift_date_str="2026-04-15")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        rules = ShiftRulesConfig(
+            monthly_shift_limits=MonthlyShiftLimitsConfig(monthly_total=2)
+        )
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+
+        with patch.object(
+            shift_validation_service,
+            "_check_monthly_total_limit",
+            return_value=[
+                __import__(
+                    "app.models.rule_schemas", fromlist=["ValidationViolationItem"]
+                ).ValidationViolationItem(
+                    code="MONTHLY_TOTAL_LIMIT",
+                    severity="error",
+                    message="テストワーカー は今月の総シフト回数が上限（2回）を超えています（現在: 3回）",
+                    worker_ids=[str(WORKER_ID_1)],
+                )
+            ],
+        ) as mock_check:
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [worker], rules
+            )
+            mock_check.assert_called_once()
+
+        codes = [v.code for v in result]
+        assert "MONTHLY_TOTAL_LIMIT" in codes
+
+
+# ---------------------------------------------------------------------------
+# _check_monthly_weekday_night_limit
+# ---------------------------------------------------------------------------
+
+
+class TestCheckMonthlyWeekdayNightLimit:
+    """_check_monthly_weekday_night_limit のテスト."""
+
+    def test_monthly_weekday_night_violation_detected(self) -> None:
+        """異常系: 今月の weekday_night シフトが上限超えの場合、MONTHLY_WEEKDAY_NIGHT_LIMIT を返す."""
+        from app.models.rule_schemas import MonthlyShiftLimitsConfig
+
+        # 既存アサイン2件（上限2）→ 今回で3件になり違反
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"all.return_value": [MagicMock(), MagicMock()]}
+        )
+
+        req = _make_requirement(shift_date_str="2026-04-15", slot_type="weekday_night")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        rules = ShiftRulesConfig(
+            monthly_shift_limits=MonthlyShiftLimitsConfig(weekday_night=2)
+        )
+
+        result = shift_validation_service._check_monthly_weekday_night_limit(
+            session, TENANT_ID, req, [worker], rules
+        )
+
+        codes = [v.code for v in result]
+        assert "MONTHLY_WEEKDAY_NIGHT_LIMIT" in codes
+        assert result[0].severity == "error"
+
+    def test_monthly_weekday_night_no_violation_under_limit(self) -> None:
+        """正常系: 今月の weekday_night シフトが上限以下の場合、違反なし."""
+        from app.models.rule_schemas import MonthlyShiftLimitsConfig
+
+        # 既存アサイン1件（上限2）→ 今回で2件
+        session = MagicMock()
+        session.exec.return_value = MagicMock(**{"all.return_value": [MagicMock()]})
+
+        req = _make_requirement(shift_date_str="2026-04-15", slot_type="weekday_night")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        rules = ShiftRulesConfig(
+            monthly_shift_limits=MonthlyShiftLimitsConfig(weekday_night=2)
+        )
+
+        result = shift_validation_service._check_monthly_weekday_night_limit(
+            session, TENANT_ID, req, [worker], rules
+        )
+
+        assert result == []
+
+    def test_monthly_weekday_night_zero_means_no_restriction(self) -> None:
+        """正常系: weekday_night=0 の場合は制限なし."""
+        from app.models.rule_schemas import MonthlyShiftLimitsConfig
+
+        session = MagicMock()
+        req = _make_requirement(shift_date_str="2026-04-15", slot_type="weekday_night")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        rules = ShiftRulesConfig(
+            monthly_shift_limits=MonthlyShiftLimitsConfig(weekday_night=0)
+        )
+
+        result = shift_validation_service._check_monthly_weekday_night_limit(
+            session, TENANT_ID, req, [worker], rules
+        )
+
+        assert result == []
+        session.exec.assert_not_called()
+
+    def test_monthly_weekday_night_not_applied_to_non_weekday_slot(self) -> None:
+        """正常系: weekday_night 以外のスロットには MONTHLY_WEEKDAY_NIGHT_LIMIT を適用しない."""
+        from app.models.rule_schemas import MonthlyShiftLimitsConfig
+
+        session = MagicMock()
+        req = _make_requirement(shift_date_str="2026-04-15", slot_type="sat_day")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        rules = ShiftRulesConfig(
+            monthly_shift_limits=MonthlyShiftLimitsConfig(weekday_night=2)
+        )
+
+        result = shift_validation_service._check_monthly_weekday_night_limit(
+            session, TENANT_ID, req, [worker], rules
+        )
+
+        assert result == []
+        session.exec.assert_not_called()
+
+    def test_monthly_weekday_night_included_in_validate_shift_assignments(self) -> None:
+        """正常系: validate_shift_assignments から MONTHLY_WEEKDAY_NIGHT_LIMIT チェックが呼ばれる."""
+        from unittest.mock import patch
+
+        from app.models.rule_schemas import MonthlyShiftLimitsConfig
+
+        req = _make_requirement(slot_type="weekday_night", shift_date_str="2026-04-15")
+        worker = _make_worker(worker_id=WORKER_ID_1, department_id=DEPT_A_ID)
+        rules = ShiftRulesConfig(
+            monthly_shift_limits=MonthlyShiftLimitsConfig(weekday_night=2)
+        )
+
+        session = MagicMock()
+        session.exec.return_value = MagicMock(
+            **{"first.return_value": None, "all.return_value": []}
+        )
+
+        with patch.object(
+            shift_validation_service,
+            "_check_monthly_weekday_night_limit",
+            return_value=[
+                __import__(
+                    "app.models.rule_schemas", fromlist=["ValidationViolationItem"]
+                ).ValidationViolationItem(
+                    code="MONTHLY_WEEKDAY_NIGHT_LIMIT",
+                    severity="error",
+                    message="テストワーカー は今月の平日夜間シフト回数が上限（2回）を超えています（現在: 3回）",
+                    worker_ids=[str(WORKER_ID_1)],
+                )
+            ],
+        ) as mock_check:
+            result = shift_validation_service.validate_shift_assignments(
+                session, TENANT_ID, req, [worker], rules
+            )
+            mock_check.assert_called_once()
+
+        codes = [v.code for v in result]
+        assert "MONTHLY_WEEKDAY_NIGHT_LIMIT" in codes
+
+
+# ---------------------------------------------------------------------------
+# ShiftRulesConfig 後方互換テスト（model_validator）
+# ---------------------------------------------------------------------------
+
+
+class TestShiftRulesConfigBackwardCompat:
+    """ShiftRulesConfig の後方互換（旧 max_non_weekday_night_per_period フィールド）のテスト."""
+
+    def test_legacy_field_migrated_to_monthly_shift_limits(self) -> None:
+        """正常系: 旧 max_non_weekday_night_per_period キーを monthly_shift_limits.non_weekday_night に変換する."""
+        from app.models.rule_schemas import ShiftRulesConfig
+
+        config = ShiftRulesConfig.model_validate(
+            {"max_non_weekday_night_per_period": 3}
+        )
+        assert config.monthly_shift_limits.non_weekday_night == 3
+
+    def test_legacy_field_not_overwrite_existing_monthly_shift_limits(self) -> None:
+        """正常系: monthly_shift_limits が明示的に指定されている場合は旧フィールドで上書きしない."""
+        from app.models.rule_schemas import MonthlyShiftLimitsConfig, ShiftRulesConfig
+
+        config = ShiftRulesConfig.model_validate(
+            {
+                "max_non_weekday_night_per_period": 5,
+                "monthly_shift_limits": {"non_weekday_night": 2},
+            }
+        )
+        assert config.monthly_shift_limits.non_weekday_night == 2
+
+    def test_default_monthly_shift_limits_applied_when_no_legacy_field(self) -> None:
+        """正常系: 旧フィールドがない場合はデフォルト値が使用される."""
+        from app.models.rule_schemas import ShiftRulesConfig
+
+        config = ShiftRulesConfig()
+        assert config.monthly_shift_limits.monthly_total == 2
+        assert config.monthly_shift_limits.weekday_night == 2
+        assert config.monthly_shift_limits.non_weekday_night == 1
