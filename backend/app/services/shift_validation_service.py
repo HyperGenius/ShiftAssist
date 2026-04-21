@@ -623,11 +623,13 @@ def _check_position_exclusion(
     requirement: ShiftRequirement,
     workers: list[Worker],
 ) -> list[ValidationViolationItem]:
-    """ルール7: 役職除外チェック（長期休暇期間中の除外フラグを持つ役職のアサイン禁止）."""
+    """ルール7: 役職除外チェック.
+
+    - is_excluded_from_all_shifts=True の役職はシフト種別に関わらず全アサイン禁止。
+    - 長期休暇期間中は、休暇種別に応じた除外フラグも評価する。
+    """
     shift_date: date = requirement.shift_date  # type: ignore[assignment]
     period = get_period_for_date(session, tenant_id, shift_date)
-    if period is None:
-        return []
 
     violations: list[ValidationViolationItem] = []
     for worker in workers:
@@ -641,7 +643,24 @@ def _check_position_exclusion(
         ).first()
         if position is None:
             continue
-        if is_holiday_type_excluded_by_position(period.holiday_type, position):  # type: ignore[arg-type]
+        # is_excluded_from_all_shifts は長期休暇期間外でも適用する
+        if position.is_excluded_from_all_shifts:
+            violations.append(
+                ValidationViolationItem(
+                    code="POSITION_EXCLUDED",
+                    severity="error",
+                    message=(
+                        f"{worker.name} の役職（{position.name}）は"
+                        f"全シフトへのアサインが除外されています"
+                    ),
+                    worker_ids=[str(worker.id)],
+                )
+            )
+            continue
+        # 長期休暇期間中は休暇種別ごとの除外フラグを評価する
+        if period is not None and is_holiday_type_excluded_by_position(
+            cast(LongHolidayTypeEnum, period.holiday_type), position
+        ):  # type: ignore[arg-type]
             violations.append(
                 ValidationViolationItem(
                     code="POSITION_EXCLUDED",

@@ -111,6 +111,7 @@ export function WorkerListPanel({
       minIntervalDays,
       prevMonthDatesByWorker,
       employmentTypeMap,
+      positions,
       customRules,
     });
 

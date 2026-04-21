@@ -145,6 +145,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
     /* annualLimits= */ annualLimits,
     employmentTypes,
     customRules,
+    positions,
   );
 
   const holidayMap = useMemo(() => getHolidayMap(year, month), [year, month]);
@@ -180,6 +181,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
     minIntervalDays,
     prevMonthDatesByWorker,
     employmentTypeMap,
+    positions,
     customRules,
   });
 

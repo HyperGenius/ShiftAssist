@@ -6,6 +6,7 @@ import { useMemo } from "react";
 
 import type { CustomRule } from "@/types/customRule";
 import type { EmploymentType } from "@/types/employmentType";
+import type { Position } from "@/types/position";
 import type { CalendarState, SlotType } from "@/types/shiftRequirement";
 import type { AnnualShiftLimitsConfig, ShiftRulesConfig } from "@/types/shiftRules";
 import type { TenantSkillRank } from "@/types/skillRank";
@@ -35,6 +36,8 @@ export type ValidationMap = Record<SlotKey, ValidationViolation[]>;
  * annualWorkerStats と annualLimits を渡すと、年間シフト回数上限チェックも実行される。
  *
  * customRules を渡すと、カスタムルールを雇用形態ルールより優先して適用する。
+ *
+ * positions を渡すと、is_excluded_from_all_shifts=true の役職を持つWorkerの違反を検出できる。
  */
 export function useShiftValidation(
   calendarState: CalendarState,
@@ -46,6 +49,7 @@ export function useShiftValidation(
   annualLimits?: AnnualShiftLimitsConfig,
   employmentTypes?: EmploymentType[],
   customRules?: CustomRule[],
+  positions?: Position[],
 ): ValidationMap {
   const workerMap = useMemo(
     () => new Map(workers.map((w) => [w.id, w])),
@@ -86,6 +90,12 @@ export function useShiftValidation(
     [customRules],
   );
 
+  /** 役職マップ（position_id → Position）。 */
+  const positionMap = useMemo(
+    () => positions ? new Map(positions.map((p) => [p.id, p])) : undefined,
+    [positions],
+  );
+
   const validationMap = useMemo(() => {
     const result: ValidationMap = {};
 
@@ -105,6 +115,7 @@ export function useShiftValidation(
           annualLimits,
           employmentTypeMap,
           customRuleMap,
+          positionMap,
         );
         if (violations.length > 0) {
           result[buildSlotKey(dateStr, slotType as SlotType)] = violations;
@@ -113,7 +124,7 @@ export function useShiftValidation(
     }
 
     return result;
-  }, [calendarState, workerMap, rules, skillRankMap, prevMonthDatesByWorker, workerStatsMap, annualLimits, employmentTypeMap, customRuleMap]);
+  }, [calendarState, workerMap, rules, skillRankMap, prevMonthDatesByWorker, workerStatsMap, annualLimits, employmentTypeMap, customRuleMap, positionMap]);
 
   return validationMap;
 }
