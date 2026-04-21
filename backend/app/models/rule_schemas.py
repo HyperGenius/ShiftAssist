@@ -1,7 +1,36 @@
 # backend/app/models/rule_schemas.py
 """シフトルール定義・バリデーション違反に関するPydanticスキーマ定義."""
 
-from pydantic import BaseModel, field_validator
+from typing import Any
+
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+class MonthlyShiftLimitsConfig(BaseModel):
+    """月間シフト回数上限設定スキーマ.
+
+    1ワーカーあたりの月間合計に対する上限。
+    0 を指定すると制限なしとして扱う。
+    """
+
+    monthly_total: int = 2
+    """全スロット合計の月間上限。"""
+
+    weekday_night: int = 2
+    """weekday_night の月間上限。"""
+
+    non_weekday_night: int = 1
+    """平日夜間以外スロット（sat_day / sat_night / sun_hol_day / sun_hol_night /
+    long_hol_day / long_hol_night / sat_pre_hol_night）の月間上限。
+    旧 max_non_weekday_night_per_period に対応。"""
+
+    @field_validator("monthly_total", "weekday_night", "non_weekday_night")
+    @classmethod
+    def limits_non_negative(cls, v: int) -> int:
+        """月間上限値は0以上でなければならない."""
+        if v < 0:
+            raise ValueError("値は0以上の値を指定してください")
+        return v
 
 
 class ShiftRulesConfig(BaseModel):
@@ -42,13 +71,30 @@ class ShiftRulesConfig(BaseModel):
     max_total_age: int = 120
     """スロット内ワーカーの合計年齢上限。0 で制限なし。"""
 
-    max_non_weekday_night_per_period: int = 1
-    """1シフト計画期間内の平日夜間以外スロットへのアサイン上限回数。0 で制限なし。"""
+    monthly_shift_limits: MonthlyShiftLimitsConfig = Field(
+        default_factory=MonthlyShiftLimitsConfig
+    )
+    """月間シフト回数上限設定。"""
 
-    @field_validator("max_total_age", "max_non_weekday_night_per_period")
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_fields(cls, values: Any) -> Any:
+        """旧フィールド（max_non_weekday_night_per_period）を monthly_shift_limits へ移行する.
+
+        DBに保存された古いJSONに max_non_weekday_night_per_period キーが含まれる場合、
+        monthly_shift_limits.non_weekday_night へ自動変換する。
+        """
+        if not isinstance(values, dict):
+            return values
+        legacy_val = values.pop("max_non_weekday_night_per_period", None)
+        if legacy_val is not None and "monthly_shift_limits" not in values:
+            values["monthly_shift_limits"] = {"non_weekday_night": int(legacy_val)}
+        return values
+
+    @field_validator("max_total_age")
     @classmethod
     def new_rules_non_negative(cls, v: int) -> int:
-        """合計年齢上限・平日夜間以外回数上限は0以上でなければならない."""
+        """合計年齢上限は0以上でなければならない."""
         if v < 0:
             raise ValueError("値は0以上の値を指定してください")
         return v

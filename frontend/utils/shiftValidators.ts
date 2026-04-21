@@ -21,7 +21,9 @@ export type ValidationCode =
   | "NEW_HIRE_TENURE" // 採用後の期間制限
   | "TRANSFER_TENURE" // 事業本部間転入後の期間制限
   | "TOTAL_AGE_LIMIT" // スロット内ワーカーの合計年齢上限超過
-  | "NON_WEEKDAY_NIGHT_LIMIT" // 平日夜間以外シフト回数上限超過
+  | "NON_WEEKDAY_NIGHT_LIMIT" // 月間平日夜間以外シフト回数上限超過
+  | "MONTHLY_TOTAL_LIMIT" // 月間総シフト回数上限超過
+  | "MONTHLY_WEEKDAY_NIGHT_LIMIT" // 月間平日夜間シフト回数上限超過
   | "CONSECUTIVE_HOLIDAYS" // 休日の連続アサイン (Warning)
   | "ANNUAL_TOTAL_SHIFTS" // 年間総シフト回数上限 (Warning)
   | "ANNUAL_WEEKDAY_NIGHT" // 年間平日夜間上限 (Warning)
@@ -776,8 +778,8 @@ const NON_WEEKDAY_NIGHT_SLOT_TYPES = new Set<SlotType>([
 /**
  * ルール: 平日夜間以外シフト回数上限チェック（NON_WEEKDAY_NIGHT_LIMIT）
  * 対象スロットが平日夜間以外のとき、calendarState 内で同一ワーカーが
- * max_non_weekday_night_per_period 回以上の平日夜間以外スロットにアサインされていれば
- * エラーを返す。max_non_weekday_night_per_period が 0 の場合は制限なし。
+ * monthly_shift_limits.non_weekday_night 回以上の平日夜間以外スロットにアサインされていれば
+ * エラーを返す。non_weekday_night が 0 の場合は制限なし。
  * 対象スロットが weekday_night の場合はルールを適用しない。
  */
 export function validateNonWeekdayNightLimit(
@@ -786,9 +788,9 @@ export function validateNonWeekdayNightLimit(
   workers: readonly (string | null)[],
   calendarState: CalendarState,
   workerMap: Map<string, Worker>,
-  rules: Pick<ShiftRulesConfig, "max_non_weekday_night_per_period">,
+  rules: Pick<ShiftRulesConfig, "monthly_shift_limits">,
 ): ValidationViolation[] {
-  const limit = rules.max_non_weekday_night_per_period ?? 1;
+  const limit = rules.monthly_shift_limits?.non_weekday_night ?? 1;
   if (limit === 0) return [];
   if (!NON_WEEKDAY_NIGHT_SLOT_TYPES.has(slotType)) return [];
 
@@ -817,6 +819,103 @@ export function validateNonWeekdayNightLimit(
         code: "NON_WEEKDAY_NIGHT_LIMIT",
         severity: "error",
         message: `${worker.name} は今月の平日夜間以外シフト回数が上限（${limit}回）を超えています（現在: ${count + 1}回）`,
+        workerIds: [workerId],
+      });
+    }
+  }
+
+  return violations;
+}
+
+/**
+ * ルール: 月間総シフト回数上限チェック（MONTHLY_TOTAL_LIMIT）
+ * calendarState 内で同一ワーカーの全スロット合計アサイン回数が
+ * monthly_shift_limits.monthly_total を超えていればエラーを返す。
+ * monthly_total が 0 の場合は制限なし。
+ */
+export function validateMonthlyTotalLimit(
+  dateStr: string,
+  slotType: SlotType,
+  workers: readonly (string | null)[],
+  calendarState: CalendarState,
+  workerMap: Map<string, Worker>,
+  rules: Pick<ShiftRulesConfig, "monthly_shift_limits">,
+): ValidationViolation[] {
+  const limit = rules.monthly_shift_limits?.monthly_total ?? 2;
+  if (limit === 0) return [];
+
+  const assignedWorkers = workers.filter((id): id is string => id !== null);
+  const violations: ValidationViolation[] = [];
+
+  for (const workerId of assignedWorkers) {
+    const worker = workerMap.get(workerId);
+    if (!worker) continue;
+
+    let count = 0;
+    for (const [calDateStr, dayState] of Object.entries(calendarState)) {
+      for (const [calSlotType, slotState] of Object.entries(dayState)) {
+        if (calDateStr === dateStr && calSlotType === slotType) continue;
+        if (slotState.workerSelections.includes(workerId)) {
+          count += 1;
+        }
+      }
+    }
+
+    if (count + 1 > limit) {
+      violations.push({
+        code: "MONTHLY_TOTAL_LIMIT",
+        severity: "error",
+        message: `${worker.name} は今月の総シフト回数が上限（${limit}回）を超えています（現在: ${count + 1}回）`,
+        workerIds: [workerId],
+      });
+    }
+  }
+
+  return violations;
+}
+
+/**
+ * ルール: 月間平日夜間シフト回数上限チェック（MONTHLY_WEEKDAY_NIGHT_LIMIT）
+ * 対象スロットが weekday_night のとき、calendarState 内で同一ワーカーの
+ * weekday_night アサイン回数が monthly_shift_limits.weekday_night を超えていればエラーを返す。
+ * weekday_night が 0 の場合は制限なし。
+ * 対象スロットが weekday_night 以外の場合はルールを適用しない。
+ */
+export function validateMonthlyWeekdayNightLimit(
+  dateStr: string,
+  slotType: SlotType,
+  workers: readonly (string | null)[],
+  calendarState: CalendarState,
+  workerMap: Map<string, Worker>,
+  rules: Pick<ShiftRulesConfig, "monthly_shift_limits">,
+): ValidationViolation[] {
+  const limit = rules.monthly_shift_limits?.weekday_night ?? 2;
+  if (limit === 0) return [];
+  if (slotType !== "weekday_night") return [];
+
+  const assignedWorkers = workers.filter((id): id is string => id !== null);
+  const violations: ValidationViolation[] = [];
+
+  for (const workerId of assignedWorkers) {
+    const worker = workerMap.get(workerId);
+    if (!worker) continue;
+
+    let count = 0;
+    for (const [calDateStr, dayState] of Object.entries(calendarState)) {
+      for (const [calSlotType, slotState] of Object.entries(dayState)) {
+        if (calDateStr === dateStr && calSlotType === slotType) continue;
+        if (calSlotType !== "weekday_night") continue;
+        if (slotState.workerSelections.includes(workerId)) {
+          count += 1;
+        }
+      }
+    }
+
+    if (count + 1 > limit) {
+      violations.push({
+        code: "MONTHLY_WEEKDAY_NIGHT_LIMIT",
+        severity: "error",
+        message: `${worker.name} は今月の平日夜間シフト回数が上限（${limit}回）を超えています（現在: ${count + 1}回）`,
         workerIds: [workerId],
       });
     }
@@ -861,6 +960,12 @@ export function validateSlot(
     ...(rules ? validateTotalAgeLimit(workers, workerMap, rules, dateStr) : []),
     ...(rules
       ? validateNonWeekdayNightLimit(dateStr, slotType, workers, calendarState, workerMap, rules)
+      : []),
+    ...(rules
+      ? validateMonthlyTotalLimit(dateStr, slotType, workers, calendarState, workerMap, rules)
+      : []),
+    ...(rules
+      ? validateMonthlyWeekdayNightLimit(dateStr, slotType, workers, calendarState, workerMap, rules)
       : []),
   ];
 }

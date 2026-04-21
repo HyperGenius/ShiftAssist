@@ -1203,6 +1203,62 @@ def _check_total_age_limit(
     ]
 
 
+def _get_month_range(shift_date: date) -> tuple[date, date]:
+    """シフト日が属する月の開始日・終了日を返す.
+
+    Args:
+        shift_date: 対象シフト日。
+
+    Returns:
+        タプル (月初日, 月末日)。例: (2026-04-01, 2026-04-30)。
+    """
+    import calendar
+
+    month_start = shift_date.replace(day=1)
+    last_day = calendar.monthrange(shift_date.year, shift_date.month)[1]
+    month_end = shift_date.replace(day=last_day)
+    return month_start, month_end
+
+
+def _count_monthly_assignments(
+    session: Session,
+    tenant_id: str,
+    worker_id: object,
+    month_start: date,
+    month_end: date,
+    slot_types: list[str] | None,
+    exclude_requirement_id: object,
+) -> int:
+    """指定期間・スロット種別の月間アサイン数をカウントする.
+
+    Args:
+        session: データベースセッション。
+        tenant_id: テナントID。
+        worker_id: ワーカーID。
+        month_start: 月の開始日。
+        month_end: 月の終了日。
+        slot_types: 対象スロット種別リスト。None の場合は全スロットを対象とする。
+        exclude_requirement_id: 除外する requirement_id（現在のアサイン対象）。
+    """
+    stmt = (
+        select(ShiftRequirementAssignment)
+        .join(
+            ShiftRequirement,
+            ShiftRequirementAssignment.requirement_id == ShiftRequirement.id,  # type: ignore[arg-type]
+        )
+        .where(
+            ShiftRequirementAssignment.worker_id == worker_id,
+            ShiftRequirementAssignment.tenant_id == tenant_id,
+            ShiftRequirement.shift_date >= month_start,
+            ShiftRequirement.shift_date <= month_end,
+            ShiftRequirementAssignment.requirement_id != exclude_requirement_id,  # type: ignore[arg-type]
+        )
+    )
+    if slot_types is not None:
+        stmt = stmt.where(ShiftRequirement.slot_type.in_(slot_types))  # type: ignore[union-attr]
+    return len(session.exec(stmt).all())
+
+
 def _check_non_weekday_night_limit(
     session: Session,
     tenant_id: str,
@@ -1210,15 +1266,16 @@ def _check_non_weekday_night_limit(
     workers: list[Worker],
     rules: ShiftRulesConfig,
 ) -> list[ValidationViolationItem]:
-    """平日夜間以外シフト回数上限チェック.
+    """平日夜間以外シフト回数上限チェック（NON_WEEKDAY_NIGHT_LIMIT）.
 
     対象スロットが平日夜間以外（``weekday_night`` 以外）のとき、
-    同一シフト計画（``ShiftPlan``）内で各ワーカーがすでに
-    ``max_non_weekday_night_per_period`` 回以上の平日夜間以外スロットに
+    同一月内で各ワーカーがすでに
+    ``monthly_shift_limits.non_weekday_night`` 回以上の平日夜間以外スロットに
     アサインされている場合にエラーを返す。
-    ``max_non_weekday_night_per_period`` が 0 の場合は制限なし。
+    ``non_weekday_night`` が 0 の場合は制限なし。
     """
-    if rules.max_non_weekday_night_per_period == 0:
+    limit = rules.monthly_shift_limits.non_weekday_night
+    if limit == 0:
         return []
 
     slot_type_str = str(requirement.slot_type)
@@ -1226,42 +1283,126 @@ def _check_non_weekday_night_limit(
         return []
 
     shift_date: date = requirement.shift_date  # type: ignore[assignment]
-    import calendar
-
-    month_start = shift_date.replace(day=1)
-    last_day = calendar.monthrange(shift_date.year, shift_date.month)[1]
-    month_end = shift_date.replace(day=last_day)
+    month_start, month_end = _get_month_range(shift_date)
 
     violations: list[ValidationViolationItem] = []
     for worker in workers:
-        count = len(
-            session.exec(
-                select(ShiftRequirementAssignment)
-                .join(
-                    ShiftRequirement,
-                    ShiftRequirementAssignment.requirement_id == ShiftRequirement.id,  # type: ignore[arg-type]
-                )
-                .where(
-                    ShiftRequirementAssignment.worker_id == worker.id,
-                    ShiftRequirementAssignment.tenant_id == tenant_id,
-                    ShiftRequirement.shift_date >= month_start,
-                    ShiftRequirement.shift_date <= month_end,
-                    ShiftRequirement.slot_type.in_(  # type: ignore[union-attr]
-                        list(_NON_WEEKDAY_NIGHT_SLOT_TYPES)
-                    ),
-                    ShiftRequirementAssignment.requirement_id != requirement.id,  # type: ignore[arg-type]
-                )
-            ).all()
+        count = _count_monthly_assignments(
+            session,
+            tenant_id,
+            worker.id,
+            month_start,
+            month_end,
+            list(_NON_WEEKDAY_NIGHT_SLOT_TYPES),
+            requirement.id,
         )
         # 今回のアサイン分を含めてカウント
-        if count + 1 > rules.max_non_weekday_night_per_period:
+        if count + 1 > limit:
             violations.append(
                 ValidationViolationItem(
                     code="NON_WEEKDAY_NIGHT_LIMIT",
                     severity="error",
                     message=(
                         f"{worker.name} は今月の平日夜間以外シフト回数が"
-                        f"上限（{rules.max_non_weekday_night_per_period}回）を超えています"
+                        f"上限（{limit}回）を超えています"
+                        f"（現在: {count + 1}回）"
+                    ),
+                    worker_ids=[str(worker.id)],
+                )
+            )
+    return violations
+
+
+def _check_monthly_total_limit(
+    session: Session,
+    tenant_id: str,
+    requirement: ShiftRequirement,
+    workers: list[Worker],
+    rules: ShiftRulesConfig,
+) -> list[ValidationViolationItem]:
+    """月間総シフト回数上限チェック（MONTHLY_TOTAL_LIMIT）.
+
+    同一月内で各ワーカーの全スロット合計アサイン回数が
+    ``monthly_shift_limits.monthly_total`` を超える場合にエラーを返す。
+    ``monthly_total`` が 0 の場合は制限なし。
+    """
+    limit = rules.monthly_shift_limits.monthly_total
+    if limit == 0:
+        return []
+
+    shift_date: date = requirement.shift_date  # type: ignore[assignment]
+    month_start, month_end = _get_month_range(shift_date)
+
+    violations: list[ValidationViolationItem] = []
+    for worker in workers:
+        count = _count_monthly_assignments(
+            session,
+            tenant_id,
+            worker.id,
+            month_start,
+            month_end,
+            None,  # 全スロット種別対象
+            requirement.id,
+        )
+        if count + 1 > limit:
+            violations.append(
+                ValidationViolationItem(
+                    code="MONTHLY_TOTAL_LIMIT",
+                    severity="error",
+                    message=(
+                        f"{worker.name} は今月の総シフト回数が"
+                        f"上限（{limit}回）を超えています"
+                        f"（現在: {count + 1}回）"
+                    ),
+                    worker_ids=[str(worker.id)],
+                )
+            )
+    return violations
+
+
+def _check_monthly_weekday_night_limit(
+    session: Session,
+    tenant_id: str,
+    requirement: ShiftRequirement,
+    workers: list[Worker],
+    rules: ShiftRulesConfig,
+) -> list[ValidationViolationItem]:
+    """月間平日夜間シフト回数上限チェック（MONTHLY_WEEKDAY_NIGHT_LIMIT）.
+
+    対象スロットが weekday_night のとき、同一月内で各ワーカーの
+    weekday_night アサイン回数が ``monthly_shift_limits.weekday_night`` を超える場合にエラーを返す。
+    ``weekday_night`` が 0 の場合は制限なし。
+    """
+    limit = rules.monthly_shift_limits.weekday_night
+    if limit == 0:
+        return []
+
+    slot_type_str = str(requirement.slot_type)
+    if slot_type_str != str(SlotTypeEnum.weekday_night):
+        return []
+
+    shift_date: date = requirement.shift_date  # type: ignore[assignment]
+    month_start, month_end = _get_month_range(shift_date)
+
+    violations: list[ValidationViolationItem] = []
+    for worker in workers:
+        count = _count_monthly_assignments(
+            session,
+            tenant_id,
+            worker.id,
+            month_start,
+            month_end,
+            [str(SlotTypeEnum.weekday_night)],
+            requirement.id,
+        )
+        if count + 1 > limit:
+            violations.append(
+                ValidationViolationItem(
+                    code="MONTHLY_WEEKDAY_NIGHT_LIMIT",
+                    severity="error",
+                    message=(
+                        f"{worker.name} は今月の平日夜間シフト回数が"
+                        f"上限（{limit}回）を超えています"
                         f"（現在: {count + 1}回）"
                     ),
                     worker_ids=[str(worker.id)],
@@ -1338,6 +1479,10 @@ def validate_shift_assignments(
         ),
         *_check_total_age_limit(workers, rules, shift_date),
         *_check_non_weekday_night_limit(
+            session, tenant_id, requirement, workers, rules
+        ),
+        *_check_monthly_total_limit(session, tenant_id, requirement, workers, rules),
+        *_check_monthly_weekday_night_limit(
             session, tenant_id, requirement, workers, rules
         ),
     ]

@@ -43,10 +43,6 @@ const rulesSchema = z.object({
     .number()
     .int("整数を入力してください")
     .min(0, "0以上の値を指定してください"),
-  max_non_weekday_night_per_period: z
-    .number()
-    .int("整数を入力してください")
-    .min(0, "0以上の値を指定してください"),
   annual_total: z
     .number()
     .int("整数を入力してください")
@@ -95,8 +91,6 @@ function toFormValues(rules: ShiftRules): RulesFormValues {
     cross_division_transfer_tenure_months:
       rules.shift_rules.cross_division_transfer_tenure_months,
     max_total_age: rules.shift_rules.max_total_age ?? 120,
-    max_non_weekday_night_per_period:
-      rules.shift_rules.max_non_weekday_night_per_period ?? 1,
     annual_total: rules.warnings.annual_shift_limits?.annual_total ?? 22,
     annual_weekday_night: rules.warnings.annual_shift_limits?.weekday_night ?? 10,
     annual_sat_day: rules.warnings.annual_shift_limits?.sat_day ?? 3,
@@ -128,7 +122,8 @@ function toShiftRules(values: RulesFormValues, currentRules: ShiftRules): ShiftR
       cross_division_transfer_tenure_months:
         values.cross_division_transfer_tenure_months,
       max_total_age: values.max_total_age,
-      max_non_weekday_night_per_period: values.max_non_weekday_night_per_period,
+      // 月間シフト回数上限は MonthlyShiftLimitsTab で管理するためそのまま引き継ぐ
+      monthly_shift_limits: currentRules.shift_rules.monthly_shift_limits,
     },
     warnings: {
       avoid_consecutive_holidays: values.avoid_consecutive_holidays,
@@ -351,19 +346,6 @@ export function RulesSettingsForm() {
             min={0}
             {...register("max_total_age", { valueAsNumber: true })}
             error={errors.max_total_age?.message}
-            disabled={isSubmitting}
-          />
-          <p className="text-xs text-gray-400 -mt-4">0 で制限なし</p>
-
-          <Input
-            id="max_non_weekday_night_per_period"
-            label="平日夜間以外シフト回数上限（回/月）"
-            type="number"
-            min={0}
-            {...register("max_non_weekday_night_per_period", {
-              valueAsNumber: true,
-            })}
-            error={errors.max_non_weekday_night_per_period?.message}
             disabled={isSubmitting}
           />
           <p className="text-xs text-gray-400 -mt-4">0 で制限なし</p>

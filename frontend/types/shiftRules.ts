@@ -1,6 +1,17 @@
 // frontend/types/shiftRules.ts
 // シフトルール定義の TypeScript 型定義
 
+/** 月間シフト回数上限設定 */
+export interface MonthlyShiftLimitsConfig {
+  /** 全スロット合計の月間上限。0 で制限なし。 */
+  monthly_total: number;
+  /** weekday_night の月間上限。0 で制限なし。 */
+  weekday_night: number;
+  /** 平日夜間以外スロット（sat_day / sat_night / sun_hol_day / sun_hol_night /
+   *  long_hol_day / long_hol_night / sat_pre_hol_night）の月間上限。0 で制限なし。 */
+  non_weekday_night: number;
+}
+
 /** シフト作成ルール設定 */
 export interface ShiftRulesConfig {
   /** 最小勤務間隔（日数）。同一ワーカーの連続シフト間に必要な最低日数。 */
@@ -23,8 +34,8 @@ export interface ShiftRulesConfig {
   cross_division_transfer_tenure_months: number;
   /** スロット内ワーカーの合計年齢上限。0 で制限なし。 */
   max_total_age: number;
-  /** 1シフト計画期間内の平日夜間以外スロットへのアサイン上限回数。0 で制限なし。 */
-  max_non_weekday_night_per_period: number;
+  /** 月間シフト回数上限設定。 */
+  monthly_shift_limits: MonthlyShiftLimitsConfig;
 }
 
 /** 年間シフト回数上限設定 */
@@ -72,7 +83,11 @@ export const DEFAULT_SHIFT_RULES: ShiftRules = {
     hired_tenure_months: 6,
     cross_division_transfer_tenure_months: 3,
     max_total_age: 120,
-    max_non_weekday_night_per_period: 1,
+    monthly_shift_limits: {
+      monthly_total: 2,
+      weekday_night: 2,
+      non_weekday_night: 1,
+    },
   },
   warnings: {
     avoid_consecutive_holidays: true,
