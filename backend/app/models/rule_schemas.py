@@ -3,7 +3,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class MonthlyShiftLimitsConfig(BaseModel):
@@ -71,7 +71,9 @@ class ShiftRulesConfig(BaseModel):
     max_total_age: int = 120
     """スロット内ワーカーの合計年齢上限。0 で制限なし。"""
 
-    monthly_shift_limits: MonthlyShiftLimitsConfig = None  # type: ignore[assignment]
+    monthly_shift_limits: MonthlyShiftLimitsConfig = Field(
+        default_factory=MonthlyShiftLimitsConfig
+    )
     """月間シフト回数上限設定。"""
 
     @model_validator(mode="before")
@@ -88,11 +90,6 @@ class ShiftRulesConfig(BaseModel):
         if legacy_val is not None and "monthly_shift_limits" not in values:
             values["monthly_shift_limits"] = {"non_weekday_night": int(legacy_val)}
         return values
-
-    def model_post_init(self, __context: object) -> None:
-        """monthly_shift_limits のデフォルト値を設定する."""
-        if self.monthly_shift_limits is None:
-            self.monthly_shift_limits = MonthlyShiftLimitsConfig()
 
     @field_validator("max_total_age")
     @classmethod

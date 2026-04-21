@@ -1204,7 +1204,14 @@ def _check_total_age_limit(
 
 
 def _get_month_range(shift_date: date) -> tuple[date, date]:
-    """シフト日が属する月の開始日・終了日を返す."""
+    """シフト日が属する月の開始日・終了日を返す.
+
+    Args:
+        shift_date: 対象シフト日。
+
+    Returns:
+        タプル (月初日, 月末日)。例: (2026-04-01, 2026-04-30)。
+    """
     import calendar
 
     month_start = shift_date.replace(day=1)
