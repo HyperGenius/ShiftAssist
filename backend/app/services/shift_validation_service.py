@@ -1232,6 +1232,11 @@ def _count_monthly_assignments(
     """指定期間・スロット種別の月間アサイン数をカウントする.
 
     Args:
+        session: データベースセッション。
+        tenant_id: テナントID。
+        worker_id: ワーカーID。
+        month_start: 月の開始日。
+        month_end: 月の終了日。
         slot_types: 対象スロット種別リスト。None の場合は全スロットを対象とする。
         exclude_requirement_id: 除外する requirement_id（現在のアサイン対象）。
     """
