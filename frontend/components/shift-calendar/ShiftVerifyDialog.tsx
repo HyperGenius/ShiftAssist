@@ -44,7 +44,7 @@ export function ShiftVerifyDialog({
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors ml-4"
+            className="text-gray-400 hover:text-gray-600 transition-colors ml-4 focus:outline-none focus:ring-2 focus:ring-gray-300 rounded"
             aria-label="閉じる"
           >
             ✕

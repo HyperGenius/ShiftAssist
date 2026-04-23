@@ -289,7 +289,8 @@ def get_shift_verify_stats(
             std = math.sqrt(variance)
             outlier_thresholds[slot_type.value] = mean + std
         else:
-            # Worker が 1 名の場合は比較基準がないため outlier 判定不能
+            # Worker が 1 名の場合 (n=1) は n-1=0 で除算エラーになるため、
+            # 比較基準がなく outlier 判定不能として threshold を無限大に設定する
             outlier_thresholds[slot_type.value] = math.inf
 
     # 9. ShiftVerifyWorkerItem を構築

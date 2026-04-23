@@ -60,15 +60,16 @@ function VerifyCell({ beforeAvg, afterAvg, deltaCount, isOutlier }: VerifyCellPr
       className={`whitespace-nowrap px-2 py-1 text-center text-xs align-middle ${
         isOutlier ? "bg-amber-50" : ""
       }`}
+      aria-label={`Before ${beforeAvg.toFixed(1)}/月 After ${afterAvg.toFixed(1)}/月 差分 ${deltaSign}${deltaCount}${isOutlier ? " 突出" : ""}`}
     >
       {isOutlier && (
-        <div className="text-[9px] font-bold text-amber-600 leading-none mb-0.5">⚠</div>
+        <div className="text-[9px] font-bold text-amber-600 leading-none mb-0.5" aria-hidden="true">⚠</div>
       )}
-      <div className="text-gray-400 leading-tight">{beforeAvg.toFixed(1)}</div>
-      <div className={`font-semibold leading-tight ${isOutlier ? "text-amber-700" : "text-gray-900"}`}>
+      <div className="text-gray-400 leading-tight" aria-hidden="true">{beforeAvg.toFixed(1)}</div>
+      <div className={`font-semibold leading-tight ${isOutlier ? "text-amber-700" : "text-gray-900"}`} aria-hidden="true">
         {afterAvg.toFixed(1)}
       </div>
-      <div className={`text-[10px] leading-tight ${deltaColor}`}>
+      <div className={`text-[10px] leading-tight ${deltaColor}`} aria-hidden="true">
         {deltaSign}{deltaCount}
       </div>
     </td>
