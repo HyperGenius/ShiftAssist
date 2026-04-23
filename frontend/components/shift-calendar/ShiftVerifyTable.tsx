@@ -107,7 +107,7 @@ export function ShiftVerifyTable({ data }: ShiftVerifyTableProps) {
         </span>
         <span>
           <span className="inline-block w-2 h-2 rounded bg-amber-100 border border-amber-300 mr-1" />
-          ⚠ 突出（After 月平均 {">"} 全体平均 + 1σ）
+          ⚠ 突出（After 月平均 {">"} 平均 + 標準偏差）
         </span>
       </div>
       <table className="min-w-full divide-y divide-gray-200 text-xs">

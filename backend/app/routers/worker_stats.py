@@ -8,7 +8,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session
 
 from app.db import get_session
@@ -229,6 +229,12 @@ def get_shift_verify_stats(
         ShiftVerifyResponse。
 
     Raises:
+        HTTPException 403: パスの tenant_id とヘッダーの X-Tenant-Id が一致しない場合。
         HTTPException 404: 指定された shift_plan_id が存在しない場合。
     """
+    if tenant_id != x_tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="テナントIDが一致しません。",
+        )
     return shift_verify_service.get_shift_verify_stats(session, tenant_id, shift_plan_id)
