@@ -789,3 +789,67 @@ class RecalculateStatsResponse(BaseModel):
     """再計算を行った末月（YYYY-MM形式）。"""
     upserted_months: list[str]
     """Upsert を実行した年月リスト。"""
+
+
+class ShiftVerifyWeekdayDelta(BaseModel):
+    """Verify機能用・weekday_night 枠の曜日別 Before/After 差分スキーマ."""
+
+    weekday: int
+    """曜日（0=月, 1=火, 2=水, 3=木）。"""
+    before_count: int
+    """Before 期間のアサイン回数合計。"""
+    before_monthly_avg: float
+    """Before 期間の月平均アサイン回数。"""
+    after_count: int
+    """After 期間のアサイン回数合計。"""
+    after_monthly_avg: float
+    """After 期間の月平均アサイン回数。"""
+    delta_count: int
+    """差分（after_count - before_count）。"""
+
+
+class ShiftVerifySlotStat(BaseModel):
+    """Verify機能用・枠種別ごとの Before/After 差分スキーマ."""
+
+    slot_type: SlotTypeEnum
+    before_count: int
+    """Before 期間のアサイン回数合計。"""
+    before_monthly_avg: float
+    """Before 期間の月平均アサイン回数。"""
+    after_count: int
+    """After 期間のアサイン回数合計。"""
+    after_monthly_avg: float
+    """After 期間の月平均アサイン回数。"""
+    delta_count: int
+    """差分（after_count - before_count）。"""
+    is_outlier: bool
+    """After の月平均が全 Worker 平均 + 1σ を超える場合 True。"""
+    weekday_stats: list[ShiftVerifyWeekdayDelta] | None = None
+    """weekday_night の場合のみ曜日別集計を保持する。"""
+
+
+class ShiftVerifyWorkerItem(BaseModel):
+    """Verify機能用・ワーカー1名分の Before/After 集計スキーマ."""
+
+    worker_id: uuid.UUID
+    worker_name: str
+    position_name: str | None = None
+    department_name: str | None = None
+    skill_rank_name: str | None = None
+    employment_type_name: str | None = None
+    is_non_default_employment: bool = False
+    effective_months: float
+    """After 期間に対する有効在籍月数。"""
+    slot_stats: list[ShiftVerifySlotStat]
+
+
+class ShiftVerifyResponse(BaseModel):
+    """Verify機能用・シフトプランの Before/After 集計レスポンススキーマ."""
+
+    year_month: str
+    """シフトプランの対象年月（YYYY-MM形式）。"""
+    before_period: str
+    """Before 期間文字列（例: "2025-06 〜 2026-05"）。"""
+    after_period: str
+    """After 期間文字列（例: "2025-07 〜 2026-06"）。"""
+    items: list[ShiftVerifyWorkerItem]

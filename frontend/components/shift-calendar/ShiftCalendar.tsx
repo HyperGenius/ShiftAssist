@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { Panel } from "@/components/ui/Panel";
 import { CalendarCell } from "./CalendarCell";
 import { OverrideConfirmDialog } from "./OverrideConfirmDialog";
+import { ShiftVerifyDialog } from "./ShiftVerifyDialog";
 import { WorkerCard } from "./WorkerCard";
 import { WorkerListPanel } from "./WorkerListPanel";
 import { parseDropZoneId } from "./ShiftSlotDropZone";
@@ -66,6 +67,8 @@ interface ShiftCalendarProps {
   month: number;
   /** 過去インポートデータ。指定時はそのデータでカレンダーを初期化する */
   pastPlan?: ShiftPlanDetail | null;
+  /** アプリ内で作成・保存済みのシフトプラン ID。edit モードでも Verify を表示するために使用する */
+  currentPlanId?: string | null;
   /** true の場合、編集・保存操作を無効化する */
   readOnly?: boolean;
   /** 年月切り替え時のコールバック（URL更新など上位で処理） */
@@ -73,10 +76,11 @@ interface ShiftCalendarProps {
 }
 
 /** 月間シフト枠カレンダーコンポーネント */
-export function ShiftCalendar({ department, year, month, pastPlan, readOnly = false, onYearMonthChange }: ShiftCalendarProps) {
+export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId, readOnly = false, onYearMonthChange }: ShiftCalendarProps) {
   const [calendarState, setCalendarState] = useState<CalendarState>({});
   const [isSaving, setIsSaving] = useState(false);
   const [showOverrideDialog, setShowOverrideDialog] = useState(false);
+  const [showVerifyDialog, setShowVerifyDialog] = useState(false);
 
   // アクティブスロット（サイドパネルのフィルタリングに使用）
   const [activeSlot, setActiveSlot] = useState<{
@@ -469,6 +473,15 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
                 <Button variant="secondary" size="sm" onClick={nextMonth}>
                   翌月 &gt;&gt;
                 </Button>
+                {(pastPlan?.id ?? currentPlanId ?? (shiftRequirements.length > 0 ? true : null)) && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowVerifyDialog(true)}
+                  >
+                    🔍 Verify
+                  </Button>
+                )}
                 {!readOnly && (
                   <Button
                     variant="primary"
@@ -626,6 +639,16 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
         onCancel={handleOverrideCancel}
         onConfirm={handleOverrideConfirm}
       />
+
+      {/* Verify ダイアログ */}
+      {(pastPlan?.id ?? currentPlanId ?? (shiftRequirements.length > 0 ? true : null)) && (
+        <ShiftVerifyDialog
+          isOpen={showVerifyDialog}
+          shiftPlanId={pastPlan?.id ?? currentPlanId ?? null}
+          yearMonth={targetYearMonth}
+          onClose={() => setShowVerifyDialog(false)}
+        />
+      )}
     </DndContext>
   );
 }

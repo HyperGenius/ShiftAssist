@@ -76,6 +76,49 @@ export interface AggregateStatsResponse {
   items: AggregateWorkerStats[];
 }
 
+/** Verify機能用・weekday_night 枠の曜日別 Before/After 差分 */
+export interface ShiftVerifyWeekdayDelta {
+  weekday: 0 | 1 | 2 | 3; // 0=月, 1=火, 2=水, 3=木
+  before_count: number;
+  before_monthly_avg: number;
+  after_count: number;
+  after_monthly_avg: number;
+  delta_count: number;
+}
+
+/** Verify機能用・枠種別ごとの Before/After 差分 */
+export interface ShiftVerifySlotStat {
+  slot_type: SlotType;
+  before_count: number;
+  before_monthly_avg: number;
+  after_count: number;
+  after_monthly_avg: number;
+  delta_count: number;
+  is_outlier: boolean;
+  weekday_stats?: ShiftVerifyWeekdayDelta[];
+}
+
+/** Verify機能用・ワーカー1名分の統計 */
+export interface ShiftVerifyWorkerItem {
+  worker_id: string;
+  worker_name: string;
+  position_name?: string | null;
+  department_name?: string | null;
+  skill_rank_name?: string | null;
+  employment_type_name?: string | null;
+  is_non_default_employment: boolean;
+  effective_months: number;
+  slot_stats: ShiftVerifySlotStat[];
+}
+
+/** Verify機能用レスポンス型 */
+export interface ShiftVerifyResponse {
+  year_month: string; // YYYY-MM
+  before_period: string; // e.g. "2025-06 〜 2026-05"
+  after_period: string; // e.g. "2025-07 〜 2026-06"
+  items: ShiftVerifyWorkerItem[];
+}
+
 /** 集計テーブル再計算結果レスポンス型 */
 export interface RecalculateStatsResponse {
   year_month: string; // YYYY-MM
