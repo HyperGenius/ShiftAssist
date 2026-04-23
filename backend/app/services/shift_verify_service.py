@@ -277,17 +277,20 @@ def get_shift_verify_stats(
             after_avgs[wid][slot_type.value] = total / after_eff
 
     # 8. Outlier 閾値: slot_type ごとに全 Worker の After 月平均の mean + 1σ
+    # サンプル標準偏差（n-1 除算）を使用し、Worker 数が少ない場合の精度を確保する
     outlier_thresholds: dict[str, float] = {}
     for slot_type in SlotTypeEnum:
         avgs = [after_avgs[w.id][slot_type.value] for w in workers]  # type: ignore[index]
         n = len(avgs)
-        if n > 0:
+        if n > 1:
             mean = sum(avgs) / n
-            variance = sum((a - mean) ** 2 for a in avgs) / n
+            # サンプル分散（不偏分散）: n-1 で除算
+            variance = sum((a - mean) ** 2 for a in avgs) / (n - 1)
             std = math.sqrt(variance)
             outlier_thresholds[slot_type.value] = mean + std
         else:
-            outlier_thresholds[slot_type.value] = 0.0
+            # Worker が 1 名以下の場合は outlier 判定不能
+            outlier_thresholds[slot_type.value] = math.inf
 
     # 9. ShiftVerifyWorkerItem を構築
     items = []
