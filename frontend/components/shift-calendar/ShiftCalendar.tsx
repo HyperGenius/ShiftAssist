@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { Panel } from "@/components/ui/Panel";
 import { CalendarCell } from "./CalendarCell";
 import { OverrideConfirmDialog } from "./OverrideConfirmDialog";
+import { ShiftVerifyDialog } from "./ShiftVerifyDialog";
 import { WorkerCard } from "./WorkerCard";
 import { WorkerListPanel } from "./WorkerListPanel";
 import { parseDropZoneId } from "./ShiftSlotDropZone";
@@ -77,6 +78,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
   const [calendarState, setCalendarState] = useState<CalendarState>({});
   const [isSaving, setIsSaving] = useState(false);
   const [showOverrideDialog, setShowOverrideDialog] = useState(false);
+  const [showVerifyDialog, setShowVerifyDialog] = useState(false);
 
   // アクティブスロット（サイドパネルのフィルタリングに使用）
   const [activeSlot, setActiveSlot] = useState<{
@@ -469,6 +471,15 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
                 <Button variant="secondary" size="sm" onClick={nextMonth}>
                   翌月 &gt;&gt;
                 </Button>
+                {pastPlan && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowVerifyDialog(true)}
+                  >
+                    🔍 Verify
+                  </Button>
+                )}
                 {!readOnly && (
                   <Button
                     variant="primary"
@@ -626,6 +637,16 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
         onCancel={handleOverrideCancel}
         onConfirm={handleOverrideConfirm}
       />
+
+      {/* Verify ダイアログ */}
+      {pastPlan && (
+        <ShiftVerifyDialog
+          isOpen={showVerifyDialog}
+          shiftPlanId={pastPlan.id}
+          yearMonth={pastPlan.target_year_month}
+          onClose={() => setShowVerifyDialog(false)}
+        />
+      )}
     </DndContext>
   );
 }

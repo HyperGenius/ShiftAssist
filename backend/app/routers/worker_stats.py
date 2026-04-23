@@ -16,12 +16,13 @@ from app.dependencies import get_tenant_id
 from app.models.schemas import (
     AggregateStatsResponse,
     RecalculateStatsResponse,
+    ShiftVerifyResponse,
     TenantStatsConfigResponse,
     TenantStatsConfigUpdate,
     TenantWorkerStatsResponse,
     WorkerStatsResponse,
 )
-from app.services import worker_stats_service
+from app.services import shift_verify_service, worker_stats_service
 
 router = APIRouter(tags=["worker-stats"])
 
@@ -198,3 +199,36 @@ def recalculate_aggregate_stats(
         today = datetime.now(UTC).date()
         year_month = f"{today.year:04d}-{today.month:02d}"
     return worker_stats_service.recalculate_all_stats(session, tenant_id, year_month)
+
+
+@router.get(
+    "/api/tenants/{tenant_id}/shift-plans/{shift_plan_id}/verify",
+    response_model=ShiftVerifyResponse,
+)
+def get_shift_verify_stats(
+    tenant_id: str,
+    shift_plan_id: uuid.UUID,
+    x_tenant_id: str = Depends(get_tenant_id),
+    session: Session = Depends(get_session),
+) -> ShiftVerifyResponse:
+    """シフトプランの Before/After 集計差分を返す（DBへの書き込みなし）.
+
+    Before: シフトプラン対象月の 1 ヶ月前を末月とした直近 12 ヶ月
+    After:  シフトプラン対象月を末月とした直近 12 ヶ月（Before + 今回プランのアサイン）
+
+    ``is_outlier`` フラグは全 Worker の After 月平均 + 1σ を超えた場合に ``True`` となる。
+    published 状態でないプランでも実行可能。
+
+    Args:
+        tenant_id: パスパラメーターのテナントID。
+        shift_plan_id: 検証対象のシフトプランID。
+        x_tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID（認証用）。
+        session: DBセッション。
+
+    Returns:
+        ShiftVerifyResponse。
+
+    Raises:
+        HTTPException 404: 指定された shift_plan_id が存在しない場合。
+    """
+    return shift_verify_service.get_shift_verify_stats(session, tenant_id, shift_plan_id)
