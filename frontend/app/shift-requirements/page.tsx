@@ -182,6 +182,7 @@ function ShiftRequirementsContent() {
             year={calYear}
             month={calMonth}
             pastPlan={effectiveMode === "past" ? shiftPlan : null}
+            currentPlanId={effectiveMode === "edit" ? shiftPlan?.id : undefined}
             readOnly={effectiveMode === "past"}
             onYearMonthChange={handleYearMonthChange}
           />

@@ -9,20 +9,36 @@ import useSWR from "swr";
 import { fetcher } from "@/utils/fetcher";
 import type { ShiftVerifyResponse } from "@/types/workerStats";
 
+type UseShiftVerifyOptions = {
+  /** ShiftPlan Verify（インポートデータまたは currentPlanId）。存在する場合はこちらを優先する */
+  shiftPlanId?: string | null;
+  /** ShiftRequirement Verify（アプリ内作成シフト）。shiftPlanId がない場合に使用する */
+  yearMonth?: string | null;
+  /** フェッチを実行するか（ダイアログが開いているときのみ true にする） */
+  enabled: boolean;
+};
+
 /**
- * シフトプランの Before/After 集計差分を取得するフック。
+ * シフトの Before/After 集計差分を取得するフック。
  *
- * @param shiftPlanId - 検証対象のシフトプランID。null の場合はフェッチしない。
+ * - `shiftPlanId` がある場合: `/api/tenants/{tenantId}/shift-plans/{shiftPlanId}/verify`
+ * - `yearMonth` のみの場合: `/api/tenants/{tenantId}/shift-requirements/verify?year_month={yearMonth}`
  */
-export function useShiftVerify(shiftPlanId: string | null) {
+export function useShiftVerify({ shiftPlanId, yearMonth, enabled }: UseShiftVerifyOptions) {
   const { getToken } = useAuth();
   const { organization } = useOrganization();
   const tenantId = organization?.id ?? null;
 
   const path = useMemo(() => {
-    if (!tenantId || !shiftPlanId) return null;
-    return `/api/tenants/${tenantId}/shift-plans/${shiftPlanId}/verify`;
-  }, [tenantId, shiftPlanId]);
+    if (!tenantId || !enabled) return null;
+    if (shiftPlanId) {
+      return `/api/tenants/${tenantId}/shift-plans/${shiftPlanId}/verify`;
+    }
+    if (yearMonth) {
+      return `/api/tenants/${tenantId}/shift-requirements/verify?year_month=${yearMonth}`;
+    }
+    return null;
+  }, [tenantId, shiftPlanId, yearMonth, enabled]);
 
   const swrKey = useMemo<[string, null, string | null] | null>(
     () => (tenantId && path ? [path, null, tenantId] : null),

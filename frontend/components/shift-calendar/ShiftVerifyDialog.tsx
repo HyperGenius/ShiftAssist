@@ -8,9 +8,12 @@ import { useShiftVerify } from "@/hooks/useShiftVerify";
 interface ShiftVerifyDialogProps {
   /** ダイアログを表示するか */
   isOpen: boolean;
-  /** 検証対象のシフトプランID */
-  shiftPlanId: string;
-  /** シフトプランの対象年月（YYYY-MM） */
+  /**
+   * 検証対象の ShiftPlan ID（インポートデータまたは currentPlanId）。
+   * null の場合は yearMonth を使って ShiftRequirement ベースの Verify を呼び出す。
+   */
+  shiftPlanId?: string | null;
+  /** シフトの対象年月（YYYY-MM）。常に必須 */
   yearMonth: string;
   /** 閉じる時のコールバック */
   onClose: () => void;
@@ -23,7 +26,11 @@ export function ShiftVerifyDialog({
   yearMonth,
   onClose,
 }: ShiftVerifyDialogProps) {
-  const { verifyData, isLoading, isError } = useShiftVerify(isOpen ? shiftPlanId : null);
+  const { verifyData, isLoading, isError } = useShiftVerify({
+    shiftPlanId: isOpen ? shiftPlanId : null,
+    yearMonth: isOpen && !shiftPlanId ? yearMonth : null,
+    enabled: isOpen,
+  });
 
   if (!isOpen) return null;
 

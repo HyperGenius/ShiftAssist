@@ -67,6 +67,8 @@ interface ShiftCalendarProps {
   month: number;
   /** 過去インポートデータ。指定時はそのデータでカレンダーを初期化する */
   pastPlan?: ShiftPlanDetail | null;
+  /** アプリ内で作成・保存済みのシフトプラン ID。edit モードでも Verify を表示するために使用する */
+  currentPlanId?: string | null;
   /** true の場合、編集・保存操作を無効化する */
   readOnly?: boolean;
   /** 年月切り替え時のコールバック（URL更新など上位で処理） */
@@ -74,7 +76,7 @@ interface ShiftCalendarProps {
 }
 
 /** 月間シフト枠カレンダーコンポーネント */
-export function ShiftCalendar({ department, year, month, pastPlan, readOnly = false, onYearMonthChange }: ShiftCalendarProps) {
+export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId, readOnly = false, onYearMonthChange }: ShiftCalendarProps) {
   const [calendarState, setCalendarState] = useState<CalendarState>({});
   const [isSaving, setIsSaving] = useState(false);
   const [showOverrideDialog, setShowOverrideDialog] = useState(false);
@@ -471,7 +473,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
                 <Button variant="secondary" size="sm" onClick={nextMonth}>
                   翌月 &gt;&gt;
                 </Button>
-                {pastPlan && (
+                {(pastPlan?.id ?? currentPlanId ?? (shiftRequirements.length > 0 ? true : null)) && (
                   <Button
                     variant="secondary"
                     size="sm"
@@ -639,11 +641,11 @@ export function ShiftCalendar({ department, year, month, pastPlan, readOnly = fa
       />
 
       {/* Verify ダイアログ */}
-      {pastPlan && (
+      {(pastPlan?.id ?? currentPlanId ?? (shiftRequirements.length > 0 ? true : null)) && (
         <ShiftVerifyDialog
           isOpen={showVerifyDialog}
-          shiftPlanId={pastPlan.id}
-          yearMonth={pastPlan.target_year_month}
+          shiftPlanId={pastPlan?.id ?? currentPlanId ?? null}
+          yearMonth={targetYearMonth}
           onClose={() => setShowVerifyDialog(false)}
         />
       )}

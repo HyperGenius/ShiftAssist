@@ -240,3 +240,40 @@ def get_shift_verify_stats(
     return shift_verify_service.get_shift_verify_stats(
         session, tenant_id, shift_plan_id
     )
+
+
+@router.get(
+    "/api/tenants/{tenant_id}/shift-requirements/verify",
+    response_model=ShiftVerifyResponse,
+)
+def get_shift_requirement_verify_stats(
+    tenant_id: str,
+    year_month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
+    x_tenant_id: str = Depends(get_tenant_id),
+    session: Session = Depends(get_session),
+) -> ShiftVerifyResponse:
+    """アプリ内で作成した ShiftRequirement の Before/After 集計差分を返す（DBへの書き込みなし）.
+
+    インポートなしでアプリ内で保存したシフト枠（ShiftRequirement）を対象に、
+    ``get_shift_verify_stats`` と同等の Before/After 集計差分を算出する。
+
+    Args:
+        tenant_id: パスパラメーターのテナントID。
+        year_month: 対象年月（YYYY-MM形式）。
+        x_tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID（認証用）。
+        session: DBセッション。
+
+    Returns:
+        ShiftVerifyResponse。
+
+    Raises:
+        HTTPException 403: パスの tenant_id とヘッダーの X-Tenant-Id が一致しない場合。
+    """
+    if tenant_id != x_tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="テナントIDが一致しません。",
+        )
+    return shift_verify_service.get_shift_requirement_verify_stats(
+        session, tenant_id, year_month
+    )
