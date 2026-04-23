@@ -8,6 +8,7 @@ DB への書き込みは行わない（参照専用）。
 
 import math
 import uuid
+from collections.abc import Sequence
 
 from fastapi import HTTPException, status
 from sqlalchemy import func
@@ -53,6 +54,140 @@ def _prev_month_ym(year_month: str) -> str:
         m = 12
         y -= 1
     return f"{y:04d}-{m:02d}"
+
+
+def _build_counts_map(
+    rows: Sequence,
+) -> dict[uuid.UUID, dict[str, dict[int | None, int]]]:
+    """DB クエリ結果から worker_id → slot_type → weekday → count のネストマップを生成する."""
+    counts_map: dict[uuid.UUID, dict[str, dict[int | None, int]]] = {}
+    for row in rows:
+        wid: uuid.UUID = row[0]
+        slot_type_key = str(row[1])
+        weekday: int | None = row[2]
+        total = int(row[3])
+        counts_map.setdefault(wid, {}).setdefault(slot_type_key, {})[weekday] = total
+    return counts_map
+
+
+def _apply_plan_assignments(
+    after_counts_map: dict[uuid.UUID, dict[str, dict[int | None, int]]],
+    non_wn_plan_rows: Sequence,
+    wn_plan_rows: Sequence,
+) -> None:
+    """シフトプランのアサインメントを After カウントマップに加算する（インプレース）."""
+    for row in non_wn_plan_rows:
+        wid = row[0]
+        slot_type_key = str(row[1])
+        cnt = int(row[2])
+        wd_map = after_counts_map.setdefault(wid, {}).setdefault(slot_type_key, {})
+        wd_map[None] = wd_map.get(None, 0) + cnt
+
+    for row in wn_plan_rows:
+        wid = row[0]
+        isodow = int(row[1]) if row[1] is not None else None
+        cnt = int(row[2])
+        weekday = (isodow - 1) if (isodow is not None and 1 <= isodow <= 4) else None
+        slot_type_key = SlotTypeEnum.weekday_night.value
+        wd_map = after_counts_map.setdefault(wid, {}).setdefault(slot_type_key, {})
+        wd_map[weekday] = wd_map.get(weekday, 0) + cnt
+
+
+def _compute_after_avgs(
+    workers: Sequence[Worker],
+    after_counts_map: dict[uuid.UUID, dict[str, dict[int | None, int]]],
+    after_start_ym: str,
+    after_end_ym: str,
+) -> dict[uuid.UUID, dict[str, float]]:
+    """全 Worker の After 月平均（slot_type ごと）を計算する."""
+    after_avgs: dict[uuid.UUID, dict[str, float]] = {}
+    for worker in workers:
+        wid: uuid.UUID = worker.id  # type: ignore[assignment]
+        after_eff = _compute_effective_months_for_aggregate(
+            worker.joined_at,  # type: ignore[arg-type]
+            after_start_ym,
+            after_end_ym,
+        )
+        worker_after = after_counts_map.get(wid, {})
+        after_avgs[wid] = {
+            slot_type.value: sum(worker_after.get(slot_type.value, {}).values())
+            / after_eff
+            for slot_type in SlotTypeEnum
+        }
+    return after_avgs
+
+
+def _compute_outlier_thresholds(
+    workers: Sequence[Worker],
+    after_avgs: dict[uuid.UUID, dict[str, float]],
+) -> dict[str, float]:
+    """slot_type ごとに全 Worker の After 月平均の mean + 1σ を計算する.
+
+    サンプル標準偏差（n-1 除算）を使用し、Worker 数が少ない場合の精度を確保する。
+    Worker が 1 名の場合は outlier 判定不能として threshold を無限大に設定する。
+    """
+    thresholds: dict[str, float] = {}
+    for slot_type in SlotTypeEnum:
+        avgs = [after_avgs[uuid.UUID(str(w.id))][slot_type.value] for w in workers]
+        n = len(avgs)
+        if n > 1:
+            mean = sum(avgs) / n
+            variance = sum((a - mean) ** 2 for a in avgs) / (n - 1)
+            thresholds[slot_type.value] = mean + math.sqrt(variance)
+        else:
+            thresholds[slot_type.value] = math.inf
+    return thresholds
+
+
+def _build_worker_slot_stats(
+    worker_before: dict[str, dict[int | None, int]],
+    worker_after: dict[str, dict[int | None, int]],
+    before_eff: float,
+    after_eff: float,
+    outlier_thresholds: dict[str, float],
+) -> list[ShiftVerifySlotStat]:
+    """Worker 1 名分の slot_stats リストを構築する."""
+    slot_stats = []
+    for slot_type in SlotTypeEnum:
+        slot_key = slot_type.value
+        before_slot = worker_before.get(slot_key, {})
+        before_count = sum(before_slot.values())
+        before_monthly_avg = before_count / before_eff
+
+        after_slot = worker_after.get(slot_key, {})
+        after_count = sum(after_slot.values())
+        after_monthly_avg = after_count / after_eff
+
+        delta_count = after_count - before_count
+        is_outlier = after_monthly_avg > outlier_thresholds.get(slot_key, 0.0)
+
+        weekday_stats: list[ShiftVerifyWeekdayDelta] | None = None
+        if slot_type == SlotTypeEnum.weekday_night:
+            weekday_stats = [
+                ShiftVerifyWeekdayDelta(
+                    weekday=wd,
+                    before_count=before_slot.get(wd, 0),
+                    before_monthly_avg=before_slot.get(wd, 0) / before_eff,
+                    after_count=after_slot.get(wd, 0),
+                    after_monthly_avg=after_slot.get(wd, 0) / after_eff,
+                    delta_count=after_slot.get(wd, 0) - before_slot.get(wd, 0),
+                )
+                for wd in range(4)  # 0=月, 1=火, 2=水, 3=木
+            ]
+
+        slot_stats.append(
+            ShiftVerifySlotStat(
+                slot_type=slot_type,
+                before_count=before_count,
+                before_monthly_avg=before_monthly_avg,
+                after_count=after_count,
+                after_monthly_avg=after_monthly_avg,
+                delta_count=delta_count,
+                is_outlier=is_outlier,
+                weekday_stats=weekday_stats,
+            )
+        )
+    return slot_stats
 
 
 def get_shift_verify_stats(
@@ -108,9 +243,7 @@ def get_shift_verify_stats(
     after_period_str = f"{after_start_ym} 〜 {after_end_ym}"
 
     # 3. Workers の一括取得
-    workers = session.exec(
-        select(Worker).where(Worker.tenant_id == tenant_id)
-    ).all()
+    workers = session.exec(select(Worker).where(Worker.tenant_id == tenant_id)).all()
 
     if not workers:
         return ShiftVerifyResponse(
@@ -166,18 +299,9 @@ def get_shift_verify_stats(
             WorkerMonthlySlotStats.weekday,
         )
     ).all()
+    before_counts_map = _build_counts_map(before_rows)
 
-    # worker_id → slot_type → weekday → count
-    before_counts_map: dict[uuid.UUID, dict[str, dict[int | None, int]]] = {}
-    for row in before_rows:
-        wid: uuid.UUID = row[0]
-        slot_type_key = str(row[1])
-        weekday: int | None = row[2]
-        total = int(row[3])
-        before_counts_map.setdefault(wid, {}).setdefault(slot_type_key, {})[weekday] = total
-
-    # 5. After ベース集計: [after_start..before_end] (= 12 ヶ月 - 1 ヶ月)
-    #    after_start 〜 before_end は year_month を除く 11 ヶ月分
+    # 5. After ベース集計: [after_start..before_end] (= year_month を除く 11 ヶ月分)
     after_base_rows = session.exec(
         select(
             WorkerMonthlySlotStats.worker_id,
@@ -197,17 +321,9 @@ def get_shift_verify_stats(
             WorkerMonthlySlotStats.weekday,
         )
     ).all()
-
-    after_counts_map: dict[uuid.UUID, dict[str, dict[int | None, int]]] = {}
-    for row in after_base_rows:
-        wid = row[0]
-        slot_type_key = str(row[1])
-        weekday = row[2]
-        total = int(row[3])
-        after_counts_map.setdefault(wid, {}).setdefault(slot_type_key, {})[weekday] = total
+    after_counts_map = _build_counts_map(after_base_rows)
 
     # 6. シフトプランのアサインメントを After カウントに加算
-    # 6a. weekday_night 以外: 曜日不問（weekday=None）
     non_wn_plan_rows = session.exec(
         select(
             ShiftAssignment.worker_id,
@@ -222,15 +338,6 @@ def get_shift_verify_stats(
         )
         .group_by(ShiftAssignment.worker_id, ShiftSlot.slot_type)
     ).all()
-
-    for row in non_wn_plan_rows:
-        wid = row[0]
-        slot_type_key = str(row[1])
-        cnt = int(row[2])
-        wd_map = after_counts_map.setdefault(wid, {}).setdefault(slot_type_key, {})
-        wd_map[None] = wd_map.get(None, 0) + cnt
-
-    # 6b. weekday_night: isodow 単位で集計し月〜木(0〜3) / その他(None) に分類
     wn_plan_rows = session.exec(
         select(
             ShiftAssignment.worker_id,
@@ -248,55 +355,18 @@ def get_shift_verify_stats(
             func.extract("isodow", ShiftSlot.date),
         )
     ).all()
+    _apply_plan_assignments(after_counts_map, non_wn_plan_rows, wn_plan_rows)
 
-    for row in wn_plan_rows:
-        wid = row[0]
-        isodow = int(row[1]) if row[1] is not None else None
-        cnt = int(row[2])
-        # isodow 1〜4 → weekday 0〜3（月〜木）, 5〜7 → None
-        weekday = (isodow - 1) if (isodow is not None and 1 <= isodow <= 4) else None
-        slot_type_key = SlotTypeEnum.weekday_night.value
-        wd_map = after_counts_map.setdefault(wid, {}).setdefault(slot_type_key, {})
-        wd_map[weekday] = wd_map.get(weekday, 0) + cnt
+    # 7. After 月平均 & Outlier 閾値を算出
+    after_avgs = _compute_after_avgs(
+        workers, after_counts_map, after_start_ym, after_end_ym
+    )
+    outlier_thresholds = _compute_outlier_thresholds(workers, after_avgs)
 
-    # 7. After 月平均を全 Worker 分計算（outlier 判定用）
-    # worker_id → slot_type_value → after_monthly_avg（全 weekday 合計ベース）
-    after_avgs: dict[uuid.UUID, dict[str, float]] = {}
-    for worker in workers:
-        wid = worker.id  # type: ignore[assignment]
-        after_eff = _compute_effective_months_for_aggregate(
-            worker.joined_at,  # type: ignore[arg-type]
-            after_start_ym,
-            after_end_ym,
-        )
-        worker_after = after_counts_map.get(wid, {})
-        after_avgs[wid] = {}
-        for slot_type in SlotTypeEnum:
-            slot_counts = worker_after.get(slot_type.value, {})
-            total = sum(slot_counts.values())
-            after_avgs[wid][slot_type.value] = total / after_eff
-
-    # 8. Outlier 閾値: slot_type ごとに全 Worker の After 月平均の mean + 1σ
-    # サンプル標準偏差（n-1 除算）を使用し、Worker 数が少ない場合の精度を確保する
-    outlier_thresholds: dict[str, float] = {}
-    for slot_type in SlotTypeEnum:
-        avgs = [after_avgs[w.id][slot_type.value] for w in workers]  # type: ignore[index]
-        n = len(avgs)
-        if n > 1:
-            mean = sum(avgs) / n
-            # サンプル分散（不偏分散）: n-1 で除算
-            variance = sum((a - mean) ** 2 for a in avgs) / (n - 1)
-            std = math.sqrt(variance)
-            outlier_thresholds[slot_type.value] = mean + std
-        else:
-            # Worker が 1 名の場合 (n=1) は n-1=0 で除算エラーになるため、
-            # 比較基準がなく outlier 判定不能として threshold を無限大に設定する
-            outlier_thresholds[slot_type.value] = math.inf
-
-    # 9. ShiftVerifyWorkerItem を構築
+    # 8. ShiftVerifyWorkerItem を構築
     items = []
     for worker in workers:
-        wid = worker.id  # type: ignore[assignment]
+        wid: uuid.UUID = worker.id  # type: ignore[assignment]
         before_eff = _compute_effective_months_for_aggregate(
             worker.joined_at,  # type: ignore[arg-type]
             before_start_ym,
@@ -307,9 +377,6 @@ def get_shift_verify_stats(
             after_start_ym,
             after_end_ym,
         )
-        worker_before = before_counts_map.get(wid, {})
-        worker_after = after_counts_map.get(wid, {})
-
         (
             position_name,
             department_name,
@@ -319,53 +386,13 @@ def get_shift_verify_stats(
         ) = _resolve_worker_attributes(
             worker, position_map, department_map, skill_rank_map, employment_type_map
         )
-
-        slot_stats = []
-        for slot_type in SlotTypeEnum:
-            slot_key = slot_type.value
-
-            # Before
-            before_slot = worker_before.get(slot_key, {})
-            before_count = sum(before_slot.values())
-            before_monthly_avg = before_count / before_eff
-
-            # After
-            after_slot = worker_after.get(slot_key, {})
-            after_count = sum(after_slot.values())
-            after_monthly_avg = after_count / after_eff
-
-            delta_count = after_count - before_count
-            threshold = outlier_thresholds.get(slot_key, 0.0)
-            is_outlier = after_monthly_avg > threshold
-
-            # weekday_stats は weekday_night のみ
-            weekday_stats: list[ShiftVerifyWeekdayDelta] | None = None
-            if slot_type == SlotTypeEnum.weekday_night:
-                weekday_stats = [
-                    ShiftVerifyWeekdayDelta(
-                        weekday=wd,
-                        before_count=before_slot.get(wd, 0),
-                        before_monthly_avg=before_slot.get(wd, 0) / before_eff,
-                        after_count=after_slot.get(wd, 0),
-                        after_monthly_avg=after_slot.get(wd, 0) / after_eff,
-                        delta_count=after_slot.get(wd, 0) - before_slot.get(wd, 0),
-                    )
-                    for wd in range(4)  # 0=月, 1=火, 2=水, 3=木
-                ]
-
-            slot_stats.append(
-                ShiftVerifySlotStat(
-                    slot_type=slot_type,
-                    before_count=before_count,
-                    before_monthly_avg=before_monthly_avg,
-                    after_count=after_count,
-                    after_monthly_avg=after_monthly_avg,
-                    delta_count=delta_count,
-                    is_outlier=is_outlier,
-                    weekday_stats=weekday_stats,
-                )
-            )
-
+        slot_stats = _build_worker_slot_stats(
+            before_counts_map.get(wid, {}),
+            after_counts_map.get(wid, {}),
+            before_eff,
+            after_eff,
+            outlier_thresholds,
+        )
         items.append(
             ShiftVerifyWorkerItem(
                 worker_id=wid,

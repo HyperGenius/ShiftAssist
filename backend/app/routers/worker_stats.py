@@ -237,4 +237,6 @@ def get_shift_verify_stats(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="テナントIDが一致しません。",
         )
-    return shift_verify_service.get_shift_verify_stats(session, tenant_id, shift_plan_id)
+    return shift_verify_service.get_shift_verify_stats(
+        session, tenant_id, shift_plan_id
+    )
