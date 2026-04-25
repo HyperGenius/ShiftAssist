@@ -28,6 +28,8 @@ interface WorkerCardProps {
   skillRanks: TenantSkillRank[];
   /** ドラッグ不可（フィルタで除外されている場合） */
   disabled?: boolean;
+  /** クリックアサインコールバック（選択中スロットへのアサイン） */
+  onWorkerClick?: (workerId: string) => void;
 }
 
 /**
@@ -39,6 +41,7 @@ export function WorkerCard({
   departments,
   skillRanks,
   disabled = false,
+  onWorkerClick,
 }: WorkerCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
@@ -61,13 +64,21 @@ export function WorkerCard({
       style={style}
       {...listeners}
       {...attributes}
+      onClick={(e) => {
+        if (!isDragging && !disabled && onWorkerClick) {
+          e.stopPropagation();
+          onWorkerClick(worker.id);
+        }
+      }}
       className={[
         "flex items-center gap-1.5 px-2 py-1.5 rounded border text-xs select-none transition-all",
         disabled
           ? "opacity-40 cursor-not-allowed bg-gray-50 border-gray-200 text-gray-400"
           : isDragging
             ? "opacity-80 bg-gray-100 border-blue-400 shadow-sm cursor-grabbing z-50"
-            : "bg-white border-gray-200 text-gray-700 cursor-grab hover:bg-gray-50 hover:border-gray-300",
+            : onWorkerClick
+              ? "bg-white border-gray-200 text-gray-700 cursor-pointer hover:bg-blue-50 hover:border-blue-300"
+              : "bg-white border-gray-200 text-gray-700 cursor-grab hover:bg-gray-50 hover:border-gray-300",
       ]
         .filter(Boolean)
         .join(" ")}

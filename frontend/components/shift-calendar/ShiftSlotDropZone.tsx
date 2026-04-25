@@ -46,6 +46,10 @@ interface ShiftSlotDropZoneProps {
   isDropAllowed: (workerId: string) => boolean;
   onClear: () => void;
   onFocus: () => void;
+  /** クリックによるスロット選択コールバック（空きスロットのみ呼ばれる） */
+  onSelectSlot?: () => void;
+  /** このスロットが選択中かどうか（クリックアサインフロー用） */
+  isSelected?: boolean;
 }
 
 /**
@@ -63,6 +67,8 @@ export function ShiftSlotDropZone({
   isDropAllowed,
   onClear,
   onFocus,
+  onSelectSlot,
+  isSelected = false,
 }: ShiftSlotDropZoneProps) {
   const dropId = buildDropZoneId(dateStr, slotType, index);
   const { isOver, setNodeRef } = useDroppable({ id: dropId });
@@ -74,7 +80,9 @@ export function ShiftSlotDropZone({
       ? active.data.current.workerId
       : null;
   const isDragActive = activeDragWorkerId !== null;
-  const isAllowed = !activeDragWorkerId || isDropAllowed(activeDragWorkerId);
+  // アサイン済みスロットへのドロップは禁止する
+  const isOccupied = workerId !== null;
+  const isAllowed = !activeDragWorkerId || (!isOccupied && isDropAllowed(activeDragWorkerId));
 
   const assignedWorker = workerId
     ? workers.find((w) => w.id === workerId)
@@ -95,13 +103,21 @@ export function ShiftSlotDropZone({
   return (
     <div
       ref={setNodeRef}
-      onClick={onFocus}
+      onClick={(e) => {
+        e.stopPropagation();
+        onFocus();
+        if (!isOccupied) {
+          onSelectSlot?.();
+        }
+      }}
       className={[
         "group relative min-h-[26px] rounded border px-1.5 py-1 text-[10px] transition-all cursor-pointer",
+        // 選択中スロット（クリックアサインフロー）
+        isSelected && !isDragActive && "ring-2 ring-blue-500 ring-offset-1",
         // 通常状態: クリーンなモダンUI
         !isDragActive && "bg-white border-gray-200 hover:border-gray-300",
-        // ドラッグ中: 禁止
-        showDropForbidden && "bg-red-50 border-red-300 cursor-no-drop",
+        // ドラッグ中: 禁止（制約違反 or アサイン済みスロット）
+        showDropForbidden && "bg-red-50 border-red-500 cursor-no-drop",
         // ドラッグ中: ドロップ可能
         showDropReady && "bg-blue-50 border-blue-300 border-dashed",
         // ドラッグ中: ホバー中（ドロップ可）

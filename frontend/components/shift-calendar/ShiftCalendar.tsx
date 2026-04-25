@@ -18,7 +18,6 @@ import { Panel } from "@/components/ui/Panel";
 import { CalendarCell } from "./CalendarCell";
 import { OverrideConfirmDialog } from "./OverrideConfirmDialog";
 import { ShiftVerifyDialog } from "./ShiftVerifyDialog";
-import { WorkerCard } from "./WorkerCard";
 import { WorkerListPanel } from "./WorkerListPanel";
 import { parseDropZoneId } from "./ShiftSlotDropZone";
 import { YearMonthPicker } from "./YearMonthPicker";
@@ -93,6 +92,9 @@ export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId
 
   // ドラッグ中のWorkerID
   const [draggingWorkerId, setDraggingWorkerId] = useState<string | null>(null);
+
+  // クリックアサイン用: 選択中スロットキー
+  const [selectedSlotKey, setSelectedSlotKey] = useState<string | null>(null);
 
   const { shiftRequirements, isLoading, createShiftRequirement, updateShiftRequirement, saveAssignments } =
     useShiftRequirements({ year, month });
@@ -299,6 +301,35 @@ export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId
     setActiveSlot({ dateStr, slotType });
   }, []);
 
+  /** クリックアサイン用: スロット選択ハンドラ */
+  const handleSlotSelect = useCallback((key: string) => {
+    setSelectedSlotKey((prev) => (prev === key ? null : key));
+  }, []);
+
+  /** クリックアサイン用: Workerクリック時のアサインハンドラ */
+  const handleClickAssign = useCallback(
+    (workerId: string) => {
+      if (!selectedSlotKey) return;
+      const parsed = parseDropZoneId(selectedSlotKey);
+      if (!parsed) return;
+      const { dateStr, slotType, index } = parsed;
+      // アサイン済みスロットへのアサインは拒否
+      const currentWorkerId =
+        calendarState[dateStr]?.[slotType as SlotType]?.workerSelections[index] ?? null;
+      if (currentWorkerId !== null) {
+        setSelectedSlotKey(null);
+        return;
+      }
+      if (showAll && !isWorkerAvailable(workerId)) {
+        toast.warning("制約違反のアサインです。is_manual_override=true として保存されます。");
+      }
+      handleWorkerChange(dateStr, slotType as SlotType, index, workerId);
+      setActiveSlot({ dateStr, slotType: slotType as SlotType });
+      setSelectedSlotKey(null);
+    },
+    [selectedSlotKey, calendarState, showAll, isWorkerAvailable, handleWorkerChange],
+  );
+
   /** DnD開始ハンドラ */
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const workerId =
@@ -306,6 +337,8 @@ export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId
         ? event.active.data.current.workerId
         : null;
     setDraggingWorkerId(workerId);
+    // DnD開始時にクリックアサイン選択を解除
+    setSelectedSlotKey(null);
   }, []);
 
   /** DnD終了ハンドラ */
@@ -326,6 +359,11 @@ export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId
 
       const { dateStr, slotType, index } = parsed;
 
+      // アサイン済みスロットへのドロップは禁止
+      const currentWorkerId =
+        calendarState[dateStr]?.[slotType as SlotType]?.workerSelections[index] ?? null;
+      if (currentWorkerId !== null) return;
+
       // ルール違反チェック（showAll時に警告表示）
       if (showAll && !isWorkerAvailable(workerId)) {
         toast.warning("制約違反のアサインです。is_manual_override=true として保存されます。");
@@ -335,7 +373,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId
       // ドロップ先スロットをアクティブに設定
       setActiveSlot({ dateStr, slotType: slotType as SlotType });
     },
-    [handleWorkerChange, isWorkerAvailable, showAll],
+    [calendarState, handleWorkerChange, isWorkerAvailable, showAll],
   );
 
   /** 実際の保存処理（バリデーションチェック後に呼ばれる） */
@@ -456,7 +494,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4">
+      <div className="flex gap-4" onClick={() => setSelectedSlotKey(null)}>
         {/* カレンダーパネル */}
         <div className="flex-1 min-w-0">
           <Panel className="p-4">
@@ -566,6 +604,8 @@ export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId
                         }
                         onSlotFocus={handleSlotFocus}
                         readOnly={readOnly}
+                        selectedSlotKey={selectedSlotKey}
+                        onSlotSelect={handleSlotSelect}
                       />
                     );
                   })}
@@ -594,7 +634,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId
 
         {/* サイドパネル */}
         <div className="w-80 shrink-0">
-          <div className="sticky top-4 h-[calc(100vh-8rem)]">
+          <div className="md:sticky md:top-4 h-[calc(100vh-8rem)]">
             <WorkerListPanel
               workers={workers}
               departments={departments}
@@ -614,20 +654,18 @@ export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId
               currentDateStr={activeSlot?.dateStr}
               minIntervalDays={minIntervalDays}
               prevMonthDatesByWorker={prevMonthDatesByWorker}
+              selectedSlotKey={selectedSlotKey}
+              onWorkerClick={handleClickAssign}
             />
           </div>
         </div>
       </div>
 
-      {/* ドラッグ中のWorkerCardオーバーレイ */}
+      {/* ドラッグ中のWorkerCardオーバーレイ（コンパクト表示） */}
       <DragOverlay>
         {draggingWorker && (
-          <div className="opacity-90 rotate-2 scale-105">
-            <WorkerCard
-              worker={draggingWorker}
-              departments={departments}
-              skillRanks={skillRanks}
-            />
+          <div className="max-w-[120px] opacity-90 rotate-2 scale-105 px-2 py-1.5 rounded border bg-gray-100 border-blue-400 shadow-sm text-xs font-medium text-gray-700 truncate select-none">
+            {draggingWorker.name}
           </div>
         )}
       </DragOverlay>

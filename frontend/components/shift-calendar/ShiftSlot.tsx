@@ -7,7 +7,7 @@ import { SLOT_TYPE_LABELS } from "@/types/shiftRequirement";
 import type { TenantSkillRank } from "@/types/skillRank";
 import type { ValidationViolation } from "@/utils/shiftValidators";
 import { ValidationBadge } from "@/components/ui/ValidationBadge";
-import { ShiftSlotDropZone } from "./ShiftSlotDropZone";
+import { ShiftSlotDropZone, buildDropZoneId } from "./ShiftSlotDropZone";
 
 interface ShiftSlotProps {
   dateStr: string;
@@ -24,6 +24,10 @@ interface ShiftSlotProps {
   onWorkerChange: (index: number, workerId: string | null) => void;
   /** 読み取り専用モード（過去データ表示時）。true の場合、ドロップゾーンを非活性化する */
   readOnly?: boolean;
+  /** 現在選択中のスロットキー（クリックアサインフロー用） */
+  selectedSlotKey?: string | null;
+  /** スロット選択コールバック（クリックアサインフロー用） */
+  onSlotSelect?: (key: string) => void;
 }
 
 /** 1スロット分のコンポーネント（DnDドロップゾーン） */
@@ -39,6 +43,8 @@ export function ShiftSlot({
   onSlotFocus,
   onWorkerChange,
   readOnly = false,
+  selectedSlotKey,
+  onSlotSelect,
 }: ShiftSlotProps) {
   const label = SLOT_TYPE_LABELS[slotType];
   const hasError = violations.some((v) => v.severity === "error");
@@ -83,6 +89,8 @@ export function ShiftSlot({
               isDropAllowed={isWorkerAvailable}
               onClear={() => onWorkerChange(idx, null)}
               onFocus={() => onSlotFocus(dateStr, slotType)}
+              isSelected={buildDropZoneId(dateStr, slotType, idx) === selectedSlotKey}
+              onSelectSlot={onSlotSelect ? () => onSlotSelect(buildDropZoneId(dateStr, slotType, idx)) : undefined}
             />
           ))}
     </div>

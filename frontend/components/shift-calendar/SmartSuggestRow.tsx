@@ -24,6 +24,8 @@ interface SmartSuggestRowProps {
   slotStats?: { count: number; monthlyAvg: number } | null;
   /** ドラッグ不可（フィルタで除外されている場合） */
   disabled?: boolean;
+  /** クリックアサインコールバック（選択中スロットへのアサイン） */
+  onWorkerClick?: (workerId: string) => void;
 }
 
 /**
@@ -39,6 +41,7 @@ export function SmartSuggestRow({
   isNonDefaultEmployment,
   slotStats,
   disabled = false,
+  onWorkerClick,
 }: SmartSuggestRowProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
@@ -65,6 +68,12 @@ export function SmartSuggestRow({
       style={style}
       {...listeners}
       {...attributes}
+      onClick={(e) => {
+        if (!isDragging && !disabled && onWorkerClick) {
+          e.stopPropagation();
+          onWorkerClick(worker.id);
+        }
+      }}
       className={[
         "grid items-center gap-x-1 px-1.5 py-1 rounded border text-xs select-none transition-all",
         SMART_SUGGEST_GRID_COLS,
@@ -72,7 +81,9 @@ export function SmartSuggestRow({
           ? "opacity-40 cursor-not-allowed bg-gray-50 border-gray-200 text-gray-400"
           : isDragging
             ? "opacity-80 bg-gray-100 border-blue-400 shadow-sm cursor-grabbing z-50"
-            : "bg-white border-gray-200 text-gray-700 cursor-grab hover:bg-gray-50 hover:border-gray-300",
+            : onWorkerClick
+              ? "bg-white border-gray-200 text-gray-700 cursor-pointer hover:bg-blue-50 hover:border-blue-300"
+              : "bg-white border-gray-200 text-gray-700 cursor-grab hover:bg-gray-50 hover:border-gray-300",
       ]
         .filter(Boolean)
         .join(" ")}
