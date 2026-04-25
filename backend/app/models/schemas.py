@@ -728,6 +728,7 @@ class ShiftPlanDetailResponse(BaseModel):
     title: str
     target_year_month: str
     status: PlanStatusEnum
+    updated_at: datetime | None = None
     slots: list[ShiftSlotDetail] = []
 
 
@@ -853,3 +854,32 @@ class ShiftVerifyResponse(BaseModel):
     after_period: str
     """After 期間文字列（例: "2025-07 〜 2026-06"）。"""
     items: list[ShiftVerifyWorkerItem]
+
+
+
+class ShiftPlanSnapshotCreate(BaseModel):
+    """ShiftPlanSnapshot作成リクエストスキーマ."""
+
+    snapshot_data: dict
+    created_by: str
+
+
+class ShiftPlanSnapshotResponse(BaseModel):
+    """ShiftPlanSnapshotレスポンススキーマ.
+
+    ORMモデルからの変換に対応するため ``from_attributes=True`` を設定。
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    shift_plan_id: uuid.UUID
+    snapshot_data: dict
+    created_by: str
+    created_at: datetime
+
+
+class ShiftPlanUpdatedAtResponse(BaseModel):
+    """ShiftPlan の updated_at を返すレスポンススキーマ."""
+
+    updated_at: datetime | None = None

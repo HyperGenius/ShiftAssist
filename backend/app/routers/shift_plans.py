@@ -8,13 +8,19 @@
 import uuid
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile, status
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.db import get_session
 from app.dependencies import get_tenant_id
-from app.models.models import PlanStatusEnum
-from app.models.schemas import ShiftPlanDetailResponse, ShiftPlanImportResponse
-from app.services import shift_plan_import_service
+from app.models.models import PlanStatusEnum, ShiftPlan
+from app.models.schemas import (
+    ShiftPlanDetailResponse,
+    ShiftPlanImportResponse,
+    ShiftPlanSnapshotCreate,
+    ShiftPlanSnapshotResponse,
+    ShiftPlanUpdatedAtResponse,
+)
+from app.services import shift_plan_import_service, shift_plan_snapshot_service
 
 router = APIRouter(prefix="/api/shift-plans", tags=["shift-plans"])
 
@@ -169,3 +175,103 @@ def _detect_content_type(filename: str, mime: str) -> str:
     if mime in ("application/json",):
         return "json"
     return ""
+
+
+@router.post(
+    "/{plan_id}/snapshots",
+    response_model=ShiftPlanSnapshotResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_snapshot(
+    plan_id: uuid.UUID,
+    payload: ShiftPlanSnapshotCreate,
+    tenant_id: str = Depends(get_tenant_id),
+    session: Session = Depends(get_session),
+) -> ShiftPlanSnapshotResponse:
+    """シフトプランの下書きスナップショットを作成する.
+
+    スナップショットは最大5件保持され、6件目の保存時に最古のものが自動削除される。
+
+    Args:
+        plan_id: シフトプランID。
+        payload: スナップショットデータ（snapshot_data, created_by）。
+        tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
+        session: DBセッション。
+
+    Returns:
+        作成した ShiftPlanSnapshotResponse。
+
+    Raises:
+        HTTPException 404: 指定された plan_id が存在しない場合。
+    """
+    snapshot = shift_plan_snapshot_service.create_snapshot(
+        session=session,
+        tenant_id=tenant_id,
+        plan_id=plan_id,
+        snapshot_data=payload.snapshot_data,
+        created_by=payload.created_by,
+    )
+    return ShiftPlanSnapshotResponse.model_validate(snapshot)
+
+
+@router.get(
+    "/{plan_id}/snapshots",
+    response_model=list[ShiftPlanSnapshotResponse],
+)
+def list_snapshots(
+    plan_id: uuid.UUID,
+    tenant_id: str = Depends(get_tenant_id),
+    session: Session = Depends(get_session),
+) -> list[ShiftPlanSnapshotResponse]:
+    """シフトプランのスナップショット一覧を取得する（新しい順、最大5件）.
+
+    Args:
+        plan_id: シフトプランID。
+        tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
+        session: DBセッション。
+
+    Returns:
+        ShiftPlanSnapshotResponse のリスト。
+    """
+    snapshots = shift_plan_snapshot_service.list_snapshots(
+        session=session,
+        tenant_id=tenant_id,
+        plan_id=plan_id,
+    )
+    return [ShiftPlanSnapshotResponse.model_validate(s) for s in snapshots]
+
+
+@router.get(
+    "/{plan_id}/updated-at",
+    response_model=ShiftPlanUpdatedAtResponse,
+)
+def get_plan_updated_at(
+    plan_id: uuid.UUID,
+    tenant_id: str = Depends(get_tenant_id),
+    session: Session = Depends(get_session),
+) -> ShiftPlanUpdatedAtResponse:
+    """シフトプランの updated_at を返す（ローカルタイムスタンプとの比較用）.
+
+    Args:
+        plan_id: シフトプランID。
+        tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
+        session: DBセッション。
+
+    Returns:
+        ShiftPlanUpdatedAtResponse（updated_at フィールドを含む）。
+
+    Raises:
+        HTTPException 404: 指定された plan_id が存在しない場合。
+    """
+    plan = session.exec(
+        select(ShiftPlan).where(
+            ShiftPlan.id == plan_id,
+            ShiftPlan.tenant_id == tenant_id,
+        )
+    ).first()
+    if not plan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="シフトプランが見つかりません。",
+        )
+    return ShiftPlanUpdatedAtResponse(updated_at=plan.updated_at)  # type: ignore[arg-type]

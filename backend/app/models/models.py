@@ -418,6 +418,7 @@ class ShiftPlan(Base):
         status: シフトプランのステータス（draft / pending_approval / published）。
         created_by: 作成者のClerk User ID。
         created_at: レコード作成日時。
+        updated_at: レコード最終更新日時。更新時に自動更新される。
     """
 
     __tablename__ = "shift_plans"
@@ -428,6 +429,7 @@ class ShiftPlan(Base):
     status = Column(Enum(PlanStatusEnum), default=PlanStatusEnum.draft, nullable=False)  # type: ignore[var-annotated]
     created_by = Column(String, nullable=False)  # Clerk User ID
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     __table_args__ = (
         Index(
@@ -725,4 +727,37 @@ class WorkerMonthlySlotStats(Base):
             name="uq_worker_monthly_slot_stats",
         ),
         Index("ix_worker_monthly_slot_stats_tenant_ym", "tenant_id", "year_month"),
+    )
+
+
+class ShiftPlanSnapshot(Base):
+    """シフトプランの下書きスナップショットを表すSQLAlchemyモデル.
+
+    「下書き保存」ボタンクリック時に、その時点のシフトカレンダーデータを
+    スナップショットとして保存する。過去5回分の履歴を保持し、6件目の保存時に
+    最も古いものを自動削除する。
+
+    Attributes:
+        id: UUIDによるプライマリキー。
+        tenant_id: Clerk OrganizationのID。テナント分離・インデックス用。
+        shift_plan_id: 紐づくシフトプランのID（shift_plansテーブルへのFK、CASCADE）。
+        snapshot_data: CalendarState相当のJSONデータ。
+        created_by: 保存者のClerk User ID。
+        created_at: レコード作成日時。
+    """
+
+    __tablename__ = "shift_plan_snapshots"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String, index=True, nullable=False)
+    shift_plan_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("shift_plans.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    snapshot_data = Column(JSON, nullable=False)
+    created_by = Column(String, nullable=False)  # Clerk User ID
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_shift_plan_snapshots_plan_id", "shift_plan_id"),
     )

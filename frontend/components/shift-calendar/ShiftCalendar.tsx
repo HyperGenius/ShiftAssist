@@ -12,6 +12,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { toast } from "sonner";
+import { useOrganization, useUser } from "@clerk/nextjs";
 
 import { Button } from "@/components/ui/Button";
 import { Panel } from "@/components/ui/Panel";
@@ -19,6 +20,9 @@ import { CalendarCell } from "./CalendarCell";
 import { OverrideConfirmDialog } from "./OverrideConfirmDialog";
 import { ShiftVerifyDialog } from "./ShiftVerifyDialog";
 import { WorkerListPanel } from "./WorkerListPanel";
+import { DraftSaveButton } from "./DraftSaveButton";
+import { SnapshotHistoryDialog } from "./SnapshotHistoryDialog";
+import { UnsavedDataBanner } from "./UnsavedDataBanner";
 import { parseDropZoneId } from "./ShiftSlotDropZone";
 import { YearMonthPicker } from "./YearMonthPicker";
 import { useShiftRequirements } from "@/hooks/useShiftRequirements";
@@ -33,6 +37,8 @@ import { useCustomRules } from "@/hooks/useCustomRules";
 import { useEmploymentTypes } from "@/hooks/useEmploymentTypes";
 import { usePositions } from "@/hooks/usePositions";
 import { useWorkerStats } from "@/hooks/useWorkerStats";
+import { useLocalStorageDraft } from "@/hooks/useLocalStorageDraft";
+import { useShiftSnapshot } from "@/hooks/useShiftSnapshot";
 import type {
   CalendarState,
   SlotState,
@@ -80,6 +86,8 @@ export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId
   const [isSaving, setIsSaving] = useState(false);
   const [showOverrideDialog, setShowOverrideDialog] = useState(false);
   const [showVerifyDialog, setShowVerifyDialog] = useState(false);
+  const [showSnapshotDialog, setShowSnapshotDialog] = useState(false);
+  const [draftBannerTimestamp, setDraftBannerTimestamp] = useState<string | null>(null);
 
   // アクティブスロット（サイドパネルのフィルタリングに使用）
   const [activeSlot, setActiveSlot] = useState<{
@@ -95,6 +103,10 @@ export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId
 
   // クリックアサイン用: 選択中スロットキー
   const [selectedSlotKey, setSelectedSlotKey] = useState<string | null>(null);
+
+  const { organization } = useOrganization();
+  const { user } = useUser();
+  const tenantId = organization?.id ?? null;
 
   const { shiftRequirements, isLoading, createShiftRequirement, updateShiftRequirement, saveAssignments } =
     useShiftRequirements({ year, month });
@@ -195,6 +207,74 @@ export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+  );
+
+  // localStorage 下書き保存フック
+  const { loadDraft, clearDraft, getDraftTimestamp } = useLocalStorageDraft({
+    tenantId,
+    departmentId: department.id,
+    yearMonth: targetYearMonth,
+    calendarState,
+    readOnly,
+  });
+
+  // スナップショットフック（currentPlanId がある場合のみ使用）
+  const effectivePlanId = currentPlanId ?? pastPlan?.id ?? null;
+  const { snapshots, createSnapshot } = useShiftSnapshot({ planId: effectivePlanId });
+
+  // マウント時に localStorage の未保存データを確認してバナー表示
+  useEffect(() => {
+    if (readOnly) return;
+    const ts = getDraftTimestamp();
+    if (ts) {
+      setDraftBannerTimestamp(ts);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** localStorage の下書きを復元する */
+  const handleRestoreDraft = useCallback(() => {
+    const draft = loadDraft();
+    if (!draft) return;
+    setCalendarState(draft.calendarState);
+    setDraftBannerTimestamp(null);
+    clearDraft();
+    toast.success("下書きを復元しました");
+  }, [loadDraft, clearDraft]);
+
+  /** localStorage の下書きを破棄する */
+  const handleDiscardDraft = useCallback(() => {
+    clearDraft();
+    setDraftBannerTimestamp(null);
+  }, [clearDraft]);
+
+  /** 下書き保存ハンドラ（DBスナップショット） */
+  const handleDraftSave = useCallback(async () => {
+    if (!effectivePlanId) {
+      toast.error("シフトプランが未作成のため下書き保存できません");
+      return;
+    }
+    try {
+      await createSnapshot(
+        calendarState as unknown as Record<string, unknown>,
+        user?.id ?? "unknown",
+      );
+      clearDraft();
+      toast.success("下書きを保存しました");
+    } catch {
+      toast.error("下書き保存に失敗しました");
+    }
+  }, [effectivePlanId, createSnapshot, calendarState, user?.id, clearDraft]);
+
+  /** スナップショットから復元する */
+  const handleRestoreSnapshot = useCallback(
+    (snapshotId: string) => {
+      const snap = snapshots.find((s) => s.id === snapshotId);
+      if (!snap) return;
+      setCalendarState(snap.snapshot_data as unknown as CalendarState);
+      toast.success("スナップショットを復元しました");
+    },
+    [snapshots],
   );
 
   /** 月のシフト枠データをカレンダーステートに変換して初期化する */
@@ -498,6 +578,15 @@ export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId
         {/* カレンダーパネル */}
         <div className="flex-1 min-w-0">
           <Panel className="p-4">
+            {/* 未保存下書きバナー */}
+            {!readOnly && draftBannerTimestamp && (
+              <UnsavedDataBanner
+                savedAt={draftBannerTimestamp}
+                onRestore={handleRestoreDraft}
+                onDiscard={handleDiscardDraft}
+              />
+            )}
+
             {/* ヘッダー：月ナビゲーション＆保存ボタン */}
             <div className="flex items-center justify-between mb-4">
               <Button variant="secondary" size="sm" onClick={prevMonth}>
@@ -519,6 +608,18 @@ export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId
                   >
                     🔍 Verify
                   </Button>
+                )}
+                {!readOnly && effectivePlanId && (
+                  <>
+                    <DraftSaveButton onSave={handleDraftSave} />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setShowSnapshotDialog(true)}
+                    >
+                      📋 履歴
+                    </Button>
+                  </>
                 )}
                 {!readOnly && (
                   <Button
@@ -677,6 +778,15 @@ export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId
         onCancel={handleOverrideCancel}
         onConfirm={handleOverrideConfirm}
       />
+
+      {/* スナップショット履歴ダイアログ */}
+      {showSnapshotDialog && (
+        <SnapshotHistoryDialog
+          snapshots={snapshots}
+          onRestore={handleRestoreSnapshot}
+          onClose={() => setShowSnapshotDialog(false)}
+        />
+      )}
 
       {/* Verify ダイアログ */}
       {(pastPlan?.id ?? currentPlanId ?? (shiftRequirements.length > 0 ? true : null)) && (
