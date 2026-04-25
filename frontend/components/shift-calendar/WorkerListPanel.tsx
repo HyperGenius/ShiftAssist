@@ -14,7 +14,6 @@ import type { AggregateStatsResponse, WorkerStatsResponse } from "@/types/worker
 import { useAvailableWorkers } from "@/hooks/useAvailableWorkers";
 import { useCustomRules } from "@/hooks/useCustomRules";
 import { matchesNormalized } from "@/utils/stringUtils";
-import { WorkerCard } from "./WorkerCard";
 import { WorkerFilterBar, type WorkerFilterState } from "./WorkerFilterBar";
 import { SmartSuggestRow, SMART_SUGGEST_GRID_COLS } from "./SmartSuggestRow";
 
@@ -50,6 +49,10 @@ interface WorkerListPanelProps {
   minIntervalDays?: number;
   /** 前月の直近シフト日付マップ（workerId → last_shift_date）。月跨ぎ間隔チェックに使用 */
   prevMonthDatesByWorker?: Record<string, string | null>;
+  /** 現在選択中のスロットキー（クリックアサインフロー用） */
+  selectedSlotKey?: string | null;
+  /** Workerクリック時のアサインコールバック（クリックアサインフロー用） */
+  onWorkerClick?: (workerId: string) => void;
 }
 
 /**
@@ -76,6 +79,8 @@ export function WorkerListPanel({
   currentDateStr,
   minIntervalDays,
   prevMonthDatesByWorker,
+  selectedSlotKey,
+  onWorkerClick,
 }: WorkerListPanelProps) {
   // フィルタ状態
   const [filterState, setFilterState] = useState<WorkerFilterState>({
@@ -264,6 +269,13 @@ export function WorkerListPanel({
         </label>
       </div>
 
+      {/* クリックアサイン案内バナー */}
+      {selectedSlotKey && (
+        <div className="px-3 py-1.5 bg-blue-50 border-b border-blue-200 text-[11px] text-blue-700 font-medium">
+          → Workerをクリックしてアサイン
+        </div>
+      )}
+
       {/* 集計データ未計算時の警告 */}
       {showNoAggregateWarning && (
         <div className="px-2 py-1.5 bg-amber-50 border-b border-amber-200 text-[10px] text-amber-800">
@@ -281,7 +293,7 @@ export function WorkerListPanel({
       {/* グリッドヘッダー + Workerリスト（横スクロール領域） */}
       <div className="flex-1 overflow-auto">
         {/* グリッドヘッダー（縦スクロール時に上部固定） */}
-        {!showAll && activeSlotType && workers.length > 0 && (
+        {activeSlotType && workers.length > 0 && (
           <div className={`sticky top-0 z-10 grid items-center gap-x-2 px-1.5 py-0.5 bg-gray-50 border-b border-gray-100 text-[9px] text-gray-400 min-w-max ${SMART_SUGGEST_GRID_COLS}`}>
             <div />
             <div />
@@ -303,16 +315,40 @@ export function WorkerListPanel({
               条件に一致する対応者がいません
             </p>
           ) : showAll ? (
-            // 全表示モード: フィルタで除外されるWorkerを薄く表示
-            filteredWorkers.map((w) => (
-              <WorkerCard
-                key={w.id}
-                worker={w}
-                departments={departments}
-                skillRanks={skillRanks}
-                disabled={!availableIds.has(w.id)}
-              />
-            ))
+            // 全表示モード: SmartSuggestRow で統一表示（制約アウトは disabled）
+            filteredWorkers.map((w) => {
+              const statsItem = aggregateStatsMap.get(w.id);
+              const slotStat = activeSlotType
+                ? statsItem?.slot_stats.find((s) => s.slot_type === activeSlotType) ?? null
+                : null;
+              const positionName = statsItem?.position_name ?? null;
+              const employmentTypeName =
+                statsItem?.employment_type_name ??
+                (w.employment_type_id
+                  ? (employmentTypeNameById.get(w.employment_type_id) ?? null)
+                  : null);
+              const isNonDefaultEmployment =
+                statsItem?.is_non_default_employment ?? w.is_special ?? false;
+
+              return (
+                <SmartSuggestRow
+                  key={w.id}
+                  worker={w}
+                  departments={departments}
+                  skillRanks={skillRanks}
+                  positionName={positionName}
+                  employmentTypeName={employmentTypeName}
+                  isNonDefaultEmployment={isNonDefaultEmployment}
+                  slotStats={
+                    slotStat
+                      ? { count: slotStat.count, monthlyAvg: slotStat.monthly_avg }
+                      : null
+                  }
+                  disabled={!availableIds.has(w.id)}
+                  onWorkerClick={onWorkerClick}
+                />
+              );
+            })
           ) : (
             // スマートサジェストモード: 6カラムGrid表示 + スマートソート
             filteredWorkers.map((w) => {
@@ -343,6 +379,7 @@ export function WorkerListPanel({
                       ? { count: slotStat.count, monthlyAvg: slotStat.monthly_avg }
                       : null
                   }
+                  onWorkerClick={onWorkerClick}
                 />
               );
             })
