@@ -582,6 +582,7 @@ export function ShiftCalendar({ department, year, month, pastPlan, currentPlanId
             {!readOnly && draftBannerTimestamp && (
               <UnsavedDataBanner
                 savedAt={draftBannerTimestamp}
+                yearMonth={targetYearMonth}
                 onRestore={handleRestoreDraft}
                 onDiscard={handleDiscardDraft}
               />
