@@ -696,6 +696,8 @@ class ShiftPlanImportResponse(BaseModel):
     """作成されたShiftAssignment件数."""
     skipped_worker_ids: list[str]
     """存在しない社員番号のためスキップされたワーカー識別子のリスト."""
+    overwritten: bool = False
+    """既存プランを上書きした場合は True。"""
 
 
 class ShiftAssignmentDetail(BaseModel):

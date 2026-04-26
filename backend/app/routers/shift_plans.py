@@ -41,6 +41,10 @@ async def import_shift_plan(
         "import",
         description="作成者識別子（省略時は 'import'）",
     ),
+    force_overwrite: bool = Form(
+        False,
+        description="True の場合、同一年月の既存プランを削除して上書きする",
+    ),
     tenant_id: str = Depends(get_tenant_id),
     session: Session = Depends(get_session),
 ) -> ShiftPlanImportResponse:
@@ -51,6 +55,9 @@ async def import_shift_plan(
     過去データのため、全アサインに ``is_manual_override = True`` を設定し、
     シフトルール検証はスキップする。
     対象年月はファイル内の ``date`` カラムから自動検出する（全行が同一年月である必要あり）。
+
+    同一年月のプランが既存の場合、``force_overwrite=False``（デフォルト）では HTTP 409 を返す。
+    ``force_overwrite=True`` の場合は既存プランを削除して上書きする。
 
     CSVフォーマット例::
 
@@ -74,13 +81,15 @@ async def import_shift_plan(
         file: アップロードするCSVまたはJSONファイル。
         plan_status: 作成するシフトプランのステータス。
         created_by: 作成者識別子。
+        force_overwrite: True の場合、同一年月の既存プランを削除して上書きする。
         tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
         session: DBセッション。
 
     Returns:
-        インポート結果（プランID・作成件数・スキップされたワーカーリスト）。
+        インポート結果（プランID・作成件数・スキップされたワーカーリスト・上書きフラグ）。
 
     Raises:
+        HTTPException 409: 同一年月のプランが存在し force_overwrite=False の場合。
         HTTPException 415: 対応外のファイル形式の場合。
         HTTPException 422: パースエラー・フォーマット不正・複数年月混在の場合。
     """
@@ -102,6 +111,7 @@ async def import_shift_plan(
         content_type=content_type_hint,
         plan_status=plan_status,
         created_by=created_by,
+        force_overwrite=force_overwrite,
     )
 
 
