@@ -29,7 +29,7 @@ export function UnsavedDataBanner({ savedAt, yearMonth, onRestore, onDiscard }: 
   return (
     <div className="flex items-center justify-between gap-4 bg-yellow-50 border border-yellow-300 rounded-lg px-4 py-3 mb-3 text-sm">
       <span className="text-yellow-800">
-        ⚠️ {formatYearMonth(yearMonth)}の下書きがあります（{formatSavedAt(savedAt)} に保存）。復元しますか？
+        ⚠️ {formatYearMonth(yearMonth)}の下書きがあります。復元しますか？（{formatSavedAt(savedAt)} に保存）
       </span>
       <div className="flex gap-2 shrink-0">
         <Button variant="primary" size="sm" onClick={onRestore}>

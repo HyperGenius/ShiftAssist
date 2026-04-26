@@ -758,6 +758,4 @@ class ShiftPlanSnapshot(Base):
     created_by = Column(String, nullable=False)  # Clerk User ID
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    __table_args__ = (
-        Index("ix_shift_plan_snapshots_plan_id", "shift_plan_id"),
-    )
+    __table_args__ = (Index("ix_shift_plan_snapshots_plan_id", "shift_plan_id"),)

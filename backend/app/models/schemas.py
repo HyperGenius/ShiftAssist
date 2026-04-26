@@ -856,6 +856,16 @@ class ShiftVerifyResponse(BaseModel):
     items: list[ShiftVerifyWorkerItem]
 
 
+class ShiftPlanCreate(BaseModel):
+    """ShiftPlan新規作成リクエストスキーマ."""
+
+    target_year_month: str
+    """対象年月（YYYY-MM形式）。例: "2026-04"。"""
+    title: str | None = None
+    """シフトプランのタイトル。省略時は "YYYY年M月 シフト" が自動設定される。"""
+    created_by: str = "user"
+    """作成者のClerk User ID。"""
+
 
 class ShiftPlanSnapshotCreate(BaseModel):
     """ShiftPlanSnapshot作成リクエストスキーマ."""

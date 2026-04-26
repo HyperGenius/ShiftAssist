@@ -14,6 +14,7 @@ from app.db import get_session
 from app.dependencies import get_tenant_id
 from app.models.models import PlanStatusEnum, ShiftPlan
 from app.models.schemas import (
+    ShiftPlanCreate,
     ShiftPlanDetailResponse,
     ShiftPlanImportResponse,
     ShiftPlanSnapshotCreate,
@@ -128,6 +129,39 @@ def get_shift_plan(
     """
     return shift_plan_import_service.get_shift_plan_by_year_month(
         session, tenant_id, year_month
+    )
+
+
+@router.post(
+    "/", response_model=ShiftPlanDetailResponse, status_code=status.HTTP_201_CREATED
+)
+def create_shift_plan(
+    payload: ShiftPlanCreate,
+    tenant_id: str = Depends(get_tenant_id),
+    session: Session = Depends(get_session),
+) -> ShiftPlanDetailResponse:
+    """空のシフトプランを新規作成する.
+
+    スロットを持たない空のプランを作成する。
+    同一年月のプランがすでに存在する場合は 409 を返す。
+
+    Args:
+        payload: 作成情報（target_year_month, title, created_by）。
+        tenant_id: ``X-Tenant-Id`` ヘッダーから取得したテナントID。
+        session: DBセッション。
+
+    Returns:
+        作成した ShiftPlanDetailResponse。
+
+    Raises:
+        HTTPException 409: 同一年月のプランがすでに存在する場合。
+    """
+    return shift_plan_import_service.create_empty_shift_plan(
+        session=session,
+        tenant_id=tenant_id,
+        target_year_month=payload.target_year_month,
+        title=payload.title,
+        created_by=payload.created_by,
     )
 
 

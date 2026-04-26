@@ -606,3 +606,58 @@ def get_shift_plan_by_year_month(
         status=cast(PlanStatusEnum, plan.status),
         slots=slot_details,
     )
+
+
+def create_empty_shift_plan(
+    session: Session,
+    tenant_id: str,
+    target_year_month: str,
+    title: str | None,
+    created_by: str,
+) -> ShiftPlanDetailResponse:
+    """空のシフトプラン（スロットなし）を新規作成する.
+
+    同一年月のプランがすでに存在する場合は 409 を返す。
+
+    Args:
+        session: SQLModelセッション。
+        tenant_id: テナントID。
+        target_year_month: 対象年月（YYYY-MM形式）。
+        title: プランタイトル。None の場合は "YYYY年M月 シフト" を自動設定する。
+        created_by: 作成者のClerk User ID。
+
+    Returns:
+        作成した ShiftPlanDetailResponse。
+
+    Raises:
+        HTTPException 409: 同一年月のプランがすでに存在する場合。
+    """
+    existing = get_shift_plan_by_year_month(session, tenant_id, target_year_month)
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"年月 '{target_year_month}' のシフトプランはすでに存在します。",
+        )
+
+    if title is None:
+        year_str, month_str = target_year_month.split("-")
+        title = f"{year_str}年{int(month_str)}月 シフト"
+
+    plan = ShiftPlan(
+        tenant_id=tenant_id,
+        title=title,
+        target_year_month=target_year_month,
+        status=PlanStatusEnum.draft,
+        created_by=created_by,
+    )
+    session.add(plan)
+    session.commit()
+    session.refresh(plan)
+
+    return ShiftPlanDetailResponse(
+        id=cast(uuid.UUID, plan.id),
+        title=cast(str, plan.title),
+        target_year_month=cast(str, plan.target_year_month),
+        status=cast(PlanStatusEnum, plan.status),
+        slots=[],
+    )

@@ -1,9 +1,10 @@
 "use client";
 
 import { useAuth, useOrganization } from "@clerk/nextjs";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import useSWR from "swr";
 
+import { createApiClient } from "@/utils/apiClient";
 import { fetcher } from "@/utils/fetcher";
 import type { ShiftPlanDetail } from "@/types/shiftPlan";
 
@@ -18,6 +19,8 @@ type UseShiftPlanResult = {
   shiftPlan: ShiftPlanDetail | null;
   isLoading: boolean;
   error: unknown;
+  /** 空のシフトプランを新規作成して SWR キャッシュを更新する */
+  createShiftPlan: (createdBy: string) => Promise<ShiftPlanDetail>;
 };
 
 /** 指定年月のシフトプラン（過去インポートデータ）を取得するカスタムフック */
@@ -35,7 +38,7 @@ export function useShiftPlan({ year, month }: UseShiftPlanOptions): UseShiftPlan
     [tenantId, path],
   );
 
-  const { data, error, isLoading } = useSWR<ShiftPlanDetail | null>(
+  const { data, error, isLoading, mutate } = useSWR<ShiftPlanDetail | null>(
     swrKey,
     async ([p, , tid]: [string, null, string | null]) => {
       const token = await getToken();
@@ -46,9 +49,24 @@ export function useShiftPlan({ year, month }: UseShiftPlanOptions): UseShiftPlan
     },
   );
 
+  const createShiftPlan = useCallback(
+    async (createdBy: string): Promise<ShiftPlanDetail> => {
+      const token = await getToken();
+      const api = createApiClient({ token, tenantId });
+      const created = await api.post<ShiftPlanDetail>(SHIFT_PLANS_PATH, {
+        target_year_month: yearMonth,
+        created_by: createdBy,
+      });
+      await mutate(created, { revalidate: false });
+      return created;
+    },
+    [getToken, tenantId, yearMonth, mutate],
+  );
+
   return {
     shiftPlan: data ?? null,
     isLoading,
     error,
+    createShiftPlan,
   };
 }
