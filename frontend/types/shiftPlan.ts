@@ -10,6 +10,7 @@ export interface ShiftPlanImportResponse {
   slots_created: number;
   assignments_created: number;
   skipped_worker_ids: string[];
+  overwritten: boolean;
 }
 
 /** シフトアサイン詳細（ShiftPlanDetail 内で使用） */

@@ -239,9 +239,47 @@ class TestImportShiftPlan:
     """import_shift_plan の正常系・異常系テスト."""
 
     def _make_session_mock(self, workers: list[Worker]) -> MagicMock:
-        """テスト用セッションMockを生成するヘルパー."""
+        """テスト用セッションMockを生成するヘルパー.
+
+        1回目の exec 呼び出し: 既存プランチェック（空リストを返す）
+        2回目以降の exec 呼び出し: ワーカールックアップ（workers を返す）
+        """
         session = MagicMock()
-        session.exec.return_value = MagicMock(**{"all.return_value": workers})
+        call_count = [0]
+
+        def exec_side_effect(*args: object, **kwargs: object) -> MagicMock:
+            call_count[0] += 1
+            if call_count[0] == 1:
+                # 既存プランチェック: 重複なし
+                return MagicMock(**{"all.return_value": []})
+            # ワーカールックアップ
+            return MagicMock(**{"all.return_value": workers})
+
+        session.exec.side_effect = exec_side_effect
+        session.flush.return_value = None
+        session.commit.return_value = None
+        return session
+
+    def _make_session_mock_with_existing_plans(
+        self,
+        existing_plans: list[ShiftPlan],
+        workers: list[Worker],
+    ) -> MagicMock:
+        """既存プランが存在するケース用のテスト用セッションMock.
+
+        1回目の exec 呼び出し: 既存プランチェック（existing_plans を返す）
+        2回目以降の exec 呼び出し: ワーカールックアップ（workers を返す）
+        """
+        session = MagicMock()
+        call_count = [0]
+
+        def exec_side_effect(*args: object, **kwargs: object) -> MagicMock:
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return MagicMock(**{"all.return_value": existing_plans})
+            return MagicMock(**{"all.return_value": workers})
+
+        session.exec.side_effect = exec_side_effect
         session.flush.return_value = None
         session.commit.return_value = None
         return session
@@ -518,6 +556,102 @@ class TestImportShiftPlan:
         )
 
         assert result.target_year_month == "2026-03"
+
+    def test_no_existing_plan_returns_overwritten_false(self) -> None:
+        """正常系: 既存プランがない場合、overwritten=False が返る."""
+        csv_content = (
+            "date,slot_type\n"
+            "2025-12-01,weekday_night\n"
+        ).encode("utf-8")
+
+        session = self._make_session_mock([])
+
+        result = shift_plan_import_service.import_shift_plan(
+            session=session,
+            tenant_id=TENANT_ID,
+            file_content=csv_content,
+            content_type="csv",
+        )
+
+        assert result.overwritten is False
+
+    def test_existing_plan_without_force_overwrite_raises_409(self) -> None:
+        """異常系: 既存プランが存在し force_overwrite=False の場合、409例外を送出する."""
+        csv_content = (
+            "date,slot_type\n"
+            "2025-12-01,weekday_night\n"
+        ).encode("utf-8")
+
+        existing_plan = _make_shift_plan()
+        session = self._make_session_mock_with_existing_plans([existing_plan], [])
+
+        with pytest.raises(HTTPException) as exc_info:
+            shift_plan_import_service.import_shift_plan(
+                session=session,
+                tenant_id=TENANT_ID,
+                file_content=csv_content,
+                content_type="csv",
+            )
+
+        assert exc_info.value.status_code == 409
+        detail = exc_info.value.detail
+        assert isinstance(detail, dict)
+        assert detail["existing_plan_id"] == str(existing_plan.id)
+        assert detail["target_year_month"] == TARGET_YM
+
+    def test_force_overwrite_deletes_existing_plan_and_creates_new(self) -> None:
+        """正常系: force_overwrite=True の場合、既存プランを削除して新規作成する."""
+        csv_content = (
+            "date,slot_type,worker_id_1\n"
+            "2025-12-01,weekday_night,1234567\n"
+        ).encode("utf-8")
+
+        existing_plan = _make_shift_plan()
+        workers = [_make_worker(WORKER_EMP_NO_1, WORKER_ID_1)]
+        session = self._make_session_mock_with_existing_plans([existing_plan], workers)
+
+        result = shift_plan_import_service.import_shift_plan(
+            session=session,
+            tenant_id=TENANT_ID,
+            file_content=csv_content,
+            content_type="csv",
+            force_overwrite=True,
+        )
+
+        session.delete.assert_any_call(existing_plan)
+        assert result.overwritten is True
+        assert result.slots_created == 1
+
+    def test_force_overwrite_deletes_multiple_existing_plans(self) -> None:
+        """正常系: 複数の既存プランが存在する場合、全件削除されて新規作成される."""
+        csv_content = (
+            "date,slot_type\n"
+            "2025-12-01,weekday_night\n"
+        ).encode("utf-8")
+
+        plan1 = _make_shift_plan()
+        plan2 = ShiftPlan()
+        plan2.id = uuid.uuid4()
+        plan2.tenant_id = TENANT_ID
+        plan2.title = f"{TARGET_YM} インポート2"
+        plan2.target_year_month = TARGET_YM
+        plan2.status = PlanStatusEnum.published
+        plan2.created_by = "import"
+        plan2.created_at = datetime(2026, 1, 2)
+
+        session = self._make_session_mock_with_existing_plans([plan1, plan2], [])
+
+        result = shift_plan_import_service.import_shift_plan(
+            session=session,
+            tenant_id=TENANT_ID,
+            file_content=csv_content,
+            content_type="csv",
+            force_overwrite=True,
+        )
+
+        session.delete.assert_any_call(plan1)
+        session.delete.assert_any_call(plan2)
+        assert result.overwritten is True
 
 
 # ---------------------------------------------------------------------------

@@ -325,6 +325,50 @@ def _create_slots_and_assignments(
     return slots_created, assignments_created
 
 
+def _check_and_raise_if_conflict(
+    session: Session,
+    tenant_id: str,
+    target_year_month: str,
+    force_overwrite: bool,
+) -> list[ShiftPlan]:
+    """同一年月の既存プランを返し、必要に応じて 409 を送出する.
+
+    Args:
+        session: DBセッション。
+        tenant_id: テナントID。
+        target_year_month: 対象年月（YYYY-MM形式）。
+        force_overwrite: True の場合は 409 を送出せず既存プランを返す。
+
+    Returns:
+        同一年月の既存 ShiftPlan リスト（force_overwrite=False かつ空のときは []）。
+
+    Raises:
+        HTTPException 409: 同一年月のプランが存在し force_overwrite=False の場合。
+    """
+    existing_plans = session.exec(
+        select(ShiftPlan).where(
+            ShiftPlan.tenant_id == tenant_id,  # type: ignore[arg-type]
+            ShiftPlan.target_year_month == target_year_month,  # type: ignore[arg-type]
+        )
+    ).all()
+
+    if existing_plans and not force_overwrite:
+        latest_plan = max(
+            existing_plans,
+            key=lambda p: p.created_at or datetime.min,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": f"年月 '{target_year_month}' のシフトプランはすでに存在します。",
+                "existing_plan_id": str(latest_plan.id),
+                "target_year_month": target_year_month,
+            },
+        )
+
+    return list(existing_plans)
+
+
 def import_shift_plan(
     session: Session,
     tenant_id: str,
@@ -332,6 +376,7 @@ def import_shift_plan(
     content_type: str,
     plan_status: PlanStatusEnum = PlanStatusEnum.published,
     created_by: str = "import",
+    force_overwrite: bool = False,
 ) -> ShiftPlanImportResponse:
     """CSVまたはJSONファイルから過去シフトデータを一括インポートする.
 
@@ -340,6 +385,9 @@ def import_shift_plan(
     全アサインに ``is_manual_override = True`` を設定し、ルール検証をスキップする。
     対象年月はファイル内の date カラムから自動検出する。全行が同一年月である必要がある。
 
+    同一年月のプランが既存の場合、``force_overwrite=False``（デフォルト）では HTTP 409 を返す。
+    ``force_overwrite=True`` の場合は既存プランを全件削除してから新規インポートを実行する。
+
     Args:
         session: DBセッション。
         tenant_id: テナントID。
@@ -347,11 +395,13 @@ def import_shift_plan(
         content_type: ファイルのコンテンツタイプ（"csv" または "json"）。
         plan_status: 作成するシフトプランのステータス（デフォルト: published）。
         created_by: 作成者識別子（デフォルト: "import"）。
+        force_overwrite: True の場合、既存プランを削除して上書きする。
 
     Returns:
         インポート結果レスポンス。
 
     Raises:
+        HTTPException 409: 同一年月のプランが存在し force_overwrite=False の場合。
         HTTPException: パースエラー・フォーマット不正・複数年月混在・DB制約エラーの場合。
     """
     # --- ファイルパース ---
@@ -371,6 +421,11 @@ def import_shift_plan(
     # --- ファイル内の日付から対象年月を自動検出 ---
     target_year_month = _detect_target_year_month(rows)
 
+    # --- 同一年月の既存プランを確認 ---
+    existing_plans = _check_and_raise_if_conflict(
+        session, tenant_id, target_year_month, force_overwrite
+    )
+
     # --- 全ワーカー社員番号を収集して一括ルックアップ ---
     all_employee_nos: list[str] = []
     for row in rows:
@@ -381,7 +436,15 @@ def import_shift_plan(
     )
 
     # --- トランザクション内でバルクインサート ---
+    overwritten = False
     try:
+        # force_overwrite=True の場合は既存プランを全件削除（CASCADE で ShiftSlot/ShiftAssignment も削除）
+        if existing_plans:
+            for existing in existing_plans:
+                session.delete(existing)
+            session.flush()
+            overwritten = True
+
         # ShiftPlan 作成
         plan_title = f"{target_year_month} インポート"
         plan = ShiftPlan(
@@ -435,6 +498,7 @@ def import_shift_plan(
         slots_created=slots_created,
         assignments_created=assignments_created,
         skipped_worker_ids=sorted(set(skipped)),
+        overwritten=overwritten,
     )
 
 

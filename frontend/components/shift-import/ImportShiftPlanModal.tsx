@@ -25,9 +25,11 @@ type Props = {
  *
  * CSV/JSONファイルのドラッグ＆ドロップおよびファイル選択に対応する。
  * 対象年月はファイル内の date カラムから自動検出される。
+ * 同一年月のプランが既存の場合は上書き確認ダイアログを表示する。
  */
 export function ImportShiftPlanModal({ onClose, onSuccess }: Props) {
-  const { importShiftPlan, isLoading, error, reset } = useImportShiftPlan();
+  const { importShiftPlan, isLoading, error, conflictInfo, reset, resetConflict } =
+    useImportShiftPlan();
 
   const [file, setFile] = useState<File | null>(null);
   const [planStatus, setPlanStatus] = useState<PlanStatus>("published");
@@ -71,16 +73,17 @@ export function ImportShiftPlanModal({ onClose, onSuccess }: Props) {
     setIsDragging(false);
   }, []);
 
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
+  const runImport = useCallback(
+    async (forceOverwrite = false) => {
       if (!file) return;
 
-      try {
-        const importResult = await importShiftPlan({
-          file,
-          planStatus,
-        });
+      const importResult = await importShiftPlan({
+        file,
+        planStatus,
+        forceOverwrite,
+      });
+
+      if (importResult !== null) {
         setResult(importResult);
         // シフトプラン一覧・シフト枠一覧を再フェッチ
         await globalMutate(
@@ -93,14 +96,38 @@ export function ImportShiftPlanModal({ onClose, onSuccess }: Props) {
             key[0].startsWith("/api/shift-requirements"),
         );
         onSuccess?.(importResult);
-      } catch {
-        // エラーは useImportShiftPlan が state で管理
       }
     },
     [file, planStatus, importShiftPlan, onSuccess],
   );
 
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      try {
+        await runImport(false);
+      } catch {
+        // エラーは useImportShiftPlan が state で管理
+      }
+    },
+    [runImport],
+  );
+
+  const handleOverwriteConfirm = useCallback(async () => {
+    try {
+      await runImport(true);
+    } catch {
+      // エラーは useImportShiftPlan が state で管理
+    }
+  }, [runImport]);
+
   const canSubmit = !!file && !isLoading;
+
+  // 年月を "YYYY年M月" 形式に変換するヘルパー
+  const formatYearMonth = (yearMonth: string): string => {
+    const [year, month] = yearMonth.split("-");
+    return `${year}年${parseInt(month, 10)}月`;
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -131,6 +158,11 @@ export function ImportShiftPlanModal({ onClose, onSuccess }: Props) {
                 <li>ステータス: {PLAN_STATUS_LABELS[result.status]}</li>
                 <li>シフト枠（作成）: {result.slots_created} 件</li>
                 <li>アサイン（作成）: {result.assignments_created} 件</li>
+                {result.overwritten && (
+                  <li className="text-amber-700">
+                    ※ 既存のシフトプランを上書きしました
+                  </li>
+                )}
                 {result.skipped_worker_ids.length > 0 && (
                   <li className="text-amber-700">
                     スキップされた社員番号（{result.skipped_worker_ids.length}
@@ -143,6 +175,55 @@ export function ImportShiftPlanModal({ onClose, onSuccess }: Props) {
             <div className="flex justify-end">
               <Button variant="secondary" onClick={onClose}>
                 閉じる
+              </Button>
+            </div>
+          </div>
+        ) : conflictInfo ? (
+          /* 上書き確認ダイアログ */
+          <div className="px-6 py-5 space-y-4">
+            <div className="rounded-md bg-amber-50 border border-amber-200 p-4">
+              <p className="text-sm font-medium text-amber-800 mb-2">
+                ⚠ シフトプランが既に存在します
+              </p>
+              <p className="text-sm text-amber-700">
+                既に{" "}
+                <span className="font-semibold">
+                  {formatYearMonth(conflictInfo.targetYearMonth)}
+                </span>{" "}
+                のシフトプランが存在します。上書きしますか？
+              </p>
+              <p className="text-xs text-amber-600 mt-2">
+                ※ 上書きすると既存のシフトプランおよび関連するシフト枠・アサインが全て削除されます。
+              </p>
+            </div>
+
+            {error && (
+              <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3">
+                <p className="text-xs font-semibold text-red-800 mb-1">
+                  ⚠ エラー
+                </p>
+                <p className="text-sm text-red-700 whitespace-pre-wrap">
+                  {error}
+                </p>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-1">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={resetConflict}
+                disabled={isLoading}
+              >
+                キャンセル
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                loading={isLoading}
+                onClick={handleOverwriteConfirm}
+              >
+                上書きする
               </Button>
             </div>
           </div>
