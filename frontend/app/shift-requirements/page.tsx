@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { mutate as globalMutate } from "swr";
 import { toast } from "sonner";
+import { useUser } from "@clerk/nextjs";
 
 import { Button } from "@/components/ui/Button";
 import { Heading } from "@/components/ui/Heading";
@@ -23,6 +24,7 @@ function ShiftRequirementsContent() {
   const today = new Date();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useUser();
 
   // URL から year/month を取得。未指定なら当月をデフォルトとする
   const calYear = (() => {
@@ -42,7 +44,11 @@ function ShiftRequirementsContent() {
   // 表示モード: null = 未選択（pastPlan の有無で自動決定）、それ以外はユーザーが手動選択済み
   const [viewMode, setViewMode] = useState<ViewMode | null>(null);
 
-  const { shiftPlan, isLoading: planLoading } = useShiftPlan({ year: calYear, month: calMonth });
+  // 「新規作成」で生成したプランの ID（SWR が反映されるまでの暫定値）
+  const [createdPlanId, setCreatedPlanId] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+
+  const { shiftPlan, isLoading: planLoading, createShiftPlan } = useShiftPlan({ year: calYear, month: calMonth });
   const { deleteShiftPlan, isLoading: deleteLoading } = useDeleteShiftPlan();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -52,9 +58,25 @@ function ShiftRequirementsContent() {
     params.set("year", String(y));
     params.set("month", String(m));
     router.replace(`?${params.toString()}`);
-    // 月が変わったら表示モードをリセット（pastPlan の存在で自動判定させる）
+    // 月が変わったら表示モードとローカルプランIDをリセット
     setViewMode(null);
+    setCreatedPlanId(null);
   }, [router, searchParams]);
+
+  /** 空のシフトプランを新規作成する */
+  const handleCreateShiftPlan = useCallback(async () => {
+    setIsCreating(true);
+    try {
+      const created = await createShiftPlan(user?.id ?? "user");
+      setCreatedPlanId(created.id);
+      setViewMode("edit");
+      toast.success("シフトプランを作成しました。下書き保存が利用可能になりました。");
+    } catch {
+      toast.error("シフトプランの作成に失敗しました");
+    } finally {
+      setIsCreating(false);
+    }
+  }, [createShiftPlan, user?.id]);
 
   /** 過去シフトプランを削除する */
   const handleDeletePlan = useCallback(async () => {
@@ -77,7 +99,8 @@ function ShiftRequirementsContent() {
   }, [shiftPlan, deleteShiftPlan]);
 
   // 実際に使うモード: ユーザーが選択していれば従う、未選択なら pastPlan があれば "past"、なければ "edit"
-  const effectiveMode: ViewMode = viewMode ?? (shiftPlan ? "past" : "edit");
+  // 新規作成直後（createdPlanId が設定済み）は必ず "edit" を維持する
+  const effectiveMode: ViewMode = viewMode ?? (shiftPlan && !createdPlanId ? "past" : "edit");
 
   const isLoading = deptsLoading || rulesLoading;
 
@@ -133,8 +156,8 @@ function ShiftRequirementsContent() {
           </div>
         )}
 
-        {/* 表示モード切り替えタブ（過去データが存在するときのみ表示） */}
-        {!isLoading && !planLoading && shiftPlan && (
+        {/* 表示モード切り替えタブ（インポート済み過去データが存在するときのみ表示） */}
+        {!isLoading && !planLoading && shiftPlan && !createdPlanId && (
           <div className="flex items-center justify-between mb-4 border-b border-gray-200">
             <div className="flex gap-1">
               <button
@@ -171,6 +194,24 @@ function ShiftRequirementsContent() {
           </div>
         )}
 
+        {/* 新規作成バナー（プランが未作成かつ新規作成前のみ表示） */}
+        {!isLoading && !planLoading && !shiftPlan && !createdPlanId && (
+          <div className="mb-4 flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+            <span>
+              この月のシフトプランはまだ作成されていません。新規作成すると下書き保存・履歴管理が利用できます。
+            </span>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleCreateShiftPlan}
+              loading={isCreating}
+              disabled={isCreating}
+            >
+              ✨ 新規作成
+            </Button>
+          </div>
+        )}
+
         {/* カレンダー */}
         {isLoading || planLoading ? (
           <div className="flex items-center justify-center py-20 text-gray-400 text-sm">
@@ -182,7 +223,7 @@ function ShiftRequirementsContent() {
             year={calYear}
             month={calMonth}
             pastPlan={effectiveMode === "past" ? shiftPlan : null}
-            currentPlanId={effectiveMode === "edit" ? shiftPlan?.id : undefined}
+            currentPlanId={effectiveMode === "edit" ? (createdPlanId ?? shiftPlan?.id) : undefined}
             readOnly={effectiveMode === "past"}
             onYearMonthChange={handleYearMonthChange}
           />

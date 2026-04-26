@@ -34,5 +34,6 @@ export interface ShiftPlanDetail {
   title: string;
   target_year_month: string;
   status: PlanStatus;
+  updated_at?: string | null;
   slots: ShiftSlotDetail[];
 }
