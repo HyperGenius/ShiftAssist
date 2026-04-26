@@ -630,14 +630,7 @@ class TestImportShiftPlan:
         ).encode("utf-8")
 
         plan1 = _make_shift_plan()
-        plan2 = ShiftPlan()
-        plan2.id = uuid.uuid4()
-        plan2.tenant_id = TENANT_ID
-        plan2.title = f"{TARGET_YM} インポート2"
-        plan2.target_year_month = TARGET_YM
-        plan2.status = PlanStatusEnum.published
-        plan2.created_by = "import"
-        plan2.created_at = datetime(2026, 1, 2)
+        plan2 = _make_shift_plan(plan_id=uuid.uuid4())
 
         session = self._make_session_mock_with_existing_plans([plan1, plan2], [])
 
@@ -661,10 +654,10 @@ class TestImportShiftPlan:
 PLAN_ID = uuid.uuid4()
 
 
-def _make_shift_plan() -> ShiftPlan:
+def _make_shift_plan(plan_id: uuid.UUID | None = None) -> ShiftPlan:
     """テスト用ShiftPlanオブジェクトを生成するヘルパー."""
     plan = ShiftPlan()
-    plan.id = PLAN_ID
+    plan.id = plan_id if plan_id is not None else PLAN_ID
     plan.tenant_id = TENANT_ID
     plan.title = f"{TARGET_YM} インポート"
     plan.target_year_month = TARGET_YM
